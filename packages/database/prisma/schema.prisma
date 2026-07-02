@@ -1,0 +1,562 @@
+generator client {
+  provider        = "prisma-client-js"
+  output          = "../generated/client"
+  previewFeatures = ["fullTextSearch", "postgresqlExtensions"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector", schema: "public")]
+}
+
+enum Role {
+  STUDENT
+  INSTRUCTOR
+  REGIONAL_ADMIN
+  SUPER_ADMIN
+}
+
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum Difficulty {
+  beginner
+  intermediate
+  advanced
+}
+
+enum LessonType {
+  TEXT
+  VIDEO
+  PDF
+  LINK
+  QUIZ
+  ASSIGNMENT
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  MULTIPLE_SELECT
+  TRUE_FALSE
+  ESSAY
+  MATCHING
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  DROPPED
+}
+
+enum NotificationType {
+  INFO
+  SUCCESS
+  WARNING
+  ERROR
+}
+
+enum ChatRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum StorageProvider {
+  R2
+  S3
+  MINIO
+  LOCAL
+}
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  name         String
+  email        String    @unique
+  passwordHash String
+  avatarUrl    String?
+  phoneNumber  String?
+  role         Role      @default(STUDENT)
+  regionId     String    @db.Uuid
+  organization String?
+  bio          String?
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  region               Region                @relation(fields: [regionId], references: [id])
+  coursesInstructed    Course[]              @relation("CourseInstructor")
+  enrollments          Enrollment[]
+  submissions          Submission[]
+  certificates         Certificate[]
+  chatSessions         ChatSession[]
+  notifications        Notification[]
+  activities           Activity[]
+  quizAttempts         QuizAttempt[]
+  userBadges           UserBadge[]
+  leaderboardEntries   Leaderboard[]
+  analyticsEvents      AnalyticsEvent[]
+  materials            Material[]
+  aiUsages             AiUsage[]
+
+  @@index([email])
+  @@index([role])
+  @@index([regionId])
+  @@index([isActive])
+}
+
+model Region {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique
+  slug        String   @unique
+  themeColor  String   @default("#0047BA")
+  logoUrl     String?
+  bannerUrl   String?
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users     User[]
+  courses   Course[]
+}
+
+model Course {
+  id                String       @id @default(uuid()) @db.Uuid
+  title             String
+  slug              String       @unique
+  shortDescription  String
+  description       String
+  thumbnailUrl      String?
+  bannerUrl         String?
+  instructorId      String       @db.Uuid
+  regionId          String       @db.Uuid
+  difficulty        Difficulty   @default(beginner)
+  estimatedDuration Int          @default(0)
+  language          String       @default("id")
+  category          String
+  tags              String[]     @default([])
+  totalModules      Int          @default(0)
+  totalLessons      Int          @default(0)
+  totalStudents     Int          @default(0)
+  totalViews        Int          @default(0)
+  rating            Float        @default(0)
+  status            CourseStatus @default(DRAFT)
+  publishedAt       DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  deletedAt         DateTime?
+
+  instructor  User          @relation("CourseInstructor", fields: [instructorId], references: [id])
+  region      Region        @relation(fields: [regionId], references: [id])
+  modules     Module[]
+  enrollments Enrollment[]
+  certificates Certificate[]
+
+  @@index([slug])
+  @@index([instructorId])
+  @@index([regionId])
+  @@index([status])
+  @@index([category])
+  @@index([difficulty])
+}
+
+model Module {
+  id                String   @id @default(uuid()) @db.Uuid
+  courseId          String   @db.Uuid
+  title             String
+  description       String?
+  order             Int
+  estimatedDuration Int      @default(0)
+  isPublished       Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons Lesson[]
+
+  @@index([courseId])
+  @@unique([courseId, order])
+}
+
+model Lesson {
+  id          String     @id @default(uuid()) @db.Uuid
+  moduleId    String     @db.Uuid
+  title       String
+  order       Int
+  type        LessonType @default(TEXT)
+  duration    Int        @default(0)
+  isPreview   Boolean    @default(false)
+  isPublished Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  module     Module         @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  content    LessonContent?
+  progress   Progress[]
+  quiz       Quiz[]
+  assignment Assignment[]
+  chatSession ChatSession[]
+  embeddings Embedding[]
+
+  @@index([moduleId])
+  @@unique([moduleId, order])
+}
+
+model LessonContent {
+  id          String  @id @default(uuid()) @db.Uuid
+  lessonId    String  @unique @db.Uuid
+  markdown    String?
+  html        String?
+  videoUrl    String?
+  youtubeUrl  String?
+  pdfUrl      String?
+  externalUrl String?
+  transcript  String?
+  attachmentId String? @unique @db.Uuid
+
+  lesson     Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  attachment Material? @relation(fields: [attachmentId], references: [id])
+}
+
+model Material {
+  id               String          @id @default(uuid()) @db.Uuid
+  filename         String
+  originalFilename String
+  mimeType         String
+  extension        String
+  fileSize         Int
+  storageProvider  StorageProvider @default(R2)
+  storageKey       String
+  publicUrl        String
+  uploadedBy       String          @db.Uuid
+  uploadedAt       DateTime        @default(now())
+
+  uploader       User            @relation(fields: [uploadedBy], references: [id])
+  lessonContent  LessonContent?
+  submissions    Submission[]
+
+  @@index([uploadedBy])
+}
+
+model Enrollment {
+  id              String           @id @default(uuid()) @db.Uuid
+  userId          String           @db.Uuid
+  courseId        String           @db.Uuid
+  enrolledAt      DateTime         @default(now())
+  completedAt     DateTime?
+  progressPercent Int              @default(0)
+  status          EnrollmentStatus @default(ACTIVE)
+
+  user     User       @relation(fields: [userId], references: [id])
+  course   Course     @relation(fields: [courseId], references: [id])
+  progress Progress[]
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([courseId])
+  @@index([status])
+}
+
+model Progress {
+  id            String    @id @default(uuid()) @db.Uuid
+  enrollmentId  String    @db.Uuid
+  lessonId      String    @db.Uuid
+  completed     Boolean   @default(false)
+  videoPosition Int       @default(0)
+  completedAt   DateTime?
+
+  enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  lesson     Lesson     @relation(fields: [lessonId], references: [id])
+
+  @@unique([enrollmentId, lessonId])
+}
+
+model Quiz {
+  id              String   @id @default(uuid()) @db.Uuid
+  lessonId        String   @unique @db.Uuid
+  title           String
+  description     String?
+  passingScore    Int      @default(70)
+  durationMinutes Int      @default(0)
+  maxAttempt      Int      @default(3)
+  shuffleQuestion Boolean  @default(false)
+  shuffleChoice   Boolean  @default(false)
+
+  lesson    Lesson        @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  questions Question[]
+  attempts  QuizAttempt[]
+
+  @@index([lessonId])
+}
+
+model Question {
+  id          String       @id @default(uuid()) @db.Uuid
+  quizId      String       @db.Uuid
+  type        QuestionType @default(MULTIPLE_CHOICE)
+  question    String
+  explanation String?
+  score       Int          @default(1)
+  order       Int          @default(0)
+
+  quiz    Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  choices Choice[] 
+  answers QuizAnswer[]
+
+  @@index([quizId])
+}
+
+model Choice {
+  id         String  @id @default(uuid()) @db.Uuid
+  questionId String  @db.Uuid
+  label      String
+  value      String
+  isCorrect  Boolean @default(false)
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+}
+
+model QuizAttempt {
+  id           String    @id @default(uuid()) @db.Uuid
+  quizId       String    @db.Uuid
+  userId       String    @db.Uuid
+  startedAt    DateTime  @default(now())
+  submittedAt  DateTime?
+  score        Int
+  passed       Boolean   @default(false)
+
+  quiz    Quiz         @relation(fields: [quizId], references: [id])
+  user    User         @relation(fields: [userId], references: [id])
+  answers QuizAnswer[]
+
+  @@index([quizId, userId])
+  @@index([userId])
+}
+
+model QuizAnswer {
+  id         String @id @default(uuid()) @db.Uuid
+  attemptId  String @db.Uuid
+  questionId String @db.Uuid
+  answer     Json
+  score      Int
+
+  attempt  QuizAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question Question    @relation(fields: [questionId], references: [id])
+
+  @@unique([attemptId, questionId])
+}
+
+model Assignment {
+  id                String   @id @default(uuid()) @db.Uuid
+  lessonId          String   @unique @db.Uuid
+  title             String
+  instruction       String
+  dueDate           DateTime?
+  maxScore          Int      @default(100)
+  allowedExtensions String[] @default([])
+
+  lesson      Lesson       @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  submissions Submission[]
+
+  @@index([lessonId])
+}
+
+model Submission {
+  id           String    @id @default(uuid()) @db.Uuid
+  assignmentId String    @db.Uuid
+  studentId    String    @db.Uuid
+  materialId   String    @db.Uuid
+  score        Int?
+  feedback     String?
+  submittedAt  DateTime  @default(now())
+  gradedAt     DateTime?
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id])
+  student    User       @relation(fields: [studentId], references: [id])
+  material   Material   @relation(fields: [materialId], references: [id])
+
+  @@index([assignmentId])
+  @@index([studentId])
+}
+
+model Certificate {
+  id                String   @id @default(uuid()) @db.Uuid
+  certificateNumber String   @unique
+  userId            String   @db.Uuid
+  courseId          String   @db.Uuid
+  qrCodeUrl         String?
+  pdfUrl            String?
+  issuedAt          DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id])
+  course Course @relation(fields: [courseId], references: [id])
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([courseId])
+}
+
+model Badge {
+  id          String @id @default(uuid()) @db.Uuid
+  title       String @unique
+  description String
+  iconUrl     String?
+  xpReward    Int    @default(0)
+
+  userBadges UserBadge[]
+}
+
+model UserBadge {
+  id       String   @id @default(uuid()) @db.Uuid
+  badgeId  String   @db.Uuid
+  userId   String   @db.Uuid
+  earnedAt DateTime @default(now())
+
+  badge Badge @relation(fields: [badgeId], references: [id])
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@unique([badgeId, userId])
+}
+
+model Leaderboard {
+  id         String   @id @default(uuid()) @db.Uuid
+  regionId   String?  @db.Uuid
+  courseId   String?  @db.Uuid
+  userId     String   @db.Uuid
+  totalXP    Int      @default(0)
+  totalScore Int      @default(0)
+  rank       Int      @default(0)
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, regionId, courseId])
+  @@index([regionId])
+  @@index([courseId])
+  @@index([rank])
+}
+
+model ChatSession {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  lessonId  String?  @db.Uuid
+  courseId  String?  @db.Uuid
+  title     String
+  createdAt DateTime @default(now())
+
+  user     User          @relation(fields: [userId], references: [id])
+  lesson   Lesson?       @relation(fields: [lessonId], references: [id])
+  messages ChatMessage[]
+
+  @@index([userId])
+  @@index([lessonId])
+}
+
+model ChatMessage {
+  id          String   @id @default(uuid()) @db.Uuid
+  sessionId   String   @db.Uuid
+  role        ChatRole @default(USER)
+  content     String
+  sources     Json?
+  tokenUsage  Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+}
+
+model Embedding {
+  id         String   @id @default(uuid()) @db.Uuid
+  lessonId   String   @db.Uuid
+  chunkIndex Int
+  content    String
+  embedding  Unsupported("vector(1536)")
+  tokenCount Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@index([lessonId])
+}
+
+model Activity {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @db.Uuid
+  action       String
+  resourceType String
+  resourceId   String?
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model Notification {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @db.Uuid
+  title     String
+  body      String
+  type      NotificationType @default(INFO)
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+}
+
+model AnalyticsEvent {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @db.Uuid
+  eventName  String
+  properties Json?
+  occurredAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([eventName])
+  @@index([occurredAt])
+  @@index([userId, eventName])
+}
+
+model SystemSetting {
+  id        String   @id @default(uuid()) @db.Uuid
+  key       String   @unique
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
+}
+
+/// Log penggunaan AI per request untuk billing/quota monitoring.
+/// userId nullable agar request tanpa auth (mis. background job) tetap tercatat.
+model AiUsage {
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String?  @db.Uuid
+  feature          String
+  model            String
+  promptTokens     Int      @default(0)
+  completionTokens Int      @default(0)
+  totalTokens      Int      @default(0)
+  occurredAt       DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([feature])
+  @@index([occurredAt])
+  @@index([userId, feature, occurredAt])
+}

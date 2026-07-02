@@ -1,0 +1,140 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: lms-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: lms
+      POSTGRES_PASSWORD: lms_dev
+      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_DB: lms_dev
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lms -d lms_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: lms-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: lms-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: lms_minio
+      MINIO_ROOT_PASSWORD: lms_minio_dev
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  api:
+    image: node:20
+    container_name: lms-api
+    working_dir: /app
+    command: >
+      sh -c "
+        corepack enable &&
+        corepack prepare pnpm@9.15.9 --activate &&
+        pnpm install --frozen-lockfile &&
+        pnpm --filter @lms/api dev
+      "
+    ports:
+      - "${API_PORT:-4000}:4000"
+    environment:
+      NODE_ENV: development
+      PORT: "4000"
+      APP_URL: "http://localhost:4000"
+      WEB_URL: "http://localhost:3000"
+      CORS_ORIGINS: "http://localhost:3000"
+      DATABASE_URL: "postgresql://lms:lms_dev@postgres:5432/lms_dev?schema=public"
+      REDIS_URL: "redis://redis:6379"
+      REDIS_PREFIX: "lms:"
+      JWT_ACCESS_SECRET: dev-access-secret-64-char-random-replace-prod
+      JWT_REFRESH_SECRET: dev-refresh-secret-64-char-random-replace-prod
+      JWT_ACCESS_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN: 7d
+      BCRYPT_ROUNDS: "12"
+      STORAGE_PROVIDER: minio
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: lms_minio
+      MINIO_SECRET_KEY: lms_minio_dev
+      MINIO_BUCKET: lms-dev
+      MINIO_USE_SSL: "false"
+      AI_PROVIDER: openai
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-placeholder}
+      LOG_LEVEL: info
+      FEATURE_AI_ENABLED: "true"
+      FEATURE_LEADERBOARD_ENABLED: "true"
+    volumes:
+      - .:/app
+      - api_node_modules:/app/node_modules
+      - pnpm_store:/root/.local/share/pnpm/store
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    profiles:
+      - dev
+      - full
+
+  web:
+    image: node:20
+    container_name: lms-web
+    working_dir: /app
+    command: >
+      sh -c "
+        corepack enable &&
+        corepack prepare pnpm@9.15.9 --activate &&
+        pnpm install --frozen-lockfile &&
+        pnpm --filter @lms/web dev
+      "
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: "http://localhost:4000/api/v1"
+      NEXT_PUBLIC_APP_URL: "http://localhost:3000"
+      NEXT_PUBLIC_STORAGE_URL: "http://localhost:9000"
+    volumes:
+      - .:/app
+      - web_node_modules:/app/node_modules
+      - pnpm_store:/root/.local/share/pnpm/store
+    depends_on:
+      - api
+    profiles:
+      - dev
+      - full
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+  api_node_modules:
+  web_node_modules:
+  pnpm_store:

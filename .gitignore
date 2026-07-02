@@ -1,0 +1,41 @@
+# Dependencies
+node_modules
+.pnpm-store/
+.pnpm-state.json
+
+# Build
+.next
+dist
+build
+.turbo
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Debug
+npm-debug.log*
+pnpm-debug.log*
+
+# Testing
+coverage
+.nyc_output
+
+# Prisma
+packages/database/generated
+
+# Storage (local dev)
+storage/
+
+# Misc
+*.tsbuildinfo

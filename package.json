@@ -1,0 +1,41 @@
+{
+  "name": "lms-kominfo",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.9",
+  "scripts": {
+    "dev": "pnpm --filter @lms/api --filter @lms/web --parallel dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "test:integration": "turbo test:integration",
+    "test:e2e": "turbo test:e2e",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
+    "db:generate": "pnpm --filter @lms/database prisma generate",
+    "db:studio": "pnpm --filter @lms/database prisma studio",
+    "db:migrate": "docker run --rm --network lms_kominfo_default -e \"DATABASE_URL=postgresql://lms:lms_dev@lms-postgres:5432/lms_dev?schema=public\" -v \"%CD%\\packages\\database:/app\" -w /app node:20 npx prisma@5.22.0 migrate dev --schema prisma/schema.prisma",
+    "db:deploy": "docker run --rm --network lms_kominfo_default -e \"DATABASE_URL=postgresql://lms:lms_dev@lms-postgres:5432/lms_dev?schema=public\" -v \"%CD%\\packages\\database:/app\" -w /app node:20 npx prisma@5.22.0 migrate deploy --schema prisma/schema.prisma",
+    "db:push": "docker run --rm --network lms_kominfo_default -e \"DATABASE_URL=postgresql://lms:lms_dev@lms-postgres:5432/lms_dev?schema=public\" -v \"%CD%\\packages\\database:/app\" -w /app node:20 npx prisma@5.22.0 db push --schema prisma/schema.prisma",
+    "db:seed": "pnpm --filter @lms/database tsx src/seed.ts",
+    "docker:dev": "docker compose --profile dev up api web",
+    "docker:full": "docker compose --profile full up -d",
+    "docker:down": "docker compose down",
+    "docker:reset": "docker compose down -v && docker compose up -d",
+    "prepare": "husky || true"
+  },
+  "devDependencies": {
+    "@lms/eslint-config": "workspace:*",
+    "@lms/prettier-config": "workspace:*",
+    "@lms/tsconfig": "workspace:*",
+    "husky": "^9.0.0",
+    "prettier": "^3.3.0",
+    "turbo": "^2.0.0",
+    "typescript": "~5.5.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  }
+}
