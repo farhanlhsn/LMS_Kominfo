@@ -1,0 +1,35 @@
+export const SYSTEM_ROLES = {
+  superAdmin: "super_admin",
+  orgAdmin: "org_admin",
+  courseManager: "course_manager",
+  instructor: "instructor",
+  assistantInstructor: "assistant_instructor",
+  reviewer: "reviewer",
+  mentor: "mentor",
+  learner: "learner",
+  supportAdmin: "support_admin",
+  financeAdmin: "finance_admin",
+} as const;
+
+export const PERMISSIONS = {
+  platformAdmin: "platform:admin",
+  organizationsManage: "organizations:manage",
+  membershipsManage: "memberships:manage",
+  rolesManage: "roles:manage",
+  auditRead: "audit:read",
+  usersRead: "users:read",
+  usersUpdate: "users:update",
+  coursesRead: "courses:read",
+  coursesCreate: "courses:create",
+  coursesUpdate: "courses:update",
+  coursesPublish: "courses:publish",
+  filesRead: "files:read",
+  filesCreate: "files:create",
+  filesDelete: "files:delete",
+  contentLibraryManage: "content-library:manage",
+  contentProcess: "content:process",
+  pluginsConfigure: "plugins:configure",
+} as const;
+
+export type SystemRole = (typeof SYSTEM_ROLES)[keyof typeof SYSTEM_ROLES];
+export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

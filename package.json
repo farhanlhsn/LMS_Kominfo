@@ -1,0 +1,26 @@
+{
+  "name": "lms-platform",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@11.7.0",
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev --parallel",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "lint": "turbo lint",
+    "db:generate": "pnpm --filter @lms/db prisma:generate",
+    "db:migrate": "pnpm --filter @lms/db prisma:migrate",
+    "db:deploy": "pnpm --filter @lms/db prisma:deploy",
+    "db:seed": "pnpm --filter @lms/db db:seed",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css}\""
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2",
+    "prisma": "^6.10.1",
+    "tsx": "^4.20.3",
+    "turbo": "^2.5.8",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}

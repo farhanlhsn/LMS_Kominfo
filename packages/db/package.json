@@ -1,0 +1,31 @@
+{
+  "name": "@lms/db",
+  "version": "0.0.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.prisma.json --noEmit",
+    "lint": "pnpm typecheck",
+    "test": "vitest run --passWithNoTests",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:status": "prisma migrate status",
+    "db:seed": "prisma db seed"
+  },
+  "dependencies": {
+    "@lms/shared": "workspace:*",
+    "@prisma/client": "^6.10.1",
+    "bcryptjs": "^3.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "dotenv": "^17.4.2",
+    "prisma": "^6.10.1",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}
