@@ -1,0 +1,40 @@
+# Phase Index
+
+- [`phase-00-project-foundation.md`](phase-00-project-foundation.md) - Phase 00 - Project Foundation
+- [`phase-01-auth-rbac-multitenant.md`](phase-01-auth-rbac-multitenant.md) - Phase 01 - Auth, RBAC, Multi-Tenant
+- [`phase-02-core-lms.md`](phase-02-core-lms.md) - Phase 02 - Core LMS MVP
+- [`phase-03-content-file-video.md`](phase-03-content-file-video.md) - Phase 03 - Content, File, Video
+- [`phase-04-plugin-foundation.md`](phase-04-plugin-foundation.md) - Phase 04 - Plugin Architecture Foundation
+- [`phase-05-advanced-learning-workspace.md`](phase-05-advanced-learning-workspace.md) - Phase 05 - Advanced Learning Workspace Foundation
+- [`phase-06-quiz-engine.md`](phase-06-quiz-engine.md) - Phase 06 - Quiz Engine and Question Bank
+- [`phase-07-assignment-certificate-goals.md`](phase-07-assignment-certificate-goals.md) - Phase 07 - Assignment, Certificate, Goals
+- [`phase-08-ai-rag.md`](phase-08-ai-rag.md) - Phase 08 - AI Tutor and RAG
+- [`phase-09-discussion-live-notification-calendar.md`](phase-09-discussion-live-notification-calendar.md) - Phase 09 - Discussion, Live Class, Notification, Calendar
+- [`phase-10-analytics-admin-reporting.md`](phase-10-analytics-admin-reporting.md) - Phase 10 - Analytics, Admin, Reporting
+- [`phase-11-learning-path-gamification.md`](phase-11-learning-path-gamification.md) - Phase 11 - Learning Path and Gamification
+- [`phase-12-payment-marketplace.md`](phase-12-payment-marketplace.md) - Phase 12 - Payment and Marketplace
+- [`phase-13-enterprise-sso-api-webhook.md`](phase-13-enterprise-sso-api-webhook.md) - Phase 13 - Enterprise SSO, API, Webhook
+- [`phase-14-pwa-performance-hardening.md`](phase-14-pwa-performance-hardening.md) - Phase 14 - PWA, Mobile, Performance, Hardening
+- [`phase-15-review-wishlist-bookmark.md`](phase-15-review-wishlist-bookmark.md) - Phase 15 - Reviews, Wishlist, Notes, Bookmark
+- [`phase-16-scorm-xapi-h5p-survey.md`](phase-16-scorm-xapi-h5p-survey.md) - Phase 16 - SCORM, xAPI, H5P, Survey, Polling
+- [`phase-17-advanced-video.md`](phase-17-advanced-video.md) - Phase 17 - Advanced Video Learning
+- [`phase-18-advanced-assignment.md`](phase-18-advanced-assignment.md) - Phase 18 - Advanced Assignment
+- [`phase-19-global-search.md`](phase-19-global-search.md) - Phase 19 - Global and Semantic Search
+- [`phase-20-localization-help-center.md`](phase-20-localization-help-center.md) - Phase 20 - Localization and Help Center
+- [`phase-21-data-governance-backup.md`](phase-21-data-governance-backup.md) - Phase 21 - Data Governance and Backup
+- [`phase-22-oauth-captcha-mfa.md`](phase-22-oauth-captcha-mfa.md) - Phase 22 - OAuth, CAPTCHA, MFA
+- [`phase-23-timezone-cohort-scheduling.md`](phase-23-timezone-cohort-scheduling.md) - Phase 23 - Timezone, Cohort, Scheduling
+- [`phase-24-realtime-gateway.md`](phase-24-realtime-gateway.md) - Phase 24 - Realtime Gateway
+- [`phase-25-bulk-operations.md`](phase-25-bulk-operations.md) - Phase 25 - Bulk Operations
+- [`phase-26-moderation-legal-consent.md`](phase-26-moderation-legal-consent.md) - Phase 26 - Moderation, Legal, Consent
+- [`phase-27-direct-messaging.md`](phase-27-direct-messaging.md) - Phase 27 - Direct Messaging
+- [`phase-28-proctoring.md`](phase-28-proctoring.md) - Phase 28 - Proctoring Readiness
+- [`phase-29-revenue-share-payout.md`](phase-29-revenue-share-payout.md) - Phase 29 - Revenue Share and Payout
+- [`phase-30-multi-currency-tax.md`](phase-30-multi-currency-tax.md) - Phase 30 - Multi-Currency and Tax
+- [`phase-31-3d-content-plugin.md`](phase-31-3d-content-plugin.md) - Phase 31 - 3D Interactive Content Plugin
+- [`phase-32-code-runner-plugin.md`](phase-32-code-runner-plugin.md) - Phase 32 - Code Runner Plugin
+- [`phase-33-plugin-marketplace-governance.md`](phase-33-plugin-marketplace-governance.md) - Phase 33 - Plugin Marketplace Governance
+- [`phase-34-popout-dual-monitor.md`](phase-34-popout-dual-monitor.md) - Phase 34 - Pop-out and Dual-Monitor Mode
+- [`phase-35-transcript-notes-ai-context.md`](phase-35-transcript-notes-ai-context.md) - Phase 35 - Transcript, Notes, AI Context
+- [`phase-36-plugin-workspace-panels.md`](phase-36-plugin-workspace-panels.md) - Phase 36 - Plugin Workspace Panels
+- [`phase-37-final-production-audit.md`](phase-37-final-production-audit.md) - Phase 37 - Final Production Audit

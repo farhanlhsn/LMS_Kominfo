@@ -1,0 +1,5512 @@
+CONTEXT UNTUK CODEX - AI-POWERED LEARNING MANAGEMENT SYSTEM LENGKAP
+=====================================================================
+
+Versi dokumen: 3.0 - updated dengan gap review, multi-organization SSO strategy, dan plugin-ready architecture
+Tujuan dokumen: menjadi konteks utama untuk Codex dalam membangun LMS secara bertahap dari pondasi MVP sampai fitur lengkap skala enterprise.
+
+CATATAN PENTING
+---------------
+1. Platform harus bersifat general.
+2. Jangan gunakan nama instansi, nama daerah, atau nama organisasi tertentu di UI, seed, dokumentasi, variable, maupun copywriting.
+3. Gunakan nama produk generic seperti "Learning Platform", "AI Learning Platform", atau "LMS Platform".
+4. Platform harus terasa seperti gabungan Coursera dan Moodle, dengan tambahan AI assistant.
+5. Phase awal harus menjadi pondasi kokoh agar phase akhir tidak perlu rombak besar.
+6. Setiap phase harus menghasilkan aplikasi yang tetap bisa dijalankan.
+7. Jangan membuat fitur dummy yang tidak bisa dilanjutkan, kecuali ditandai jelas sebagai placeholder yang sudah punya struktur lanjutan.
+8. Semua fitur harus multi-tenant ready, RBAC ready, analytics ready, storage abstraction ready, dan AI ready.
+9. Semua API harus versioned dengan prefix /api/v1.
+10. Gunakan TypeScript strict mode dan pendekatan modular.
+
+============================================================
+A. VISI PRODUK
+============================================================
+
+Bangun sebuah AI-powered Learning Management System berbasis web yang menyediakan:
+- Course catalog seperti marketplace pembelajaran.
+- Course builder seperti LMS modern.
+- Materi text, video, PDF, file, link, audio, interactive content.
+- Quiz engine lengkap dengan question bank.
+- Assignment, rubric grading, project submission, peer review.
+- Progress tracking detail.
+- Goals, skills, learning path, gamification.
+- Sertifikat digital dengan QR verification.
+- AI tutor yang menjawab berdasarkan materi course.
+- AI tools untuk instructor: generate quiz, summary, flashcard, assignment, rubric, syllabus, outline.
+- Discussion forum, announcement, live class, calendar, notification.
+- Analytics dashboard untuk learner, instructor, admin, dan super admin.
+- Multi-tenant organization management.
+- White label branding.
+- Payment, marketplace, subscription, coupon, voucher.
+- SSO, API key, webhook, audit log, compliance.
+- Plugin-ready architecture untuk activity, content, assessment, AI tools, integrations, payment providers, notification channels, video providers, proctoring, analytics, dan certificate requirements.
+- PWA, mobile responsive, performance optimized, secure, production-ready.
+
+Produk akhir harus bisa dipakai untuk banyak organisasi, banyak course, banyak instructor, dan banyak learner tanpa perubahan arsitektur besar.
+
+============================================================
+B. TECH STACK WAJIB
+============================================================
+
+Monorepo:
+- Turborepo
+- pnpm workspace
+
+Frontend:
+- Next.js App Router
+- TypeScript
+- Tailwind CSS
+- shadcn/ui
+- React Hook Form
+- Zod
+- TanStack Query atau equivalent
+- Zustand atau equivalent untuk state ringan
+- TipTap untuk rich text editor
+- Recharts atau equivalent untuk chart
+- PDF viewer library
+- Video player library
+
+Backend:
+- NestJS
+- TypeScript
+- REST API sebagai core implementation. Jangan implement GraphQL kecuali diminta eksplisit di phase terpisah agar Codex tidak membuat dua kontrak API yang saling membingungkan.
+- Swagger/OpenAPI documentation
+- Class Validator / Zod DTO validation
+- Global exception filter
+- Global validation pipe
+- Request logging middleware
+- API prefix /api/v1
+
+Database:
+- PostgreSQL
+- Prisma ORM
+- Prisma migrations
+- Seed data idempotent
+- Soft delete untuk resource penting
+- Proper indexes dan constraints sejak awal
+
+Cache, queue, worker:
+- Redis
+- BullMQ
+- Worker process untuk jobs:
+  - content processing
+  - video processing placeholder
+  - AI indexing
+  - notification sending
+  - analytics aggregation
+  - report export
+  - webhook delivery
+
+Storage:
+- StorageService interface
+- MinIO untuk local development
+- S3-compatible provider untuk production, misalnya S3/R2/Spaces
+- Signed URL untuk file private
+- File metadata, access level, checksum, file size validation
+
+AI:
+- LLM provider abstraction
+- Embedding provider abstraction
+- RAG-ready architecture
+- Vector store menggunakan pgvector atau abstraction agar bisa pindah ke Qdrant/Pinecone
+- AI output harus bisa disimpan, direview, approve/reject, dan dipublish
+- AI answer harus berbasis materi course saat konteks course tersedia
+
+Deployment:
+- Docker Compose untuk local
+- Dockerfile untuk web, api, worker
+- CI/CD dengan GitHub Actions placeholder
+- Environment validation
+- Health checks
+
+Testing:
+- Unit test untuk service penting
+- Integration test untuk API penting
+- E2E smoke test minimal
+- Permission regression test
+
+Documentation:
+- README
+- docs/architecture.md
+- docs/database.md
+- docs/api.md
+- docs/phases.md
+- docs/deployment.md
+- docs/admin-guide.md
+- docs/instructor-guide.md
+- docs/learner-guide.md
+
+============================================================
+C. ARSITEKTUR FOLDER
+============================================================
+
+Gunakan struktur berikut:
+
+apps/
+  web/
+    Next.js frontend
+  api/
+    NestJS backend
+  worker/
+    BullMQ workers, boleh digabung sementara dengan api jika perlu tapi harus modular
+
+packages/
+  db/
+    Prisma schema, migrations, seed
+  shared/
+    shared types, enums, constants, validation schemas
+  ui/
+    reusable UI components jika dipisah
+  config/
+    eslint, prettier, tsconfig shared
+
+infra/
+  docker/
+  nginx/
+  scripts/
+
+docs/
+  architecture.md
+  database.md
+  api.md
+  phases.md
+  deployment.md
+  security.md
+  ai.md
+  testing.md
+
+============================================================
+D. PRINSIP DESAIN ARSITEKTUR
+============================================================
+
+1. Multi-tenant dari awal
+- Resource utama harus punya organizationId jika relevan.
+- User bisa punya banyak organization membership.
+- Semua query tenant harus difilter organizationId kecuali super admin.
+- Gunakan OrganizationContext agar API konsisten.
+
+2. RBAC dari awal
+- Jangan hardcode hanya admin/user.
+- Gunakan roles, permissions, role_permissions, member_roles.
+- Permission harus per module dan action.
+- Super admin global.
+- Organization admin per organization.
+
+3. Course structure extensible
+- Course -> Module -> Lesson -> Activity.
+- Activity type harus extensible: TEXT, VIDEO, FILE, LINK, QUIZ, ASSIGNMENT, DISCUSSION, LIVE_SESSION, SURVEY, POLL, SCORM, XAPI, H5P, AI_PRACTICE.
+
+4. Storage abstraction
+- Jangan langsung bergantung pada local filesystem.
+- Semua upload lewat StorageService.
+- File access pakai accessLevel dan signed URL.
+
+5. AI RAG-ready
+- Semua materi course bisa diekstrak menjadi AiDocument dan AiChunk.
+- AI tutor harus retrieve context dari materi.
+- AI generated content harus tersimpan sebagai draft.
+- Instructor approve sebelum masuk question bank atau course content.
+
+6. Progress tracking fleksibel
+- Simpan progress per activity, lesson, module, course, learning path.
+- Completion rule berbasis JSON agar bisa berkembang.
+- Video completion, quiz passed, assignment passed harus bisa mempengaruhi progress.
+
+7. Analytics event-based
+- Buat LearningEvent sejak awal.
+- Record event penting di semua flow.
+- Gunakan aggregation table untuk dashboard berat.
+
+8. Certificate verifiable
+- Certificate number unique.
+- Verification code unique.
+- QR code.
+- Public verification page.
+- Revoke/expire support.
+
+9. API consistent
+- Standard response format.
+- Standard error format.
+- Pagination format.
+- Query filters.
+- Request validation.
+
+10. Security first
+- Password hashing aman.
+- Refresh token rotation.
+- Rate limit.
+- File validation.
+- Audit log.
+- Secure headers.
+- Permission guard.
+
+
+11. Timezone strategy wajib sejak awal
+- Semua datetime disimpan dalam UTC di database.
+- UserProfile harus punya timezone default.
+- Organization harus punya timezone default.
+- Course, Cohort, LiveSession, Assignment due date, Quiz due date, CalendarEvent, dan NotificationSchedule harus menyimpan timezone asal saat dibuat.
+- Semua tampilan datetime di frontend dikonversi berdasarkan user timezone, dengan fallback organization timezone.
+- API harus menerima timezone eksplisit untuk semua schedule/due date, bukan mengandalkan timezone server.
+- Report date range harus jelas memakai organization timezone atau user timezone.
+
+12. Auth provider strategy wajib jelas
+- Email/password tetap tersedia.
+- Public OAuth/social login harus didukung lebih awal: Google dan Microsoft minimal; GitHub optional.
+- Enterprise SSO dipisah dari social login: SAML/OIDC untuk organization-managed login.
+- Buat AccountLinking/OAuthAccount entity agar satu user bisa punya beberapa login provider.
+- Jangan mencampur konsep public OAuth dengan enterprise SSO.
+
+13. Bot protection dan abuse prevention
+- Gunakan CaptchaProvider abstraction untuk register, login berulang gagal, forgot password, dan invite abuse.
+- Rate limit berdasarkan IP, email, userId, organizationId, dan API key.
+- Simpan security event untuk login failed, captcha failed, password reset request, dan suspicious activity.
+
+14. Realtime strategy wajib dari awal
+- Buat RealtimeGateway abstraction.
+- Gunakan WebSocket untuk notification realtime, discussion update, direct message, admin event, dan presence jika dibutuhkan.
+- Gunakan Server-Sent Events atau streaming response untuk AI tutor agar jawaban AI bisa stream token-by-token.
+- Gunakan Redis pub/sub untuk horizontal scaling.
+- Fallback polling harus tersedia untuk client yang tidak mendukung realtime.
+
+15. Course delivery mode harus fleksibel
+- Platform harus mendukung self-paced course dan cohort/scheduled course.
+- Cohort adalah batch/kelas dengan start date, end date, enrollment window, instructor, learner group, due date override, live session khusus, discussion khusus, dan report khusus.
+- Enrollment harus bisa linked ke Course saja atau ke Cohort.
+- Completion dan certificate rules harus bisa berbeda per cohort.
+
+16. Course publish and approval workflow harus eksplisit
+- CourseInstructor role minimal: OWNER, INSTRUCTOR, ASSISTANT, REVIEWER.
+- OWNER bisa mengelola penuh course.
+- INSTRUCTOR bisa edit content sesuai permission.
+- ASSISTANT tidak boleh final publish kecuali diberi permission eksplisit.
+- REVIEWER bisa approve/reject jika ditugaskan.
+- Organization Admin bisa final approve semua course dalam organization.
+- Course workflow minimal: DRAFT, SUBMITTED_FOR_REVIEW, CHANGES_REQUESTED, APPROVED, PUBLISHED, ARCHIVED.
+
+17. Accessibility/WCAG sejak desain UI
+- Semua komponen UI harus keyboard navigable.
+- Focus state harus jelas.
+- Form error harus screen-reader friendly.
+- Gunakan semantic HTML dan ARIA label bila perlu.
+- Kontras warna harus memenuhi WCAG AA minimal.
+- Video harus mendukung caption/subtitle/transcript untuk accessibility.
+- Accessibility bukan hanya QA akhir; harus masuk Phase frontend foundation.
+
+18. Video strategy wajib jelas
+- Gunakan VideoProviderAdapter agar bisa memakai vendor seperti Mux/Cloudflare Stream atau self-hosted pipeline.
+- Untuk production, rekomendasi default adalah vendor managed video agar MVP tidak terbebani encoding kompleks.
+- Jika self-hosted, pipeline harus mendukung upload original, queue processing, generate HLS/DASH, thumbnails, duration metadata, subtitle/transcript, signed playback URL, dan cleanup failed jobs.
+- Video progress, completion rule, prevent skipping, timestamp notes, dan video analytics harus tidak bergantung pada satu vendor.
+
+19. Payment, multi-currency, dan payout strategy
+- Product, Order, Payment, Refund, Invoice, Subscription, Payout harus menyimpan currency.
+- Organization bisa punya default currency.
+- Marketplace harus mendukung platform fee, instructor revenue share, payout account, payout batch, refund adjustment, dan payout status.
+- PaymentProvider dan PayoutProvider harus abstraction-based.
+- Exchange rate boleh placeholder dengan interface jelas jika belum implement real conversion.
+
+20. Moderation dan legal compliance wajib ada
+- Semua user-generated content seperti discussion, comment, review, project showcase, message, dan profile dapat direport.
+- Buat moderation queue, moderation case, moderation action, dan audit log.
+- Buat legal pages: Terms of Service, Privacy Policy, Cookie Policy.
+- Buat consent UI: cookie banner, terms acceptance, privacy consent.
+- Terms/privacy harus versioned; user perlu re-accept jika versi berubah.
+
+21. Bulk operations wajib untuk enterprise LMS
+- Admin harus bisa bulk import users via CSV/XLSX.
+- Admin harus bisa bulk invite users.
+- Admin harus bisa bulk enroll learners ke course/cohort/learning path.
+- Admin harus bisa bulk assign role/group/cohort.
+- Setiap bulk job harus punya validation preview, failed row report, rollback/undo strategy jika memungkinkan, dan audit log.
+
+22. Proctoring scope decision
+- Proctoring tidak wajib untuk MVP.
+- Namun exam/quiz architecture harus menyediakan ProctoringProvider abstraction untuk future.
+- Implement minimal exam integrity lebih dulu: fullscreen mode, tab switch detection, copy/paste prevention, suspicious event log.
+- Webcam/screen monitoring harus optional provider integration dan tidak menjadi dependency core.
+
+23. Provider abstraction rule
+- Semua integrasi eksternal harus lewat adapter/interface:
+  - StorageProvider
+  - VideoProvider
+  - LlmProvider
+  - EmbeddingProvider
+  - PaymentProvider
+  - PayoutProvider
+  - EmailProvider
+  - SmsProvider
+  - WhatsAppProvider
+  - PushProvider
+  - LiveSessionProvider
+  - CaptchaProvider
+  - SsoProvider
+  - ProctoringProvider
+- Jangan hardcode vendor tertentu di domain logic.
+
+============================================================
+E. STANDARD RESPONSE FORMAT
+============================================================
+
+Success response:
+{
+  "success": true,
+  "message": "...",
+  "data": {},
+  "meta": {}
+}
+
+Error response:
+{
+  "success": false,
+  "message": "...",
+  "error": {
+    "code": "...",
+    "details": {}
+  }
+}
+
+Pagination meta:
+{
+  "page": 1,
+  "limit": 20,
+  "total": 100,
+  "totalPages": 5
+}
+
+============================================================
+F. ROLE TARGET
+============================================================
+
+Role global dan tenant:
+- super_admin
+- organization_admin
+- course_manager
+- instructor
+- assistant_instructor
+- reviewer
+- learner
+- mentor
+- content_creator
+- finance_admin
+- support_admin
+- auditor
+- guest
+
+Permission module minimal:
+- auth
+- users
+- organizations
+- roles
+- permissions
+- courses
+- modules
+- lessons
+- activities
+- files
+- enrollments
+- progress
+- quizzes
+- assignments
+- certificates
+- goals
+- badges
+- learning_paths
+- discussions
+- live_sessions
+- notifications
+- analytics
+- ai
+- payments
+- reports
+- settings
+- api_keys
+- webhooks
+- audit_logs
+
+Action minimal:
+- read
+- create
+- update
+- delete
+- publish
+- archive
+- approve
+- reject
+- grade
+- export
+- import
+- manage
+
+============================================================
+G. DATA MODEL TARGET UTAMA
+============================================================
+
+Core identity:
+- User
+- UserProfile
+- UserPreference
+- UserSession
+- RefreshToken
+- PasswordResetToken
+- EmailVerificationToken
+
+Tenant and access:
+- Organization
+- OrganizationMember
+- OrganizationBranding
+- Role
+- Permission
+- RolePermission
+- MemberRole
+- AuditLog
+
+Content and storage:
+- File
+- Folder
+- ContentLibraryItem
+- MediaAsset
+- VideoAsset
+- VideoTranscript
+- Subtitle
+
+Course:
+- Course
+- CourseCategory
+- CourseTag
+- CourseInstructor
+- CourseModule
+- Lesson
+- Activity
+- ActivityContent
+- CourseVersion
+- CourseReviewWorkflow
+- CourseImportExportJob
+
+Enrollment and progress:
+- Enrollment
+- ProgressRecord
+- ActivityProgress
+- LessonProgress
+- ModuleProgress
+- CourseProgress
+- LearningEvent
+- TimeSpentLog
+
+Quiz:
+- QuestionBank
+- Question
+- QuestionOption
+- Quiz
+- QuizQuestion
+- QuizAttempt
+- QuizAnswer
+- QuizImportJob
+
+Assignment:
+- Assignment
+- Rubric
+- RubricCriterion
+- Submission
+- SubmissionFile
+- PeerReview
+- GroupAssignment
+- ProjectShowcase
+- PlagiarismCheck
+
+Certificate:
+- CertificateTemplate
+- Certificate
+- CertificateVerificationLog
+- CredentialBadge
+
+Goals and gamification:
+- Goal
+- Badge
+- UserBadge
+- XpTransaction
+- Streak
+- LeaderboardSnapshot
+
+Learning path and skills:
+- LearningPath
+- LearningPathCourse
+- LearningPathEnrollment
+- Skill
+- CourseSkill
+- UserSkill
+
+AI:
+- AiDocument
+- AiChunk
+- AiConversation
+- AiMessage
+- AiGeneratedItem
+- AiUsageLog
+- AiQuota
+- PromptTemplate
+
+Community:
+- DiscussionThread
+- DiscussionComment
+- DiscussionVote
+- Announcement
+
+Live and calendar:
+- LiveSession
+- Attendance
+- CalendarEvent
+
+Notification:
+- Notification
+- NotificationPreference
+- NotificationTemplate
+- EmailLog
+- PushSubscription
+
+Search:
+- SearchIndexJob
+- SearchAnalytics
+
+Payment:
+- Product
+- Bundle
+- Order
+- OrderItem
+- Payment
+- Coupon
+- Voucher
+- SubscriptionPlan
+- UserSubscription
+- Invoice
+- Refund
+
+Review and personalization:
+- CourseReview
+- CourseRating
+- Wishlist
+- Bookmark
+- PersonalNote
+- RecentlyViewed
+- FavoriteInstructor
+
+Interactive and standard e-learning:
+- ScormPackage
+- ScormAttempt
+- XapiStatement
+- H5PContent
+- Survey
+- SurveyQuestion
+- SurveyResponse
+- Poll
+- PollVote
+
+Enterprise:
+- SsoProvider
+- ApiKey
+- WebhookEndpoint
+- WebhookDelivery
+- DataExportRequest
+- DataRetentionPolicy
+- SupportTicket
+- HelpArticle
+- FaqItem
+
+
+============================================================
+G2. DATA MODEL TAMBAHAN WAJIB V2
+============================================================
+
+Tambahan model ini memperbaiki gap penting dari review arsitektur. Masukkan sejak awal sebagai schema-ready atau minimal migration-ready agar tidak perlu rombak besar.
+
+Identity, OAuth, MFA, and security:
+- OAuthAccount
+  - id, userId, provider, providerUserId, email, accessTokenEncrypted nullable, refreshTokenEncrypted nullable, scopes JSON, linkedAt, lastUsedAt
+- LoginAttempt
+  - id, userId nullable, email, ipAddress, userAgent, success, failureReason, createdAt
+- CaptchaVerificationLog
+  - id, userId nullable, action, provider, success, ipAddress, metadata JSON, createdAt
+- MfaFactor
+  - id, userId, type enum TOTP/EMAIL_OTP/SMS_OTP, secretEncrypted nullable, enabledAt, lastUsedAt, createdAt
+- SecurityEvent
+  - id, organizationId nullable, userId nullable, type, severity, ipAddress, userAgent, metadata JSON, createdAt
+
+Timezone and scheduling:
+- Add timezone field to UserProfile and Organization.
+- Add timezone field to LiveSession, CalendarEvent, Assignment, Quiz availability window, Cohort, NotificationSchedule, and ReportExport filters where relevant.
+- DueDatePolicy
+  - id, organizationId, courseId nullable, cohortId nullable, entityType, entityId, dueAtUtc, timezone, allowLateSubmission, latePenaltyPolicy JSON, createdAt
+
+Cohort and scheduled course delivery:
+- Cohort
+  - id, organizationId, courseId, name, slug, description, timezone, startsAt, endsAt, enrollmentOpensAt, enrollmentClosesAt, capacity nullable, status DRAFT/OPEN/ACTIVE/COMPLETED/CANCELLED, metadata JSON, createdAt, updatedAt
+- CohortMember
+  - id, organizationId, cohortId, userId, role LEARNER/INSTRUCTOR/MENTOR/REVIEWER, status INVITED/ACTIVE/COMPLETED/REMOVED, joinedAt, createdAt
+- CohortSchedule
+  - id, organizationId, cohortId, title, type LIVE_SESSION/ASSIGNMENT_DUE/QUIZ_DUE/MILESTONE/CUSTOM, startsAt, endsAt nullable, timezone, metadata JSON, createdAt
+- CohortProgressOverride
+  - id, organizationId, cohortId, courseId, rules JSON, createdAt, updatedAt
+
+Realtime and communication:
+- RealtimeSubscription
+  - id, userId, organizationId nullable, channel, connectionId, lastSeenAt, metadata JSON, createdAt
+- DirectMessageThread
+  - id, organizationId, type DIRECT/GROUP/MENTORING/SUPPORT, courseId nullable, cohortId nullable, createdById, createdAt, updatedAt
+- DirectMessageParticipant
+  - id, threadId, userId, role MEMBER/MODERATOR, lastReadAt nullable, createdAt
+- DirectMessage
+  - id, threadId, senderId, content, status SENT/EDITED/DELETED/HIDDEN, metadata JSON, createdAt, updatedAt
+- DirectMessageAttachment
+  - id, messageId, fileId, createdAt
+- DirectMessageReadReceipt
+  - id, messageId, userId, readAt
+
+Moderation and legal:
+- ContentReport
+  - id, organizationId nullable, reporterId, entityType, entityId, reason, details, status OPEN/REVIEWING/RESOLVED/DISMISSED, createdAt, updatedAt
+- ModerationCase
+  - id, organizationId nullable, assignedToId nullable, entityType, entityId, status OPEN/IN_REVIEW/RESOLVED/ESCALATED, priority LOW/MEDIUM/HIGH, createdAt, updatedAt
+- ModerationAction
+  - id, caseId, actorId, action HIDE/UNHIDE/DELETE/WARN/SUSPEND/BAN/RESTORE/DISMISS, reason, metadata JSON, createdAt
+- LegalDocument
+  - id, type TERMS/PRIVACY/COOKIE_POLICY, title, slug, status DRAFT/PUBLISHED/ARCHIVED, createdAt, updatedAt
+- LegalDocumentVersion
+  - id, documentId, version, content, publishedAt, effectiveAt, createdAt
+- ConsentRecord
+  - id, userId, documentVersionId nullable, consentType TERMS/PRIVACY/COOKIE/MARKETING, accepted, ipAddress, userAgent, createdAt
+- CookiePreference
+  - id, userId nullable, anonymousId nullable, necessary, analytics, marketing, preferences, updatedAt
+
+Bulk operations:
+- BulkImportJob
+  - id, organizationId, requestedById, type USERS/ENROLLMENTS/ROLES/COHORTS/CERTIFICATES, fileId, status PENDING/VALIDATING/READY_TO_IMPORT/PROCESSING/COMPLETED/FAILED, totalRows, successRows, failedRows, metadata JSON, createdAt, updatedAt
+- BulkImportRow
+  - id, jobId, rowNumber, rawData JSON, status VALID/INVALID/IMPORTED/FAILED, errors JSON, createdAt, updatedAt
+- BulkActionJob
+  - id, organizationId, requestedById, action, targetType, targetIds JSON, status, result JSON, createdAt, updatedAt
+
+Marketplace, revenue share, multi-currency, and payout:
+- Currency
+  - code, name, symbol, decimalPlaces, isActive
+- ExchangeRate
+  - id, baseCurrency, quoteCurrency, rate, provider, validAt, createdAt
+- PlatformFeeRule
+  - id, organizationId nullable, productType, feeType PERCENTAGE/FIXED, value, currency nullable, startsAt, endsAt nullable, status
+- RevenueShareRule
+  - id, organizationId nullable, courseId nullable, instructorId nullable, percentage, startsAt, endsAt nullable, status, createdAt
+- InstructorPayoutAccount
+  - id, organizationId, userId, provider, accountType, accountDataEncrypted, status PENDING/VERIFIED/REJECTED/DISABLED, createdAt, updatedAt
+- InstructorEarning
+  - id, organizationId, userId, courseId, orderItemId, grossAmount, platformFee, netAmount, currency, status PENDING/AVAILABLE/PAID/REVERSED, createdAt
+- InstructorPayout
+  - id, organizationId, userId, payoutAccountId, amount, currency, status PENDING/PROCESSING/PAID/FAILED/CANCELLED, providerPayoutId nullable, scheduledAt nullable, paidAt nullable, metadata JSON, createdAt, updatedAt
+- PayoutTransaction
+  - id, payoutId, earningId, amount, currency, createdAt
+
+Advanced video pipeline:
+- VideoProviderConfig
+  - id, organizationId nullable, provider, configEncrypted, isDefault, createdAt, updatedAt
+- VideoAsset
+  - wajib mendukung provider, providerAssetId, status, durationSeconds, playbackId, thumbnailUrl, hlsUrl, dashUrl, originalFileId, metadata JSON
+- VideoRendition
+  - id, videoAssetId, quality, width, height, bitrate, url, metadata JSON, createdAt
+- VideoThumbnail
+  - id, videoAssetId, fileId nullable, url, timestampSeconds, isDefault, createdAt
+- VideoCaption
+  - id, videoAssetId, language, label, fileId, format VTT/SRT, isDefault, createdAt
+- VideoTranscriptSegment
+  - id, videoAssetId, language, startSeconds, endSeconds, text, createdAt
+- VideoPlaybackSession
+  - id, organizationId, userId, videoAssetId, courseId nullable, lessonId nullable, activityId nullable, startedAt, endedAt nullable, watchedSeconds, watchedPercent, metadata JSON
+
+Exam integrity and proctoring readiness:
+- ExamSession
+  - id, organizationId, quizId, attemptId, userId, mode NORMAL/LOCKED/PROCTORED, status ACTIVE/SUBMITTED/FLAGGED/CANCELLED, startedAt, endedAt nullable, metadata JSON
+- ProctoringEvent
+  - id, examSessionId, type TAB_SWITCH/FULLSCREEN_EXIT/COPY_PASTE/FOCUS_LOST/WEBCAM_FLAG/SCREEN_FLAG, severity LOW/MEDIUM/HIGH, metadata JSON, createdAt
+- ProctoringProviderConfig
+  - id, organizationId nullable, provider, configEncrypted, enabled, createdAt, updatedAt
+
+============================================================
+H. MVP TARGET
+============================================================
+
+MVP yang harus cepat bisa demo:
+- Login/register
+- Multi organization basic
+- Role/permission basic
+- Course catalog
+- Course detail
+- Course builder
+- Module/lesson/activity builder
+- Text/video/file/link activity
+- Enrollment
+- Learning player
+- Progress tracking
+- Quiz basic dan question bank
+- Assignment basic
+- Certificate PDF + QR verification
+- AI tutor basic berbasis materi
+- AI generate quiz draft
+- Dashboard learner/instructor/admin basic
+- Demo seed lengkap
+
+============================================================
+I. COMPLETE TARGET
+============================================================
+
+Complete LMS akhir harus mencakup:
+- Semua MVP features
+- Advanced quiz
+- Advanced assignment
+- Peer review
+- Group project
+- Plagiarism abstraction
+- Advanced certificate
+- Credential, badge, stackable certificate
+- Learning path
+- Skill tracking
+- Recommendation
+- Gamification
+- Discussion forum
+- Announcement
+- Live class
+- Attendance
+- Calendar
+- Notification multi-channel
+- Global search
+- Semantic search
+- SCORM
+- xAPI
+- H5P-style interactive content
+- Survey
+- Polling
+- Course review/rating/wishlist/bookmark/notes
+- Advanced video subtitle/transcript/bookmark/timestamp note
+- AI video summary and quiz generation
+- AI content generator
+- AI grading assistant
+- Analytics and reporting export
+- Marketplace and payment
+- Subscription and coupon
+- SSO
+- API key
+- Webhook
+- White label
+- Localization
+- Help center
+- Support ticket
+- Backup and data governance
+- PWA
+- Mobile UX
+- Security hardening
+- Observability
+- Plugin architecture, internal plugin registry, plugin activity types, 3D content plugin, code runner plugin, and future plugin marketplace readiness
+
+
+============================================================
+I2. COMPLETE TARGET TAMBAHAN V2
+============================================================
+
+Fitur berikut wajib masuk agar platform benar-benar lengkap dan tidak kalah oleh gap review:
+
+Auth, security, and identity:
+- Public OAuth/social login: Google dan Microsoft minimal.
+- Account linking antar provider.
+- CAPTCHA/bot protection.
+- MFA TOTP.
+- Session management dan revoke all sessions.
+- Security event log.
+
+Scheduling and delivery:
+- Timezone-safe scheduling.
+- Self-paced course.
+- Cohort/batch/class course.
+- Enrollment window.
+- Cohort-specific due dates.
+- Cohort-specific live class, discussion, report, certificate rule.
+
+Realtime and communication:
+- WebSocket/SSE strategy.
+- Streaming AI response.
+- Realtime in-app notification.
+- Direct message / mentor chat.
+- Support chat thread optional.
+
+Marketplace:
+- Multi-currency ready.
+- Platform fee.
+- Instructor revenue share.
+- Instructor payout account.
+- Payout batch and payout status.
+- Refund adjustment.
+
+Enterprise operation:
+- Bulk user import.
+- Bulk invite.
+- Bulk enroll.
+- Bulk assign role/cohort.
+- Validation preview and failed row report.
+
+Moderation and legal:
+- Content report.
+- Moderation queue.
+- Moderation action log.
+- Terms page.
+- Privacy page.
+- Cookie policy page.
+- Cookie consent banner.
+- Consent versioning.
+
+Accessibility:
+- WCAG AA-oriented design system.
+- Keyboard navigation.
+- Screen-reader friendly forms.
+- Caption and transcript support.
+
+Video:
+- VideoProviderAdapter.
+- Managed video provider ready.
+- HLS/DASH strategy.
+- Thumbnail generation.
+- Subtitle/caption.
+- Transcript.
+- AI video summary and quiz from transcript.
+
+Assessment integrity:
+- Exam integrity basic.
+- Fullscreen mode.
+- Tab switch log.
+- ProctoringProvider abstraction.
+
+Ambiguity cleanup:
+- Do not implement GraphQL unless explicitly requested later.
+
+Plugin readiness:
+- Core LMS must be modular and plugin-ready.
+- New activity/content/assessment types must be added through plugin extension points where possible.
+- Avoid rigid database enums for activity types; use activityTypeKey and pluginKey strategy.
+- Internal plugins must be supported first; arbitrary third-party plugin installation is future scope.
+- Example future plugins: 3D model viewer, code runner, SCORM, H5P, proctoring, video provider, payment provider, notification channel.
+- MFA must be implemented as TOTP in security phase.
+- Web Push must be implemented for PWA phase; WhatsApp remains adapter-based optional integration.
+- Vendor names like Zoom/Google Meet must be adapters, not hardcoded domain logic.
+
+============================================================
+J. PHASE IMPLEMENTATION PLAN
+============================================================
+
+PHASE 00 - MASTER SETUP AND RULES
+---------------------------------
+Goal:
+Prepare the repository with all rules, conventions, and documentation skeleton.
+
+Tasks:
+- Create monorepo with pnpm and Turborepo.
+- Create apps/web, apps/api, apps/worker.
+- Create packages/db, packages/shared, packages/config, packages/ui optional.
+- Setup TypeScript strict.
+- Setup ESLint, Prettier.
+- Setup README and docs skeleton.
+- Setup environment validation strategy.
+- Define naming conventions.
+- Define API response format.
+- Define error codes.
+- Define pagination format.
+- Define organization context strategy.
+- Define RBAC strategy.
+- Define analytics event strategy.
+- Define timezone strategy: UTC storage, user timezone, organization timezone, and schedule timezone.
+- Define OAuth vs enterprise SSO separation.
+- Define RealtimeGateway strategy: WebSocket plus SSE for AI streaming.
+- Define course delivery modes: self-paced and cohort.
+- Define video provider strategy: managed provider first, self-hosted adapter optional.
+- Define payment/payout strategy: multi-currency, platform fee, revenue share, payout.
+- Define accessibility baseline: WCAG AA-oriented UI components.
+- Define moderation and legal consent strategy.
+
+Acceptance criteria:
+- Repo installs with pnpm install.
+- Lint scripts exist.
+- Typecheck scripts exist.
+- Docs skeleton exists.
+- Project conventions documented.
+
+
+PHASE 01 - INFRASTRUCTURE AND DOCKER FOUNDATION
+-----------------------------------------------
+Goal:
+Create local development environment.
+
+Tasks:
+- Docker Compose for postgres, redis, minio, api, web, worker.
+- Add health checks for postgres, redis, minio.
+- Create .env.example.
+- Add app URLs and API URLs.
+- Add JWT secrets placeholders.
+- Add storage config placeholders.
+- Add AI provider placeholders.
+- Add email provider placeholders.
+- Add payment provider placeholders.
+- Create basic CI workflow placeholder.
+
+Services:
+- postgres
+- redis
+- minio
+- api
+- web
+- worker
+
+Acceptance criteria:
+- docker compose up starts required services.
+- Postgres reachable.
+- Redis reachable.
+- MinIO reachable.
+- API and web can start.
+
+
+PHASE 02 - BACKEND CORE FOUNDATION
+----------------------------------
+Goal:
+Create NestJS backend foundation.
+
+Modules:
+- AppModule
+- ConfigModule
+- DatabaseModule
+- HealthModule
+- LoggerModule
+- CommonModule
+- AuthModule placeholder
+- UsersModule placeholder
+- OrganizationsModule placeholder
+- RbacModule placeholder
+- FilesModule placeholder
+- CoursesModule placeholder
+- AnalyticsModule placeholder
+- AiModule placeholder
+
+Tasks:
+- Add /api/v1 prefix.
+- Add global validation pipe.
+- Add global exception filter.
+- Add standard response interceptor.
+- Add request logging middleware.
+- Add CORS config.
+- Add health endpoint.
+- Add database check.
+- Add redis check.
+- Add storage check placeholder.
+
+Endpoints:
+- GET /api/v1/health
+- GET /api/v1/health/db
+- GET /api/v1/health/redis
+
+Acceptance criteria:
+- API health endpoints work.
+- Standard response and error format work.
+- No TypeScript errors.
+
+
+PHASE 03 - FRONTEND FOUNDATION AND DESIGN SYSTEM BASE
+-----------------------------------------------------
+Goal:
+Create modern UI foundation.
+
+Tasks:
+- Setup Next.js App Router.
+- Setup Tailwind CSS.
+- Setup shadcn/ui.
+- Create app layout.
+- Create public landing page.
+- Create auth layout.
+- Create dashboard layout.
+- Create role-aware sidebar placeholder.
+- Create responsive topbar.
+- Create common components.
+
+Components:
+- AppShell
+- DashboardLayout
+- Sidebar
+- Topbar
+- PageHeader
+- Card
+- StatCard
+- DataTable placeholder
+- EmptyState
+- LoadingState
+- ErrorState
+- ConfirmDialog
+- FormSection
+- FileUpload placeholder
+- CourseCard placeholder
+- ProgressCard placeholder
+- AiAssistantPanel placeholder
+- NotificationDropdown placeholder
+
+Pages:
+- /
+- /login
+- /register
+- /dashboard
+- /admin
+- /instructor
+- /learn
+
+Acceptance criteria:
+- Web app opens.
+- Layout is responsive.
+- Design system components reusable.
+
+
+PHASE 04 - DATABASE BASE, SEED, AND INDEX STRATEGY
+--------------------------------------------------
+Goal:
+Create base Prisma schema and seed.
+
+Entities:
+- User
+- Organization
+- OrganizationMember
+- Role
+- Permission
+- RolePermission
+- MemberRole
+- UserSession
+- RefreshToken
+- File
+- AuditLog
+- LearningEvent
+
+Important fields:
+User:
+- id, name, email, passwordHash, avatarUrl, status, emailVerifiedAt, lastLoginAt, createdAt, updatedAt, deletedAt
+
+Organization:
+- id, name, slug, logoUrl, primaryColor, status, createdAt, updatedAt, deletedAt
+
+Role:
+- id, organizationId nullable, name, key, description, isSystem, createdAt, updatedAt
+
+Permission:
+- id, key, module, action, description, createdAt, updatedAt
+
+File:
+- id, organizationId nullable, ownerId, bucket, key, url, filename, mimeType, size, storageProvider, visibility, metadata, createdAt, updatedAt
+
+LearningEvent:
+- id, organizationId nullable, userId nullable, courseId nullable, lessonId nullable, activityId nullable, eventType, metadata, createdAt
+
+Seed:
+- super admin
+- demo organization
+- org admin
+- instructor
+- learner
+- reviewer
+- roles
+- permissions
+
+Indexes:
+- user email unique
+- organization slug unique
+- role key scoped by organization
+- permission key unique
+- member organizationId + userId unique
+- learning event indexes by organizationId, userId, courseId, eventType, createdAt
+
+Acceptance criteria:
+- Prisma migration works.
+- Seed works and idempotent.
+- DB schema supports Phase 05 onward.
+
+
+PHASE 05 - AUTHENTICATION
+-------------------------
+Goal:
+Create secure authentication.
+
+Features:
+- Register
+- Login
+- Logout
+- Refresh token
+- Refresh token rotation
+- Get current user
+- Update profile
+- Change password
+- Forgot password placeholder
+- Reset password placeholder
+- Email verification placeholder
+- Session list
+- Revoke session
+
+Security:
+- Password hashing with argon2 or bcrypt.
+- Store hashed refresh tokens.
+- Rate limit login.
+- Track login success and failure.
+- Audit log auth events.
+
+Endpoints:
+- POST /api/v1/auth/register
+- POST /api/v1/auth/login
+- POST /api/v1/auth/logout
+- POST /api/v1/auth/refresh
+- GET /api/v1/auth/me
+- PATCH /api/v1/auth/profile
+- PATCH /api/v1/auth/change-password
+- POST /api/v1/auth/forgot-password
+- POST /api/v1/auth/reset-password
+- GET /api/v1/auth/sessions
+- DELETE /api/v1/auth/sessions/:id
+
+Frontend:
+- Login page
+- Register page
+- Forgot password page
+- Reset password page
+- Profile page
+- Session management page
+
+Acceptance criteria:
+- Register/login works.
+- Refresh token works.
+- Auth guard works.
+- Audit log records auth events.
+
+
+PHASE 06 - RBAC AND MULTI-TENANT CONTEXT
+----------------------------------------
+Goal:
+Create permission and organization context layer.
+
+Features:
+- User can belong to multiple organizations.
+- Active organization switcher.
+- Permission guard.
+- Role management.
+- Permission management.
+- Organization member management.
+- Super admin global access.
+- Tenant isolation.
+
+Backend:
+- CurrentUser decorator
+- CurrentOrganization decorator
+- RequiredPermissions decorator
+- AuthGuard
+- PermissionGuard
+- OrganizationMemberGuard
+
+Endpoints:
+- GET /api/v1/organizations
+- POST /api/v1/organizations
+- GET /api/v1/organizations/:id
+- PATCH /api/v1/organizations/:id
+- GET /api/v1/organizations/:id/members
+- POST /api/v1/organizations/:id/members
+- PATCH /api/v1/organizations/:id/members/:memberId
+- DELETE /api/v1/organizations/:id/members/:memberId
+- GET /api/v1/roles
+- POST /api/v1/roles
+- PATCH /api/v1/roles/:id
+- DELETE /api/v1/roles/:id
+- GET /api/v1/permissions
+- PATCH /api/v1/roles/:id/permissions
+
+Frontend:
+- Organization switcher
+- Organization settings
+- Member management
+- Role management
+- Permission management
+- Forbidden page
+
+Acceptance criteria:
+- Tenant data does not leak.
+- Permission guard works.
+- Role management works.
+- Sidebar can adapt to role.
+
+
+PHASE 07 - USER AND ORGANIZATION ADMIN PANEL
+--------------------------------------------
+Goal:
+Create admin management for users and organizations.
+
+Features:
+- User list with filters.
+- Create user.
+- Invite user placeholder.
+- Suspend user.
+- Restore user.
+- Assign organization membership.
+- Assign role.
+- Organization settings.
+- Basic branding fields.
+
+Endpoints:
+- GET /api/v1/admin/users
+- POST /api/v1/admin/users
+- GET /api/v1/admin/users/:id
+- PATCH /api/v1/admin/users/:id
+- POST /api/v1/admin/users/:id/suspend
+- POST /api/v1/admin/users/:id/restore
+- GET /api/v1/admin/organizations
+
+Frontend:
+- Admin dashboard shell
+- Users table
+- User detail
+- Organization table
+- Organization detail
+
+Acceptance criteria:
+- Admin can manage users.
+- Organization admin can manage members in their tenant only.
+- Audit logs are created.
+
+
+PHASE 08 - CORE LMS DATA MODEL
+------------------------------
+Goal:
+Create core LMS schema that supports all future course features.
+
+Entities:
+- Course
+- CourseCategory
+- CourseTag optional
+- CourseInstructor
+- CourseModule
+- Lesson
+- Activity
+- ActivityContent
+- Enrollment
+- ProgressRecord
+
+Enums:
+CourseStatus:
+- DRAFT, REVIEW, PUBLISHED, ARCHIVED
+
+CourseVisibility:
+- PUBLIC, PRIVATE, ORGANIZATION_ONLY, INVITE_ONLY
+
+CourseLevel:
+- BEGINNER, INTERMEDIATE, ADVANCED, ALL_LEVELS
+
+ActivityType:
+- TEXT, VIDEO, FILE, LINK, QUIZ, ASSIGNMENT, DISCUSSION, LIVE_SESSION, SURVEY, POLL, SCORM, XAPI, H5P, AI_PRACTICE
+
+ActivityStatus:
+- DRAFT, PUBLISHED, ARCHIVED
+
+EnrollmentStatus:
+- ACTIVE, COMPLETED, CANCELLED, EXPIRED
+
+ProgressStatus:
+- NOT_STARTED, IN_PROGRESS, COMPLETED
+
+Course fields:
+- id, organizationId, createdById, title, slug, subtitle, description, thumbnailFileId, promoVideoFileId, level, language, durationMinutes, status, visibility, priceType, learningObjectives, requirements, targetAudience, tags, metadata, publishedAt, createdAt, updatedAt, deletedAt
+
+Activity fields:
+- id, courseId, moduleId, lessonId, type, title, description, orderIndex, isRequired, completionRule, status, createdAt, updatedAt
+
+Acceptance criteria:
+- Schema supports future quiz, assignment, AI, SCORM, H5P.
+- Course curriculum can be represented cleanly.
+
+
+PHASE 09 - COURSE CATALOG AND COURSE DETAIL
+-------------------------------------------
+Goal:
+Create Coursera-like course catalog.
+
+Features:
+- Course catalog page.
+- Course detail page.
+- Category page.
+- Search/filter/sort basic.
+- Featured courses.
+- New courses.
+- Popular courses placeholder.
+- Course preview support.
+
+Catalog filters:
+- search
+- category
+- level
+- language
+- duration
+- priceType
+- rating placeholder
+- organization scope
+
+Endpoints:
+- GET /api/v1/courses
+- GET /api/v1/courses/:slugOrId
+- GET /api/v1/courses/:id/curriculum
+- GET /api/v1/course-categories
+
+Frontend:
+- /courses
+- /courses/[slug]
+- /categories/[slug]
+
+Course detail sections:
+- Overview
+- What you will learn
+- Curriculum
+- Requirements
+- Target audience
+- Instructor
+- Certificate info
+- Reviews placeholder
+- FAQ placeholder
+
+Acceptance criteria:
+- Published public courses visible.
+- Private org courses only visible to allowed users.
+- Course detail shows curriculum.
+
+
+PHASE 10 - INSTRUCTOR COURSE BUILDER
+------------------------------------
+Goal:
+Create course builder for instructor.
+
+Features:
+- Create/edit course.
+- Create/edit modules.
+- Create/edit lessons.
+- Create/edit activities.
+- Reorder modules, lessons, activities.
+- Draft/publish/archive course.
+- Duplicate course.
+- Preview course.
+- Instructor assignment.
+- Basic review workflow placeholder.
+
+Endpoints:
+- POST /api/v1/instructor/courses
+- PATCH /api/v1/instructor/courses/:id
+- DELETE /api/v1/instructor/courses/:id
+- POST /api/v1/instructor/courses/:id/publish
+- POST /api/v1/instructor/courses/:id/archive
+- POST /api/v1/instructor/courses/:id/duplicate
+- POST /api/v1/instructor/courses/:id/modules
+- PATCH /api/v1/instructor/modules/:moduleId
+- DELETE /api/v1/instructor/modules/:moduleId
+- PATCH /api/v1/instructor/courses/:courseId/modules/reorder
+- POST /api/v1/instructor/modules/:moduleId/lessons
+- PATCH /api/v1/instructor/lessons/:lessonId
+- DELETE /api/v1/instructor/lessons/:lessonId
+- PATCH /api/v1/instructor/modules/:moduleId/lessons/reorder
+- POST /api/v1/instructor/lessons/:lessonId/activities
+- PATCH /api/v1/instructor/activities/:activityId
+- DELETE /api/v1/instructor/activities/:activityId
+- PATCH /api/v1/instructor/lessons/:lessonId/activities/reorder
+
+Frontend:
+- /instructor/courses
+- /instructor/courses/new
+- /instructor/courses/[id]/edit
+- /instructor/courses/[id]/builder
+- /instructor/courses/[id]/settings
+- /instructor/courses/[id]/preview
+
+Acceptance criteria:
+- Instructor can build complete curriculum.
+- Permission prevents editing other instructor courses unless assigned.
+- Builder uses extensible activity structure.
+
+
+PHASE 11 - CONTENT LIBRARY AND STORAGE
+--------------------------------------
+Goal:
+Create file and content library foundation.
+
+Features:
+- Upload file.
+- File list.
+- Folder organization.
+- Content library item.
+- Attach file to activity.
+- Signed URL.
+- Access control.
+- File delete/archive.
+- File metadata.
+- Storage provider abstraction.
+
+Entities:
+- Folder
+- ContentLibraryItem
+- update File with checksum, extension, folderId, processingStatus, purpose, accessLevel, processedMetadata
+
+Storage methods:
+- uploadFile
+- deleteFile
+- getSignedUrl
+- getPublicUrl
+- copyFile
+- moveFile
+- getMetadata
+
+Endpoints:
+- POST /api/v1/files/upload
+- GET /api/v1/files
+- GET /api/v1/files/:id
+- DELETE /api/v1/files/:id
+- POST /api/v1/files/:id/signed-url
+- GET /api/v1/content-library
+- POST /api/v1/content-library
+- PATCH /api/v1/content-library/:id
+- DELETE /api/v1/content-library/:id
+- POST /api/v1/instructor/activities/:activityId/attach-file
+- POST /api/v1/instructor/activities/:activityId/attach-library-item
+
+Frontend:
+- Content library page.
+- File manager.
+- Upload modal.
+- File picker modal.
+
+Acceptance criteria:
+- Instructor can upload and attach files.
+- Learner can access files only if allowed.
+- Storage abstraction supports MinIO and S3-compatible provider.
+
+
+PHASE 12 - RICH TEXT, PDF, LINK, AUDIO, AND BASIC MEDIA LESSONS
+----------------------------------------------------------------
+Goal:
+Make lessons usable with real materials.
+
+Features:
+- Rich text editor with TipTap.
+- Text activity viewer.
+- PDF viewer.
+- File download card.
+- External link card.
+- Audio player.
+- Image embed.
+- Code block in rich text.
+- Table in rich text.
+- Callout block.
+- Content update events for AI indexing later.
+
+Activity content types:
+- TEXT
+- FILE
+- LINK
+- AUDIO through FILE or media asset
+- PDF through FILE
+
+Endpoints:
+- PATCH /api/v1/instructor/activities/:activityId/content
+- GET /api/v1/learn/activities/:activityId/content
+
+Queue events:
+- CONTENT_CREATED
+- CONTENT_UPDATED
+- FILE_UPLOADED
+
+Acceptance criteria:
+- Instructor can create rich text lesson.
+- Learner can view text, PDF, file, link, audio.
+- Content processing job placeholder runs.
+
+
+PHASE 13 - VIDEO LEARNING BASIC
+-------------------------------
+Goal:
+Create video learning experience.
+
+Features:
+- External video URL support.
+- Uploaded video support.
+- Video player.
+- Playback speed.
+- Resume last position.
+- Watch progress.
+- Completion rule by minimum watch percent.
+- Prevent skipping setting placeholder.
+- Video metadata placeholder.
+
+Entities:
+- VideoAsset optional
+- VideoWatchProgress optional or use ProgressRecord metadata
+
+Endpoints:
+- PATCH /api/v1/learn/video-progress/:activityId
+- GET /api/v1/learn/video-progress/:activityId
+
+Acceptance criteria:
+- Learner video progress saves.
+- Activity completes automatically if watch percent meets rule.
+- System ready for transcript/subtitle later.
+
+
+PHASE 14 - ENROLLMENT AND LEARNING PLAYER
+-----------------------------------------
+Goal:
+Create learner flow from enrollment to course completion.
+
+Features:
+- Enroll course.
+- My learning page.
+- Learning player page.
+- Curriculum sidebar.
+- Activity start/complete.
+- Continue learning.
+- Course progress calculation.
+- Module and lesson progress calculation.
+- Access control for enrolled course.
+
+Endpoints:
+- POST /api/v1/courses/:id/enroll
+- GET /api/v1/my/enrollments
+- GET /api/v1/my/courses/:courseId/progress
+- GET /api/v1/learn/courses/:courseId
+- GET /api/v1/learn/lessons/:lessonId
+- POST /api/v1/learn/activities/:activityId/start
+- POST /api/v1/learn/activities/:activityId/complete
+- PATCH /api/v1/learn/activities/:activityId/progress
+
+Frontend:
+- /learn
+- /learn/courses/[courseId]
+- /learn/courses/[courseId]/lessons/[lessonId]
+
+Acceptance criteria:
+- Learner can enroll and learn.
+- Progress is accurate.
+- Continue learning works.
+- Completion rules respected.
+
+
+PHASE 15 - QUIZ ENGINE BASIC
+----------------------------
+Goal:
+Create quiz engine for MVP.
+
+Question types MVP:
+- MULTIPLE_CHOICE
+- MULTIPLE_ANSWER
+- TRUE_FALSE
+- SHORT_ANSWER
+- ESSAY
+- NUMERIC
+
+Entities:
+- QuestionBank
+- Question
+- QuestionOption
+- Quiz
+- QuizQuestion
+- QuizAttempt
+- QuizAnswer
+
+Features:
+- Create question bank.
+- Create question.
+- Create quiz.
+- Attach questions.
+- Attach quiz to activity.
+- Start attempt.
+- Save answers.
+- Submit quiz.
+- Auto grading for objective questions.
+- Manual grading for essay.
+- Passing score.
+- Attempt limit.
+- Time limit.
+- Shuffle questions/options.
+
+Endpoints:
+- GET /api/v1/instructor/question-banks
+- POST /api/v1/instructor/question-banks
+- GET /api/v1/instructor/questions
+- POST /api/v1/instructor/questions
+- PATCH /api/v1/instructor/questions/:id
+- DELETE /api/v1/instructor/questions/:id
+- GET /api/v1/instructor/courses/:courseId/quizzes
+- POST /api/v1/instructor/courses/:courseId/quizzes
+- PATCH /api/v1/instructor/quizzes/:quizId
+- POST /api/v1/instructor/quizzes/:quizId/questions
+- POST /api/v1/instructor/quizzes/:quizId/publish
+- GET /api/v1/learn/quizzes/:quizId
+- POST /api/v1/learn/quizzes/:quizId/start
+- PATCH /api/v1/learn/quiz-attempts/:attemptId/answers
+- POST /api/v1/learn/quiz-attempts/:attemptId/submit
+- GET /api/v1/learn/quiz-attempts/:attemptId/result
+
+Acceptance criteria:
+- Instructor can create quiz.
+- Learner can answer and submit.
+- Score calculated.
+- Quiz passing completes activity.
+
+
+PHASE 16 - QUIZ ENGINE ADVANCED
+-------------------------------
+Goal:
+Expand quiz engine toward Moodle-level assessment.
+
+Add question types:
+- MATCHING
+- ORDERING
+- FILL_BLANK
+- FILE_UPLOAD
+- CASE_STUDY
+- CODE_ANSWER placeholder
+- HOTSPOT placeholder
+- DRAG_DROP placeholder
+- LIKERT_SCALE for survey integration
+
+Advanced features:
+- Question category.
+- Difficulty.
+- Tags.
+- Partial scoring.
+- Negative marking.
+- Feedback per option.
+- Feedback per question.
+- Show correct answer settings.
+- Show feedback settings.
+- Quiz review mode.
+- Anti-cheat mode placeholder.
+- Fullscreen mode placeholder.
+- Tab change detection placeholder.
+- Import questions from CSV/XLSX.
+- Export question bank.
+- Random question from bank by category/difficulty.
+- Quiz analytics per question.
+
+Acceptance criteria:
+- Advanced question types stored cleanly.
+- At least matching, ordering, fill blank are usable.
+- Import CSV works.
+- Structure ready for hotspot/drag-drop/code answer.
+
+
+PHASE 17 - ASSIGNMENT AND RUBRIC BASIC
+--------------------------------------
+Goal:
+Create assignment and grading.
+
+Entities:
+- Assignment
+- Rubric
+- RubricCriterion
+- Submission
+- SubmissionFile optional
+
+Features:
+- Text submission.
+- File submission.
+- Link submission.
+- Due date.
+- Late submission setting.
+- Max score.
+- Passing score.
+- Rubric builder.
+- Submission list.
+- Manual grade.
+- Feedback.
+- Return submission.
+- Resubmission.
+- Assignment activity completion.
+
+Endpoints:
+- GET /api/v1/instructor/courses/:courseId/assignments
+- POST /api/v1/instructor/courses/:courseId/assignments
+- PATCH /api/v1/instructor/assignments/:assignmentId
+- POST /api/v1/instructor/assignments/:assignmentId/publish
+- POST /api/v1/instructor/assignments/:assignmentId/rubric
+- PATCH /api/v1/instructor/rubrics/:rubricId
+- GET /api/v1/learn/assignments/:assignmentId
+- POST /api/v1/learn/assignments/:assignmentId/submissions
+- PATCH /api/v1/learn/submissions/:submissionId
+- POST /api/v1/learn/submissions/:submissionId/submit
+- GET /api/v1/instructor/assignments/:assignmentId/submissions
+- PATCH /api/v1/instructor/submissions/:submissionId/grade
+
+Acceptance criteria:
+- Learner can submit assignment.
+- Instructor can grade with rubric.
+- Assignment progress integration works.
+
+
+PHASE 18 - CERTIFICATE AND VERIFIABLE CREDENTIAL BASIC
+------------------------------------------------------
+Goal:
+Create certificate system.
+
+Entities:
+- CertificateTemplate
+- Certificate
+- CertificateVerificationLog
+
+Features:
+- Certificate template basic.
+- Generate PDF certificate.
+- Unique certificate number.
+- Unique verification code.
+- QR code.
+- Public verification page.
+- Issue certificate automatically or manually.
+- Revoke certificate.
+- Expiry date optional.
+- Download PDF.
+
+Endpoints:
+- GET /api/v1/certificates/verify/:verificationCode
+- GET /api/v1/my/certificates
+- GET /api/v1/my/certificates/:id
+- POST /api/v1/instructor/courses/:courseId/certificates/issue
+- POST /api/v1/admin/certificates/:id/revoke
+- GET /api/v1/admin/certificate-templates
+- POST /api/v1/admin/certificate-templates
+- PATCH /api/v1/admin/certificate-templates/:id
+
+Certificate completion rule:
+- Required activities complete.
+- Required quizzes passed.
+- Required assignments passed.
+- Course status completed.
+
+Acceptance criteria:
+- Certificate generated as PDF.
+- QR verification works.
+- Public verification page works.
+
+
+PHASE 19 - DASHBOARDS BASIC
+---------------------------
+Goal:
+Create MVP dashboards.
+
+Learner dashboard:
+- My courses.
+- Continue learning.
+- Progress summary.
+- Quiz scores.
+- Assignments.
+- Certificates.
+- Goals placeholder.
+
+Instructor dashboard:
+- Courses owned.
+- Enrollments.
+- Completion rate basic.
+- Quiz attempts needing grading.
+- Assignment submissions needing grading.
+
+Admin dashboard:
+- Total users.
+- Total courses.
+- Total enrollments.
+- Certificates issued.
+- Active users placeholder.
+
+Acceptance criteria:
+- Each role has meaningful dashboard.
+- Data is from database, not hardcoded.
+
+
+PHASE 20 - DEMO SEED FOR MVP
+----------------------------
+Goal:
+Create complete demo seed for MVP presentation.
+
+Seed:
+- super admin
+- organization admin
+- instructor
+- reviewer
+- 5 learners
+- 1 demo organization
+- roles and permissions
+- 5 categories
+- 3 published courses
+- 1 draft course
+- each course has 3 modules
+- each module has 3 lessons
+- each lesson has text activity
+- some lessons have video/file/link
+- at least 1 quiz per course
+- at least 20 questions total
+- at least 1 assignment per course
+- sample progress
+- sample certificate
+- sample learning events
+
+Acceptance criteria:
+- Seed idempotent.
+- README contains demo credentials.
+- Demo can be run after seed.
+
+
+PHASE 21 - AI INFRASTRUCTURE AND RAG INDEXING
+---------------------------------------------
+Goal:
+Build AI foundation.
+
+Entities:
+- AiDocument
+- AiChunk
+- AiConversation
+- AiMessage
+- AiGeneratedItem
+- AiUsageLog
+- AiQuota
+- PromptTemplate
+
+Interfaces:
+- LlmProvider
+- EmbeddingProvider
+- VectorStore
+- RetrieverService
+- AiTutorService
+- AiContentService
+
+Features:
+- AI provider abstraction.
+- Embedding abstraction.
+- Content indexing queue.
+- Rich text indexing.
+- Plain text and PDF basic extraction.
+- Chunking.
+- Store chunks.
+- Store embeddings if pgvector available.
+- Reindex course.
+- Reindex lesson.
+- AI usage logging.
+- AI rate limit.
+- AI quota placeholder.
+
+Endpoints:
+- POST /api/v1/instructor/courses/:courseId/ai/reindex
+- GET /api/v1/instructor/courses/:courseId/ai/documents
+- GET /api/v1/instructor/ai/documents/:documentId
+
+Acceptance criteria:
+- Course content can be indexed.
+- AI documents and chunks are created.
+- Provider abstraction allows replacing model later.
+
+
+PHASE 22 - AI LEARNER TUTOR
+---------------------------
+Goal:
+Create Ask AI feature for learner.
+
+Features:
+- Ask AI from current lesson.
+- Ask AI from whole course.
+- Conversation history.
+- Source references.
+- Suggested prompts.
+- Fallback if answer not in material.
+- AI can summarize current lesson.
+- AI can explain simpler.
+- AI can generate examples.
+- AI can generate practice questions for learner.
+
+Rules:
+- AI must answer based on retrieved course material when course context exists.
+- If context is insufficient, say information is not found in the course material.
+- Do not expose system prompt.
+- Save user message and assistant message.
+- Store sources in AiMessage metadata.
+
+Endpoints:
+- GET /api/v1/learn/courses/:courseId/ai/conversations
+- POST /api/v1/learn/courses/:courseId/ai/conversations
+- POST /api/v1/learn/ai/conversations/:conversationId/messages
+- POST /api/v1/learn/courses/:courseId/ai/ask
+- POST /api/v1/learn/lessons/:lessonId/ai/ask
+
+Frontend:
+- AI assistant panel in learning page.
+- AI tutor full page.
+- Conversation history.
+- Suggested prompt buttons.
+- Source display.
+
+Acceptance criteria:
+- Learner can ask AI.
+- AI answers with sources.
+- AI fallback works.
+
+
+PHASE 23 - AI INSTRUCTOR TOOLS BASIC
+------------------------------------
+Goal:
+Create AI tools for instructor.
+
+Features:
+- Generate quiz from course.
+- Generate quiz from lesson.
+- Generate question options.
+- Generate explanation.
+- Generate flashcards.
+- Generate lesson summary.
+- Generate assignment draft.
+- Generate rubric draft.
+- Save as AiGeneratedItem.
+- Review generated item.
+- Approve/reject.
+- Publish approved questions to question bank.
+
+Endpoints:
+- POST /api/v1/instructor/courses/:courseId/ai/generate-summary
+- POST /api/v1/instructor/courses/:courseId/ai/generate-quiz
+- POST /api/v1/instructor/lessons/:lessonId/ai/generate-quiz
+- POST /api/v1/instructor/lessons/:lessonId/ai/generate-flashcards
+- POST /api/v1/instructor/lessons/:lessonId/ai/generate-assignment
+- POST /api/v1/instructor/lessons/:lessonId/ai/generate-rubric
+- GET /api/v1/instructor/ai/generated-items
+- POST /api/v1/instructor/ai/generated-items/:id/approve
+- POST /api/v1/instructor/ai/generated-items/:id/reject
+- POST /api/v1/instructor/ai/generated-items/:id/publish-to-question-bank
+
+Acceptance criteria:
+- AI generated quiz is saved as draft.
+- Instructor can approve before publishing.
+- Approved questions appear in question bank.
+
+
+PHASE 24 - FLASHCARDS AND AI PRACTICE
+-------------------------------------
+Goal:
+Add flashcards and AI practice activity.
+
+Entities:
+- FlashcardDeck
+- Flashcard
+- FlashcardProgress optional
+
+Features:
+- Create flashcard deck manually.
+- Generate flashcards using AI.
+- Publish flashcard deck.
+- Learner study flashcards.
+- Activity type AI_PRACTICE.
+- AI generates adaptive practice questions.
+
+Endpoints:
+- GET /api/v1/instructor/courses/:courseId/flashcard-decks
+- POST /api/v1/instructor/courses/:courseId/flashcard-decks
+- PATCH /api/v1/instructor/flashcard-decks/:id
+- POST /api/v1/instructor/flashcard-decks/:id/cards
+- GET /api/v1/learn/flashcard-decks/:id
+- POST /api/v1/learn/flashcards/:id/progress
+
+Acceptance criteria:
+- Flashcards can be created and studied.
+- AI-generated flashcards can be reviewed and published.
+
+
+PHASE 25 - DISCUSSION FORUM AND ANNOUNCEMENTS
+---------------------------------------------
+Goal:
+Create community discussion.
+
+Entities:
+- DiscussionThread
+- DiscussionComment
+- DiscussionVote
+- Announcement optional or use thread type
+
+Features:
+- Course discussion.
+- Lesson discussion.
+- Q&A thread.
+- Upvote/downvote.
+- Accepted answer.
+- Instructor badge.
+- Pin thread.
+- Close thread.
+- Report/hide moderation placeholder.
+- Announcement to enrolled learners.
+
+Endpoints:
+- GET /api/v1/courses/:courseId/discussions
+- POST /api/v1/courses/:courseId/discussions
+- GET /api/v1/discussions/:threadId
+- PATCH /api/v1/discussions/:threadId
+- POST /api/v1/discussions/:threadId/comments
+- PATCH /api/v1/discussion-comments/:commentId
+- DELETE /api/v1/discussion-comments/:commentId
+- POST /api/v1/discussion-comments/:commentId/vote
+- POST /api/v1/discussions/:threadId/accept/:commentId
+- POST /api/v1/discussions/:threadId/pin
+- POST /api/v1/discussions/:threadId/close
+- POST /api/v1/instructor/courses/:courseId/announcements
+- GET /api/v1/courses/:courseId/announcements
+
+Acceptance criteria:
+- Learner can ask question.
+- Instructor can answer and mark accepted.
+- Announcement notifies learners.
+
+
+PHASE 26 - LIVE CLASS, CALENDAR, AND ATTENDANCE
+-----------------------------------------------
+Goal:
+Create live learning features.
+
+Entities:
+- LiveSession
+- Attendance
+- CalendarEvent
+
+Features:
+- Schedule live class.
+- LiveSessionProviderAdapter vendor-agnostic: CUSTOM_LINK wajib; ZoomProvider dan GoogleMeetProvider boleh menjadi implementation adapter, bukan hardcoded dependency.
+- Attendance tracking.
+- Recording URL.
+- Calendar view.
+- Assignment due date calendar.
+- Quiz due date calendar.
+- Live session reminder trigger.
+
+Endpoints:
+- GET /api/v1/courses/:courseId/live-sessions
+- POST /api/v1/instructor/courses/:courseId/live-sessions
+- PATCH /api/v1/instructor/live-sessions/:id
+- DELETE /api/v1/instructor/live-sessions/:id
+- POST /api/v1/instructor/live-sessions/:id/attendance
+- GET /api/v1/instructor/live-sessions/:id/attendance
+- GET /api/v1/calendar
+- POST /api/v1/calendar/events
+- PATCH /api/v1/calendar/events/:id
+- DELETE /api/v1/calendar/events/:id
+
+Acceptance criteria:
+- Live session can be scheduled.
+- Calendar shows course events.
+- Attendance can be recorded.
+
+
+PHASE 27 - NOTIFICATION SYSTEM
+------------------------------
+Goal:
+Create notification infrastructure.
+
+Entities:
+- Notification
+- NotificationPreference
+- NotificationTemplate
+- EmailLog
+- PushSubscription untuk Web Push PWA, dengan provider abstraction dan fallback polling
+
+Channels:
+- In-app
+- Email
+- Web Push notification implemented for PWA-supported browsers
+- WhatsApp provider adapter placeholder dengan interface jelas, tidak boleh stub kosong
+
+Triggers:
+- Course announcement.
+- Discussion reply.
+- Accepted answer.
+- Assignment due reminder.
+- Quiz reminder.
+- Live session reminder.
+- Certificate issued.
+- Assignment graded.
+- AI generated item approved/rejected.
+- Payment success if payment phase exists.
+
+Endpoints:
+- GET /api/v1/notifications
+- PATCH /api/v1/notifications/:id/read
+- POST /api/v1/notifications/read-all
+- GET /api/v1/notification-preferences
+- PATCH /api/v1/notification-preferences
+
+Frontend:
+- Notification dropdown.
+- Notification center page.
+- Preferences page.
+
+Acceptance criteria:
+- In-app notification works.
+- Email sending abstraction exists.
+- Preferences respected.
+
+
+PHASE 28 - GOALS, BADGES, XP, AND STREAK
+----------------------------------------
+Goal:
+Create gamification foundation.
+
+Entities:
+- Goal
+- Badge
+- UserBadge
+- XpTransaction
+- Streak
+- LeaderboardSnapshot
+
+Features:
+- Daily goal.
+- Weekly goal.
+- Course completion goal.
+- Custom goal.
+- Award XP.
+- Award badge.
+- Learning streak.
+- Leaderboard.
+- Achievement page.
+
+XP triggers:
+- Complete activity.
+- Complete lesson.
+- Complete module.
+- Complete course.
+- Pass quiz.
+- Submit assignment.
+- Earn certificate.
+- Maintain streak.
+
+Badge examples:
+- First course completed.
+- Five courses completed.
+- Seven day streak.
+- Quiz master.
+- Assignment finisher.
+- AI learner.
+
+Endpoints:
+- GET /api/v1/my/goals
+- POST /api/v1/my/goals
+- PATCH /api/v1/my/goals/:id
+- DELETE /api/v1/my/goals/:id
+- GET /api/v1/my/badges
+- GET /api/v1/my/xp
+- GET /api/v1/my/streak
+- GET /api/v1/leaderboards
+
+Acceptance criteria:
+- Goals can be created and updated.
+- XP and badges are awarded by events.
+- Streak works.
+
+
+PHASE 29 - LEARNING PATHS AND SKILLS
+------------------------------------
+Goal:
+Create structured learning journeys.
+
+Entities:
+- LearningPath
+- LearningPathCourse
+- LearningPathEnrollment
+- Skill
+- CourseSkill
+- UserSkill
+
+Features:
+- Create learning path.
+- Add courses to path.
+- Order courses.
+- Required/optional course.
+- Path enrollment.
+- Path progress.
+- Skill tagging for courses.
+- User skill profile.
+- Skill goal.
+- Career path placeholder.
+
+Endpoints:
+- GET /api/v1/learning-paths
+- GET /api/v1/learning-paths/:id
+- POST /api/v1/instructor/learning-paths
+- PATCH /api/v1/instructor/learning-paths/:id
+- POST /api/v1/instructor/learning-paths/:id/courses
+- PATCH /api/v1/instructor/learning-paths/:id/courses/reorder
+- POST /api/v1/learning-paths/:id/enroll
+- GET /api/v1/my/learning-paths
+- GET /api/v1/my/learning-paths/:id/progress
+- GET /api/v1/skills
+- POST /api/v1/admin/skills
+- POST /api/v1/instructor/courses/:courseId/skills
+- GET /api/v1/my/skills
+
+Acceptance criteria:
+- Learning path works.
+- Progress path calculated from course completion.
+- Skills can be assigned and displayed.
+
+
+PHASE 30 - RECOMMENDATION SYSTEM BASIC
+--------------------------------------
+Goal:
+Create recommendation foundation.
+
+Features:
+- Recommend courses by category.
+- Recommend courses by skill.
+- Recommend next course in learning path.
+- Recommend remedial lesson after low quiz score.
+- Similar courses.
+- Trending courses.
+- Personalized recommendation placeholder.
+- AI recommendation optional.
+
+Endpoints:
+- GET /api/v1/recommendations/courses
+- GET /api/v1/recommendations/learning-paths
+- GET /api/v1/recommendations/next-lesson
+- GET /api/v1/recommendations/remedial
+
+Acceptance criteria:
+- Recommendations are not random.
+- Based on learner activity, skills, or path.
+
+
+PHASE 31 - REVIEWS, RATINGS, WISHLIST, BOOKMARKS, NOTES
+-------------------------------------------------------
+Goal:
+Add Coursera-like personalization and social proof.
+
+Entities:
+- CourseReview
+- CourseRating optional separate or part of review
+- Wishlist
+- Bookmark
+- PersonalNote
+- RecentlyViewed
+- FavoriteInstructor
+
+Features:
+- Course rating.
+- Course review.
+- Review moderation.
+- Review helpful vote placeholder.
+- Wishlist course.
+- Bookmark lesson/activity.
+- Personal notes per lesson.
+- Timestamp notes for video.
+- Recently viewed courses.
+- Favorite instructor.
+
+Endpoints:
+- GET /api/v1/courses/:courseId/reviews
+- POST /api/v1/courses/:courseId/reviews
+- PATCH /api/v1/my/reviews/:id
+- DELETE /api/v1/my/reviews/:id
+- POST /api/v1/my/wishlist/:courseId
+- DELETE /api/v1/my/wishlist/:courseId
+- GET /api/v1/my/wishlist
+- POST /api/v1/my/bookmarks
+- GET /api/v1/my/bookmarks
+- DELETE /api/v1/my/bookmarks/:id
+- POST /api/v1/my/notes
+- GET /api/v1/my/notes
+- PATCH /api/v1/my/notes/:id
+- DELETE /api/v1/my/notes/:id
+
+Acceptance criteria:
+- Reviews appear on course detail.
+- Wishlist works.
+- Learner can take notes and bookmark.
+
+
+PHASE 32 - ADVANCED VIDEO LEARNING
+----------------------------------
+Goal:
+Make video features complete.
+
+Entities:
+- VideoTranscript
+- Subtitle
+- VideoBookmark optional or use Bookmark
+- VideoNote optional or use PersonalNote
+
+Features:
+- Subtitle upload.
+- Multi-language caption.
+- Transcript upload.
+- Transcript viewer.
+- Search inside transcript.
+- AI summarize video transcript.
+- AI generate quiz from transcript.
+- Timestamp notes.
+- Video bookmark.
+- Prevent skipping option.
+- Completion rule by watch percentage.
+- Video analytics per learner.
+- Video heatmap placeholder.
+- Adaptive streaming provider placeholder.
+
+Endpoints:
+- POST /api/v1/instructor/videos/:fileId/subtitles
+- POST /api/v1/instructor/videos/:fileId/transcript
+- GET /api/v1/learn/videos/:activityId/transcript
+- POST /api/v1/instructor/activities/:activityId/ai/generate-quiz-from-video
+- POST /api/v1/instructor/activities/:activityId/ai/summarize-video
+
+Acceptance criteria:
+- Transcript and subtitles can be managed.
+- AI can use transcript as source.
+- Timestamp note works.
+
+
+PHASE 33 - ADVANCED ASSIGNMENT, PEER REVIEW, GROUP PROJECT
+----------------------------------------------------------
+Goal:
+Add advanced assessment workflows.
+
+Entities:
+- GroupAssignment
+- AssignmentGroup
+- AssignmentGroupMember
+- PeerReview
+- ProjectShowcase
+- PlagiarismCheck
+- AnnotatedFeedback placeholder
+
+Features:
+- Group assignment.
+- Group submission.
+- Peer review.
+- Peer review rubric.
+- Project showcase.
+- Portfolio page.
+- Plagiarism checker abstraction.
+- AI grading assistant improvement.
+- Annotated feedback placeholder.
+- Assignment discussion.
+- Resubmission workflow.
+
+Endpoints:
+- POST /api/v1/instructor/assignments/:id/groups
+- GET /api/v1/learn/assignments/:id/group
+- POST /api/v1/learn/peer-reviews
+- GET /api/v1/instructor/assignments/:id/peer-reviews
+- POST /api/v1/instructor/submissions/:id/plagiarism-check
+- POST /api/v1/instructor/submissions/:id/ai-grade-draft
+- POST /api/v1/projects/showcase
+- GET /api/v1/projects/showcase
+
+Acceptance criteria:
+- Group assignment works.
+- Peer review works.
+- Plagiarism provider interface exists.
+- Project showcase works.
+
+
+PHASE 34 - SCORM, XAPI, H5P, SURVEY, AND POLLING
+-------------------------------------------------
+Goal:
+Support e-learning standards and interactive content.
+
+Entities:
+- ScormPackage
+- ScormAttempt
+- XapiStatement
+- H5PContent
+- Survey
+- SurveyQuestion
+- SurveyResponse
+- Poll
+- PollVote
+
+Features:
+- SCORM package upload.
+- SCORM player placeholder or integration-ready component.
+- SCORM attempt tracking.
+- xAPI statement store basic.
+- H5P-style interactive content placeholder.
+- Survey builder.
+- Survey response.
+- Polling activity.
+- Course feedback form.
+- Learner satisfaction survey.
+- Export survey results.
+
+Endpoints:
+- POST /api/v1/instructor/scorm/packages
+- GET /api/v1/learn/scorm/packages/:id
+- POST /api/v1/learn/scorm/attempts
+- POST /api/v1/xapi/statements
+- GET /api/v1/instructor/surveys
+- POST /api/v1/instructor/surveys
+- POST /api/v1/learn/surveys/:id/responses
+- GET /api/v1/instructor/surveys/:id/results
+- POST /api/v1/instructor/polls
+- POST /api/v1/learn/polls/:id/vote
+
+Acceptance criteria:
+- Activity types SCORM, H5P, Survey, Poll are structurally supported.
+- Survey and poll are usable.
+- xAPI statements can be stored.
+
+
+PHASE 35 - GLOBAL SEARCH AND SEMANTIC SEARCH
+--------------------------------------------
+Goal:
+Create powerful search.
+
+Features:
+- Search courses.
+- Search lessons.
+- Search materials.
+- Search discussions.
+- Search certificates.
+- Search users for admin.
+- Search question bank.
+- Full-text search using Meilisearch/OpenSearch abstraction.
+- Semantic search using vector store.
+- Search filters by organization, category, level, duration, rating, language, status.
+- Search analytics.
+- Search indexing jobs.
+
+Entities:
+- SearchIndexJob
+- SearchAnalytics
+
+Endpoints:
+- GET /api/v1/search
+- GET /api/v1/search/courses
+- GET /api/v1/search/materials
+- GET /api/v1/search/discussions
+- GET /api/v1/admin/search/users
+- POST /api/v1/admin/search/reindex
+
+Acceptance criteria:
+- Search returns relevant results.
+- Search respects permissions.
+- Semantic search can search learning materials.
+
+
+PHASE 36 - ANALYTICS AND REPORTING ADVANCED
+-------------------------------------------
+Goal:
+Build enterprise dashboards.
+
+Entities:
+- CourseAnalyticsSnapshot
+- UserLearningSummary
+- QuizAnalyticsSnapshot
+- AiUsageLog if not created
+- ReportExport
+- StorageUsageSnapshot
+- CertificateSummary optional
+
+Learner analytics:
+- Course progress.
+- Time spent.
+- Score history.
+- Streak.
+- Goals.
+- Certificates.
+
+Instructor analytics:
+- Course performance.
+- Enrollment count.
+- Completion rate.
+- Average progress.
+- Average score.
+- Quiz analysis.
+- Assignment grading queue.
+- Drop-off lessons.
+- Discussion activity.
+
+Admin analytics:
+- Total users.
+- Active users DAU/WAU/MAU.
+- Course performance.
+- Certificates issued.
+- AI usage.
+- Storage usage.
+- Payment revenue if payment phase exists.
+- Organization analytics.
+
+Reports:
+- Learner progress export.
+- Quiz result export.
+- Assignment report export.
+- Certificate report export.
+- Attendance report export.
+- AI usage report export.
+- Payment report export if available.
+
+Endpoints:
+- GET /api/v1/my/analytics/overview
+- GET /api/v1/instructor/analytics/overview
+- GET /api/v1/instructor/courses/:courseId/analytics
+- GET /api/v1/instructor/quizzes/:quizId/analytics
+- GET /api/v1/admin/analytics/overview
+- GET /api/v1/admin/analytics/users
+- GET /api/v1/admin/analytics/courses
+- GET /api/v1/admin/analytics/certificates
+- GET /api/v1/admin/analytics/ai-usage
+- GET /api/v1/admin/analytics/storage
+- POST /api/v1/reports/export
+- GET /api/v1/reports/exports
+- GET /api/v1/reports/exports/:id/download
+
+Acceptance criteria:
+- Dashboards show real data.
+- Reports export CSV/XLSX.
+- Aggregation jobs work.
+
+
+PHASE 37 - PAYMENT, MARKETPLACE, COUPON, SUBSCRIPTION
+-----------------------------------------------------
+Goal:
+Create marketplace-ready LMS.
+
+Entities:
+- Product
+- Bundle
+- Order
+- OrderItem
+- Payment
+- Coupon
+- Voucher
+- SubscriptionPlan
+- UserSubscription
+- Invoice
+- Refund
+
+Features:
+- Free course.
+- Paid course.
+- Course bundle.
+- Learning path product.
+- Subscription plan.
+- Coupon.
+- Voucher access.
+- Order checkout.
+- Payment provider abstraction.
+- Manual payment provider placeholder.
+- Midtrans/Xendit/Stripe provider placeholder.
+- Payment webhook.
+- Invoice.
+- Refund placeholder.
+- Auto enrollment after payment.
+- Instructor revenue share, platform fee, multi-currency, and payout model with provider abstraction.
+
+Endpoints:
+- GET /api/v1/marketplace/products
+- GET /api/v1/marketplace/products/:id
+- POST /api/v1/orders
+- GET /api/v1/my/orders
+- GET /api/v1/my/orders/:id
+- POST /api/v1/orders/:id/pay
+- POST /api/v1/payments/webhook/:provider
+- POST /api/v1/orders/apply-coupon
+- GET /api/v1/admin/coupons
+- POST /api/v1/admin/coupons
+- PATCH /api/v1/admin/coupons/:id
+- GET /api/v1/admin/orders
+- GET /api/v1/admin/payments
+- GET /api/v1/admin/revenue
+
+Acceptance criteria:
+- Paid course checkout works through provider abstraction.
+- Payment success enrolls learner.
+- Coupon works.
+
+
+PHASE 38 - ENTERPRISE BRANDING AND WHITE LABEL
+----------------------------------------------
+Goal:
+Allow organizations to customize LMS branding.
+
+Entities:
+- OrganizationBranding
+- CustomDomain placeholder
+
+Features:
+- Logo.
+- Favicon.
+- Primary color.
+- Secondary color.
+- Login background.
+- Custom certificate default template.
+- Custom email sender placeholder.
+- Custom domain placeholder.
+- Tenant-specific landing page placeholder.
+
+Endpoints:
+- GET /api/v1/organizations/:id/branding
+- PATCH /api/v1/organizations/:id/branding
+
+Acceptance criteria:
+- Branding applies to organization dashboard.
+- Theme respects tenant context.
+
+
+PHASE 39 - SSO, API KEYS, AND WEBHOOKS
+--------------------------------------
+Goal:
+Make platform integration-ready.
+
+Entities:
+- SsoProvider
+- ApiKey
+- WebhookEndpoint
+- WebhookDelivery
+
+SSO types:
+- Google
+- Microsoft
+- SAML placeholder
+- OIDC placeholder
+
+API key:
+- Key creation.
+- Key hash storage.
+- Scope permissions.
+- Last used at.
+- Expiry.
+- Revoke.
+
+Webhooks:
+- Configure endpoint.
+- Select events.
+- Sign payload.
+- Delivery retry.
+- Delivery logs.
+
+Webhook events:
+- user.created
+- enrollment.created
+- course.completed
+- quiz.submitted
+- assignment.submitted
+- certificate.issued
+- payment.paid
+
+Endpoints:
+- GET /api/v1/admin/sso-providers
+- POST /api/v1/admin/sso-providers
+- PATCH /api/v1/admin/sso-providers/:id
+- POST /api/v1/auth/sso/:provider/login
+- GET /api/v1/auth/sso/:provider/callback
+- GET /api/v1/admin/api-keys
+- POST /api/v1/admin/api-keys
+- DELETE /api/v1/admin/api-keys/:id
+- GET /api/v1/admin/webhooks
+- POST /api/v1/admin/webhooks
+- PATCH /api/v1/admin/webhooks/:id
+- DELETE /api/v1/admin/webhooks/:id
+- GET /api/v1/admin/webhooks/:id/deliveries
+- POST /api/v1/admin/webhooks/:id/test
+
+Acceptance criteria:
+- API keys work for scoped public API.
+- Webhook delivery works.
+- SSO config is manageable.
+
+
+PHASE 40 - PUBLIC API
+---------------------
+Goal:
+Expose selected API for integrations.
+
+Endpoints:
+- GET /api/v1/public-api/courses
+- GET /api/v1/public-api/courses/:id
+- GET /api/v1/public-api/users
+- GET /api/v1/public-api/enrollments
+- POST /api/v1/public-api/enrollments
+- GET /api/v1/public-api/certificates/:id
+- GET /api/v1/public-api/reports/progress
+
+Requirements:
+- API key auth.
+- Scope guard.
+- Rate limit.
+- Audit log.
+- Pagination.
+- Filtering.
+
+Acceptance criteria:
+- External system can fetch courses and enroll users using API key.
+
+
+PHASE 41 - LOCALIZATION AND MULTI-LANGUAGE
+------------------------------------------
+Goal:
+Prepare platform for multiple languages.
+
+Features:
+- i18n structure for frontend.
+- Language switcher.
+- Course language metadata.
+- Subtitle language.
+- Transcript language.
+- Certificate language placeholder.
+- AI translate content placeholder.
+- Multilingual notification template placeholder.
+
+Tasks:
+- Extract UI strings.
+- Add translation file structure.
+- Add language preference to user.
+- Add language field to course, lesson, transcript, subtitle.
+
+Acceptance criteria:
+- UI can switch at least between two language files structurally.
+- Course metadata supports language filtering.
+
+
+PHASE 42 - HELP CENTER AND SUPPORT TICKETS
+------------------------------------------
+Goal:
+Create support ecosystem.
+
+Entities:
+- HelpArticle
+- HelpCategory
+- FaqItem
+- SupportTicket
+- SupportTicketMessage
+
+Features:
+- Help center.
+- FAQ management.
+- Support ticket creation.
+- Ticket status.
+- Ticket priority.
+- Support admin reply.
+- Link ticket to course/order optional.
+- AI support chatbot placeholder using help articles.
+
+Endpoints:
+- GET /api/v1/help/articles
+- GET /api/v1/help/articles/:slug
+- GET /api/v1/help/faqs
+- POST /api/v1/support/tickets
+- GET /api/v1/my/support/tickets
+- GET /api/v1/admin/support/tickets
+- PATCH /api/v1/admin/support/tickets/:id
+- POST /api/v1/admin/support/tickets/:id/messages
+
+Acceptance criteria:
+- Learner can open ticket.
+- Support admin can reply.
+- Help articles are searchable.
+
+
+PHASE 43 - DATA GOVERNANCE, BACKUP, AND COMPLIANCE
+--------------------------------------------------
+Goal:
+Add enterprise data governance.
+
+Entities:
+- DataExportRequest
+- DataRetentionPolicy
+- ConsentRecord
+- TermsAcceptance
+- DataDeletionRequest
+
+Features:
+- User data export.
+- User anonymization placeholder.
+- Data deletion request placeholder.
+- Data retention settings.
+- Terms acceptance tracking.
+- Privacy consent tracking.
+- Backup documentation.
+- Restore documentation.
+- Soft delete cleanup job.
+- Archive policy.
+- Strong audit log viewer.
+
+Endpoints:
+- POST /api/v1/my/data-export
+- GET /api/v1/my/data-export
+- POST /api/v1/admin/users/:id/anonymize
+- GET /api/v1/admin/data-retention
+- PATCH /api/v1/admin/data-retention
+- GET /api/v1/admin/audit-logs
+
+Acceptance criteria:
+- Data export request can generate file.
+- Audit logs searchable.
+- Retention policy is configurable.
+
+
+PHASE 44 - SECURITY HARDENING
+-----------------------------
+Goal:
+Harden application security.
+
+Tasks:
+- Helmet security headers.
+- Rate limiting for auth, AI, file upload, API key.
+- File MIME validation.
+- Max file size validation.
+- Virus scan placeholder.
+- Signed URLs for private files.
+- Rich text sanitization.
+- XSS prevention.
+- CSRF consideration if using cookies.
+- Password policy.
+- Implement MFA with TOTP. SMS/email OTP boleh provider-adapter optional, tapi jangan hanya stub kosong.
+- Revoke all sessions.
+- IP allowlist placeholder.
+- Admin action reason for sensitive actions.
+- Secrets never exposed to frontend.
+- Environment variable validation.
+- Permission regression tests.
+
+Acceptance criteria:
+- Security headers active.
+- Sensitive endpoints rate limited.
+- File uploads validated.
+- Rich text sanitized.
+
+
+PHASE 45 - OBSERVABILITY AND SYSTEM HEALTH
+------------------------------------------
+Goal:
+Make production support easier.
+
+Features:
+- Structured logging.
+- Request ID.
+- Error tracking placeholder.
+- Metrics endpoint placeholder.
+- Job monitoring.
+- Failed job retry.
+- System health dashboard.
+
+Health checks:
+- API.
+- Database.
+- Redis.
+- Storage.
+- Queue.
+- AI provider placeholder.
+- Email provider placeholder.
+
+Endpoints:
+- GET /api/v1/admin/system/health
+- GET /api/v1/admin/system/jobs
+- POST /api/v1/admin/system/jobs/:id/retry
+
+Acceptance criteria:
+- Admin can see system status.
+- Failed jobs visible.
+- Logs contain request ID.
+
+
+PHASE 46 - PWA AND MOBILE EXPERIENCE
+------------------------------------
+Goal:
+Make platform mobile friendly and installable.
+
+Features:
+- PWA manifest.
+- Service worker.
+- Install prompt.
+- Offline fallback.
+- Cache static assets.
+- Offline reading placeholder for saved rich text lessons.
+- Mobile course catalog.
+- Mobile learning player.
+- Mobile quiz interface.
+- Mobile assignment submission.
+- Bottom navigation for learner.
+- Collapsible curriculum sidebar.
+- Mobile AI assistant panel.
+- Mobile notification center.
+
+Acceptance criteria:
+- App installable as PWA.
+- Learning page usable on mobile.
+- Quiz usable on mobile.
+
+
+PHASE 47 - PERFORMANCE OPTIMIZATION
+-----------------------------------
+Goal:
+Optimize app for large data.
+
+Tasks:
+- Pagination for all large tables.
+- Index review.
+- Query optimization.
+- Avoid N+1 queries.
+- Redis caching for permissions.
+- Redis caching for course summaries.
+- Lazy load rich editor.
+- Lazy load video player.
+- Image optimization.
+- API response compression.
+- Background jobs for heavy tasks.
+- Streaming or chunked export for reports.
+- Analyze bundle size.
+
+Acceptance criteria:
+- No obvious N+1 on main pages.
+- Large tables paginated.
+- Course catalog optimized.
+
+
+PHASE 48 - COURSE VERSIONING, REVIEW WORKFLOW, IMPORT/EXPORT
+-------------------------------------------------------------
+Goal:
+Add enterprise course lifecycle management.
+
+Entities:
+- CourseVersion
+- CourseReviewRequest
+- CourseReviewComment
+- CourseImportExportJob
+
+Features:
+- Course version snapshot.
+- Draft changes separate from published version placeholder.
+- Review workflow.
+- Reviewer approval before publish.
+- Review comments.
+- Course import/export JSON.
+- Course backup package.
+- Restore course from export.
+- Duplicate course improved.
+
+Endpoints:
+- POST /api/v1/instructor/courses/:id/review-request
+- GET /api/v1/reviewer/course-review-requests
+- POST /api/v1/reviewer/course-review-requests/:id/approve
+- POST /api/v1/reviewer/course-review-requests/:id/reject
+- GET /api/v1/instructor/courses/:id/versions
+- POST /api/v1/instructor/courses/:id/versions
+- POST /api/v1/instructor/courses/:id/export
+- POST /api/v1/instructor/courses/import
+
+Acceptance criteria:
+- Course can go through review before publish.
+- Course export/import works structurally.
+
+
+PHASE 49 - ADMIN SETTINGS AND FEATURE FLAGS
+-------------------------------------------
+Goal:
+Allow platform configuration.
+
+Entities:
+- PlatformSetting
+- OrganizationSetting
+- FeatureFlag
+
+Settings:
+- Enable/disable AI.
+- Enable/disable payment.
+- Enable/disable public catalog.
+- Enable/disable self registration.
+- Default certificate template.
+- Default storage limit.
+- AI quota.
+- Upload limits.
+- Notification defaults.
+
+Endpoints:
+- GET /api/v1/admin/settings
+- PATCH /api/v1/admin/settings
+- GET /api/v1/admin/feature-flags
+- PATCH /api/v1/admin/feature-flags/:key
+
+Acceptance criteria:
+- Admin can configure important platform behavior.
+- Feature flags can hide unfinished modules.
+
+
+PHASE 50 - COMPLETE DEMO SEED AND PRESENTATION MODE
+---------------------------------------------------
+Goal:
+Create impressive demo data for full system.
+
+Seed:
+- 3 organizations.
+- Super admin.
+- Org admins.
+- 5 instructors.
+- 20 learners.
+- 10 categories.
+- 12 courses.
+- 3 learning paths.
+- Many lessons and activities.
+- Videos, PDFs, rich text placeholders.
+- Question banks with 100 questions.
+- Quiz attempts.
+- Assignments and submissions.
+- Certificates.
+- Reviews and ratings.
+- Discussions.
+- Announcements.
+- Live sessions.
+- Notifications.
+- AI documents/chunks.
+- Goals, badges, XP.
+- Analytics snapshots.
+- Payment orders if payment enabled.
+
+Presentation mode:
+- Add environment flag DEMO_MODE.
+- Add clear demo credentials.
+- Add guided demo checklist in docs/demo.md.
+
+Acceptance criteria:
+- Demo looks populated and realistic.
+- Seed is idempotent.
+
+
+PHASE 51 - API DOCUMENTATION AND USER GUIDES
+--------------------------------------------
+Goal:
+Complete documentation.
+
+Docs:
+- README.
+- Architecture diagram.
+- Database overview.
+- API documentation.
+- Deployment guide.
+- Environment variables.
+- Admin guide.
+- Instructor guide.
+- Learner guide.
+- AI guide.
+- Security guide.
+- Troubleshooting guide.
+- Demo guide.
+
+API docs must include:
+- Endpoint.
+- Method.
+- Auth required.
+- Permission required.
+- Request body.
+- Query params.
+- Response example.
+- Error response.
+
+Acceptance criteria:
+- A new developer can run and understand project.
+- API docs are useful.
+
+
+PHASE 52 - FINAL QA, REGRESSION, AND PRODUCTION BASELINE
+--------------------------------------------------------
+Goal:
+Finalize platform baseline.
+
+Tasks:
+- Run typecheck.
+- Run lint.
+- Run unit tests.
+- Run integration tests.
+- Run E2E smoke tests.
+- Test major flows:
+  - register/login
+  - organization switch
+  - role permission
+  - course create/publish
+  - enroll
+  - learn
+  - quiz
+  - assignment
+  - certificate
+  - AI ask
+  - discussion
+  - notification
+  - analytics
+  - payment if enabled
+- Fix broken links.
+- Fix empty states.
+- Fix loading states.
+- Review accessibility.
+- Review mobile responsiveness.
+- Review security configuration.
+- Review indexes.
+- Review docs.
+
+Acceptance criteria:
+- App is production-ready baseline.
+- No TypeScript error.
+- Main flows pass.
+- Docs complete.
+
+============================================================
+K. CODING RULES FOR CODEX
+============================================================
+
+1. Do not skip migrations when changing schema.
+2. Do not put business logic in controllers.
+3. Controllers should validate and delegate to services.
+4. Services should call repositories or Prisma services.
+5. Guards enforce auth, tenant, and permission.
+6. Every tenant-scoped query must include organizationId.
+7. Use DTOs and validation for request bodies.
+8. Use typed enums from shared package where possible.
+9. Use consistent error codes.
+10. Use transactions for multi-step writes.
+11. Create audit logs for sensitive admin actions.
+12. Create learning events for learner activity.
+13. Create notification events through NotificationService, not direct inserts everywhere.
+14. Create background jobs for heavy work.
+15. Do not expose secrets in frontend.
+16. Do not assume one organization per user.
+17. Do not assume one instructor per course.
+18. Do not assume one activity content type forever.
+19. Do not assume progress is only percentage.
+20. Do not make AI answer without checking context for course Q&A.
+21. AI generated content must be marked AI-generated.
+22. Instructor approval required for AI-generated quiz/material before publishing.
+23. Use feature flags for modules that are not fully done.
+24. Every phase should keep app runnable.
+25. Add or update tests for critical logic.
+
+============================================================
+L. DATABASE INDEX REQUIREMENTS
+============================================================
+
+Add indexes for:
+- users.email unique
+- organizations.slug unique
+- organization_members.organizationId + userId unique
+- roles.organizationId + key unique
+- permissions.key unique
+- courses.organizationId + slug unique
+- courses.status + visibility
+- courses.category and level filters where applicable
+- course_modules.courseId + orderIndex
+- lessons.moduleId + orderIndex
+- activities.lessonId + orderIndex
+- enrollments.userId + courseId unique
+- progress userId + courseId
+- progress userId + activityId
+- quizzes.courseId
+- quiz_attempts.quizId + userId
+- quiz_answers.attemptId + questionId
+- certificates.verificationCode unique
+- certificates.certificateNumber unique
+- notifications.userId + readAt + createdAt
+- learning_events.organizationId + createdAt
+- learning_events.userId + createdAt
+- learning_events.courseId + eventType + createdAt
+- ai_documents.courseId + status
+- ai_chunks.documentId + chunkIndex
+- discussions.courseId + createdAt
+- payments.orderId
+- orders.userId + status
+- audit_logs.organizationId + createdAt
+- audit_logs.actorId + createdAt
+
+============================================================
+M. ANALYTICS EVENT TYPES
+============================================================
+
+Core events:
+- USER_REGISTERED
+- USER_LOGGED_IN
+- USER_LOGGED_OUT
+- ORGANIZATION_CREATED
+- COURSE_CREATED
+- COURSE_PUBLISHED
+- COURSE_VIEWED
+- COURSE_ENROLLED
+- LESSON_STARTED
+- LESSON_COMPLETED
+- ACTIVITY_STARTED
+- ACTIVITY_COMPLETED
+- VIDEO_STARTED
+- VIDEO_PROGRESS
+- VIDEO_COMPLETED
+- QUIZ_STARTED
+- QUIZ_ANSWER_SAVED
+- QUIZ_SUBMITTED
+- QUIZ_PASSED
+- QUIZ_FAILED
+- ASSIGNMENT_VIEWED
+- ASSIGNMENT_SUBMITTED
+- ASSIGNMENT_GRADED
+- COURSE_COMPLETED
+- CERTIFICATE_ISSUED
+- CERTIFICATE_VERIFIED
+- AI_ASKED
+- AI_ANSWERED
+- AI_GENERATE_QUIZ
+- AI_GENERATED_ITEM_APPROVED
+- DISCUSSION_CREATED
+- DISCUSSION_REPLIED
+- LIVE_SESSION_JOINED
+- GOAL_CREATED
+- GOAL_COMPLETED
+- BADGE_AWARDED
+- PAYMENT_CREATED
+- PAYMENT_PAID
+- REPORT_EXPORTED
+
+============================================================
+N. DEFINITION OF DONE PER PHASE
+============================================================
+
+A phase is done only if:
+1. Code compiles.
+2. App starts.
+3. Database migration works.
+4. Seed still works.
+5. Main flow of the phase works in UI or documented API.
+6. Permissions checked.
+7. Tenant isolation checked.
+8. Audit logs added for admin/sensitive actions.
+9. Learning events added for learner activity.
+10. Tests added for critical logic.
+11. Documentation updated.
+12. No hardcoded demo-only behavior in production path.
+
+============================================================
+O. ARCHITECTURE REVIEW PROMPT TO RUN AFTER EACH PHASE
+============================================================
+
+After completing each phase, audit the implementation:
+
+1. Is the code modular and maintainable?
+2. Does the database schema support future phases without major rewrite?
+3. Is multi-tenancy consistently implemented?
+4. Is RBAC consistently enforced?
+5. Are APIs versioned and consistent?
+6. Are services separated from controllers?
+7. Is storage abstracted properly?
+8. Is AI architecture RAG-ready?
+9. Is progress tracking flexible enough?
+10. Are analytics events recorded in important flows?
+11. Are database indexes sufficient?
+12. Are there hardcoded assumptions that block future features?
+13. Are there N+1 query risks?
+14. Are there missing tests for critical logic?
+15. Are there security issues?
+
+Output:
+- Issues found.
+- Severity: low, medium, high.
+- Recommended fix.
+- Files to change.
+- Whether fix is required before next phase.
+
+============================================================
+P. FINAL EXPECTATION
+============================================================
+
+Build this LMS gradually. The early phases must produce a strong MVP, but the schema, services, UI structure, and architecture must be designed to support the complete feature set through Phase 52.
+
+The final platform should feel like a complete AI-powered LMS that combines:
+- Coursera-style catalog and learning experience.
+- Moodle-style flexibility and assessment depth.
+- Enterprise admin, tenant, permission, reporting, and integration capabilities.
+- AI-powered tutoring and instructor productivity tools.
+
+Do not optimize for a quick demo only. Optimize for a strong foundation, maintainability, and feature extensibility.
+
+
+============================================================
+K2. PHASE TAMBAHAN V2 BERDASARKAN GAP REVIEW
+============================================================
+
+PHASE 53 - V2 ARCHITECTURE REMEDIATION AND DECISION LOCK
+--------------------------------------------------------
+Goal:
+Menutup semua ambiguitas arsitektur dari review sebelum development berlanjut terlalu jauh.
+
+Tasks:
+- Remove GraphQL from implementation plan unless explicitly requested later.
+- Document REST-only core API decision.
+- Document timezone strategy.
+- Document public OAuth vs enterprise SSO strategy.
+- Document realtime strategy: WebSocket plus SSE for AI streaming.
+- Document video provider strategy.
+- Document cohort/scheduled course domain model.
+- Document marketplace payout and multi-currency model.
+- Document moderation/legal strategy.
+- Document accessibility baseline.
+- Update docs/architecture.md, docs/database.md, docs/security.md, docs/phases.md.
+
+Acceptance criteria:
+- No ambiguous phrase like "placeholder or implementation" remains.
+- Every placeholder must have interface, data model, and future implementation path.
+- Architecture docs explain choices clearly.
+
+
+PHASE 54 - TIMEZONE, SCHEDULING, AND COHORT FOUNDATION
+------------------------------------------------------
+Goal:
+Membuat scheduling platform aman untuk multi-timezone dan mendukung self-paced serta cohort course.
+
+Entities:
+- Add timezone to UserProfile.
+- Add timezone to Organization.
+- Cohort.
+- CohortMember.
+- CohortSchedule.
+- DueDatePolicy.
+- CohortProgressOverride.
+
+Features:
+- Store all datetime in UTC.
+- Store timezone source for schedules.
+- User timezone preference.
+- Organization timezone default.
+- Self-paced enrollment.
+- Cohort enrollment.
+- Enrollment window.
+- Cohort start/end date.
+- Cohort-specific live session.
+- Cohort-specific assignment/quiz due date.
+- Cohort-specific report filters.
+- Convert frontend datetime to user timezone.
+
+Endpoints:
+- GET /api/v1/my/timezone
+- PATCH /api/v1/my/timezone
+- GET /api/v1/organizations/:id/timezone
+- PATCH /api/v1/organizations/:id/timezone
+- GET /api/v1/instructor/courses/:courseId/cohorts
+- POST /api/v1/instructor/courses/:courseId/cohorts
+- GET /api/v1/instructor/cohorts/:cohortId
+- PATCH /api/v1/instructor/cohorts/:cohortId
+- POST /api/v1/instructor/cohorts/:cohortId/members
+- GET /api/v1/my/cohorts
+- POST /api/v1/cohorts/:cohortId/enroll
+
+Acceptance criteria:
+- Due dates show correctly in different user timezones.
+- Cohort can be created with schedule.
+- Learner can enroll to cohort if enrollment window is open.
+- Course progress still works for self-paced and cohort mode.
+
+
+PHASE 55 - PUBLIC OAUTH, CAPTCHA, MFA, AND AUTH HARDENING
+---------------------------------------------------------
+Goal:
+Melengkapi authentication untuk publik dan enterprise-ready security.
+
+Entities:
+- OAuthAccount.
+- LoginAttempt.
+- CaptchaVerificationLog.
+- MfaFactor.
+- SecurityEvent.
+
+Features:
+- Login with Google.
+- Login with Microsoft.
+- Optional GitHub provider if useful.
+- Account linking.
+- CAPTCHA for register.
+- CAPTCHA after repeated failed login.
+- CAPTCHA for forgot password.
+- TOTP MFA implementation.
+- Backup recovery codes optional.
+- Session management.
+- Revoke all sessions.
+- Security event log.
+
+Provider abstraction:
+- OAuthProvider.
+- CaptchaProvider.
+- MfaProvider for TOTP core and optional OTP channels.
+
+Endpoints:
+- GET /api/v1/auth/oauth/:provider/start
+- GET /api/v1/auth/oauth/:provider/callback
+- POST /api/v1/auth/oauth/link/:provider
+- DELETE /api/v1/auth/oauth/unlink/:provider
+- GET /api/v1/auth/sessions
+- DELETE /api/v1/auth/sessions/:id
+- DELETE /api/v1/auth/sessions
+- POST /api/v1/auth/mfa/totp/setup
+- POST /api/v1/auth/mfa/totp/verify
+- POST /api/v1/auth/mfa/disable
+
+Acceptance criteria:
+- User can login using Google/Microsoft.
+- Existing email/password user can link OAuth account.
+- CAPTCHA protects risky auth actions.
+- TOTP MFA works.
+- Login attempts and security events are logged.
+
+
+PHASE 56 - REALTIME INFRASTRUCTURE, AI STREAMING, AND DIRECT MESSAGING
+----------------------------------------------------------------------
+Goal:
+Membuat realtime layer yang mendukung notification, AI streaming, discussion update, dan direct message.
+
+Entities:
+- RealtimeSubscription.
+- DirectMessageThread.
+- DirectMessageParticipant.
+- DirectMessage.
+- DirectMessageAttachment.
+- DirectMessageReadReceipt.
+
+Features:
+- RealtimeGateway with WebSocket.
+- Redis pub/sub for scale.
+- SSE endpoint for AI streaming.
+- Realtime notification delivery.
+- Realtime discussion replies.
+- Direct messaging between instructor and learner.
+- Mentor-mentee chat.
+- Support thread optional.
+- Read receipt.
+- Message attachment.
+- Report message to moderation.
+- Fallback polling.
+
+Endpoints:
+- GET /api/v1/realtime/token
+- GET /api/v1/ai/conversations/:id/stream
+- GET /api/v1/messages/threads
+- POST /api/v1/messages/threads
+- GET /api/v1/messages/threads/:id
+- POST /api/v1/messages/threads/:id/messages
+- PATCH /api/v1/messages/threads/:id/read
+
+Acceptance criteria:
+- Notification appears without page refresh when socket connected.
+- AI tutor can stream response.
+- Learner and instructor can exchange private messages if permission allows.
+- Redis pub/sub architecture is documented.
+
+
+PHASE 57 - BULK OPERATIONS FOR ENTERPRISE ADMIN
+-----------------------------------------------
+Goal:
+Membuat operasi massal untuk organization admin.
+
+Entities:
+- BulkImportJob.
+- BulkImportRow.
+- BulkActionJob.
+
+Features:
+- Bulk import users via CSV/XLSX.
+- Bulk invite users.
+- Bulk enroll learners to course.
+- Bulk enroll learners to cohort.
+- Bulk assign roles.
+- Bulk assign groups/cohorts.
+- Bulk issue certificates optional.
+- Validation preview before import.
+- Failed row report.
+- Download error file.
+- Idempotent import where possible.
+- Audit log for every bulk action.
+
+Endpoints:
+- POST /api/v1/admin/bulk/users/validate
+- POST /api/v1/admin/bulk/users/import
+- POST /api/v1/admin/bulk/enrollments/validate
+- POST /api/v1/admin/bulk/enrollments/import
+- POST /api/v1/admin/bulk/roles/assign
+- GET /api/v1/admin/bulk/jobs
+- GET /api/v1/admin/bulk/jobs/:id
+- GET /api/v1/admin/bulk/jobs/:id/errors
+
+Acceptance criteria:
+- Admin can upload CSV and preview validation errors.
+- Admin can import valid rows.
+- Failed rows are downloadable.
+- Bulk job status is visible.
+
+
+PHASE 58 - CONTENT MODERATION, LEGAL PAGES, COOKIE CONSENT
+----------------------------------------------------------
+Goal:
+Membuat moderation dan compliance UI yang nyata, bukan hanya entity.
+
+Entities:
+- ContentReport.
+- ModerationCase.
+- ModerationAction.
+- LegalDocument.
+- LegalDocumentVersion.
+- ConsentRecord.
+- CookiePreference.
+
+Features:
+- Report discussion/comment/review/project/message.
+- Moderation queue.
+- Hide/unhide/delete content.
+- Warn/suspend user.
+- Moderation audit trail.
+- Terms of Service page.
+- Privacy Policy page.
+- Cookie Policy page.
+- Cookie consent banner.
+- Consent versioning.
+- Require re-accept when legal document version changes.
+
+Endpoints:
+- POST /api/v1/reports/content
+- GET /api/v1/admin/moderation/cases
+- GET /api/v1/admin/moderation/cases/:id
+- POST /api/v1/admin/moderation/cases/:id/actions
+- GET /api/v1/legal/:slug
+- GET /api/v1/admin/legal-documents
+- POST /api/v1/admin/legal-documents
+- POST /api/v1/admin/legal-documents/:id/versions
+- POST /api/v1/consents
+- GET /api/v1/my/consents
+- PATCH /api/v1/cookie-preferences
+
+Acceptance criteria:
+- User can report content.
+- Admin can process moderation case.
+- Legal pages are public.
+- Cookie banner appears and stores preferences.
+- Terms version change requires new consent.
+
+
+PHASE 59 - MULTI-CURRENCY, REVENUE SHARE, AND INSTRUCTOR PAYOUT
+---------------------------------------------------------------
+Goal:
+Melengkapi monetisasi marketplace agar tidak hanya menerima payment, tapi juga bisa menghitung earning dan payout.
+
+Entities:
+- Currency.
+- ExchangeRate.
+- PlatformFeeRule.
+- RevenueShareRule.
+- InstructorPayoutAccount.
+- InstructorEarning.
+- InstructorPayout.
+- PayoutTransaction.
+
+Features:
+- Default currency per organization.
+- Product price by currency.
+- Platform fee calculation.
+- Instructor revenue share.
+- Earning ledger.
+- Refund adjustment.
+- Payout account verification status.
+- Payout batch.
+- Payout provider abstraction.
+- Admin payout report.
+- Instructor earnings dashboard.
+
+Endpoints:
+- GET /api/v1/currencies
+- GET /api/v1/admin/platform-fee-rules
+- POST /api/v1/admin/platform-fee-rules
+- GET /api/v1/instructor/earnings
+- GET /api/v1/instructor/payout-accounts
+- POST /api/v1/instructor/payout-accounts
+- GET /api/v1/admin/payouts
+- POST /api/v1/admin/payouts
+- PATCH /api/v1/admin/payouts/:id/process
+
+Acceptance criteria:
+- Paid order creates instructor earning according to revenue share.
+- Refund reverses or adjusts earning.
+- Instructor can see earning.
+- Admin can create/process payout.
+
+
+PHASE 60 - ADVANCED VIDEO PROVIDER AND STREAMING PIPELINE
+---------------------------------------------------------
+Goal:
+Membuat video learning production-ready melalui provider abstraction.
+
+Entities:
+- VideoProviderConfig.
+- VideoAsset updated.
+- VideoRendition.
+- VideoThumbnail.
+- VideoCaption.
+- VideoTranscriptSegment.
+- VideoPlaybackSession.
+
+Features:
+- VideoProviderAdapter.
+- Managed provider implementation placeholder with real interface.
+- Self-hosted provider optional.
+- HLS/DASH metadata fields.
+- Thumbnail generation or provider thumbnail sync.
+- Subtitle upload VTT/SRT.
+- Transcript upload and transcript viewer.
+- Transcript segment indexing for AI.
+- AI summarize from transcript.
+- AI generate quiz from transcript.
+- Prevent skipping option.
+- Timestamp notes.
+- Video analytics per learner.
+
+Endpoints:
+- POST /api/v1/instructor/videos/upload
+- GET /api/v1/instructor/videos/:id/status
+- POST /api/v1/instructor/videos/:id/captions
+- POST /api/v1/instructor/videos/:id/transcript
+- GET /api/v1/learn/videos/:id/playback
+- POST /api/v1/learn/videos/:id/playback-session
+- PATCH /api/v1/learn/video-playback-sessions/:id
+- POST /api/v1/instructor/videos/:id/ai/summary
+- POST /api/v1/instructor/videos/:id/ai/generate-quiz
+
+Acceptance criteria:
+- Video playback uses provider abstraction.
+- Captions and transcript can be attached.
+- Video transcript can be indexed for AI.
+- Video quiz generation works from transcript.
+
+
+PHASE 61 - EXAM INTEGRITY AND PROCTORING READINESS
+--------------------------------------------------
+Goal:
+Menambahkan integritas ujian tanpa mengunci platform ke vendor proctoring tertentu.
+
+Entities:
+- ExamSession.
+- ProctoringEvent.
+- ProctoringProviderConfig.
+
+Features:
+- Exam mode setting per quiz.
+- Fullscreen mode.
+- Tab switch detection.
+- Focus lost detection.
+- Copy/paste prevention optional.
+- Suspicious event log.
+- ProctoringProvider abstraction for future webcam/screen provider.
+- Instructor review suspicious events.
+
+Endpoints:
+- POST /api/v1/learn/quizzes/:quizId/exam-session
+- POST /api/v1/learn/exam-sessions/:id/events
+- GET /api/v1/instructor/quiz-attempts/:attemptId/proctoring-events
+- PATCH /api/v1/instructor/exam-sessions/:id/review
+
+Acceptance criteria:
+- Quiz can run in locked/fullscreen exam mode.
+- Tab switch and fullscreen exit are logged.
+- Instructor can review suspicious events.
+- Architecture can integrate proctoring vendor later.
+
+
+PHASE 62 - ACCESSIBILITY AND WCAG HARDENING
+-------------------------------------------
+Goal:
+Memastikan UI benar-benar accessible, bukan hanya terlihat bagus.
+
+Tasks:
+- Audit all shadcn/ui wrappers.
+- Ensure keyboard navigation for sidebar, modal, dropdown, tabs, quiz controls, rich editor, video player controls.
+- Add visible focus states.
+- Ensure form errors are associated with inputs.
+- Add ARIA labels where semantic HTML is insufficient.
+- Ensure color contrast meets WCAG AA.
+- Ensure video captions/transcripts are discoverable.
+- Ensure certificate verification page is screen-reader friendly.
+- Add accessibility checks to CI if possible.
+
+Acceptance criteria:
+- Core learner flow can be completed with keyboard only.
+- Critical forms are screen-reader friendly.
+- Contrast issues are fixed.
+- Accessibility checklist is documented.
+
+
+PHASE 63 - V2 FINAL REGRESSION AND NO-ROMBAK CHECK
+--------------------------------------------------
+Goal:
+Memastikan semua tambahan V2 tidak merusak fondasi dan tetap mendukung phase lengkap.
+
+Review checklist:
+- Timezone used correctly in schedule/due date/report.
+- OAuth and SSO are separated.
+- Realtime architecture works and has fallback.
+- Cohort model does not break self-paced course.
+- Bulk import has validation and audit.
+- Moderation applies to all user-generated content.
+- Legal consent versioning works.
+- Marketplace payout and currency model do not break simple free course.
+- Video provider abstraction does not break basic video URL.
+- MFA is implemented, not just stub.
+- PWA push is implemented for supported browsers.
+- Accessibility checked from core components.
+- No hardcoded vendor in domain logic.
+
+Acceptance criteria:
+- Full smoke test passes.
+- Permission regression passes.
+- Multi-tenant data isolation passes.
+- Core LMS MVP remains stable.
+- Complete LMS roadmap remains forward-compatible.
+
+
+================================================================================
+ARCHITECTURE DECISION: MULTI-ORGANIZATION SSO STRATEGY
+================================================================================
+
+This section is mandatory and must be treated as an early architecture decision,
+not as a late enterprise-only feature. The LMS is multi-organization, so SSO must
+not be implemented as one simple global SSO login. SSO must be organization-aware
+from the beginning.
+
+Core principle:
+- User is global.
+- Organization membership is tenant-scoped.
+- SSO provider is organization-scoped.
+- Login policy is organization-scoped.
+- Role and permission are resolved from the active organization membership.
+- A user may belong to multiple organizations.
+- A user may authenticate through different identity providers for different organizations.
+- Access tokens or sessions must carry active organization context.
+- All tenant-scoped queries must be filtered by activeOrganizationId unless the actor is a platform super admin.
+
+Example:
+- user@example.com may be an Instructor in Organization A.
+- user@example.com may be a Learner in Organization B.
+- Organization A may use Microsoft Entra ID SSO.
+- Organization B may use Google Workspace SSO.
+- The same global User record can have multiple OrganizationMember records and multiple UserIdentity records.
+
+Do not implement enterprise SSO as:
+- A single global "Login with SSO" button that does not know the organization.
+- A login callback that links users only by email.
+- A global role assignment from IdP groups.
+- A flow that ignores organization membership status.
+
+Required login modes:
+1. Global login with email discovery.
+2. Organization-first login via /o/:organizationSlug/login.
+3. Subdomain login, for example https://acme.app.example.com/login.
+4. Custom domain login, for example https://learning.acme.com/login.
+5. Invite-based login.
+6. IdP-initiated SSO with signed and expiring RelayState.
+7. Public social login, separate from enterprise SSO.
+
+Public social login:
+- Google personal/public login.
+- Microsoft personal/public login.
+- Optional GitHub login.
+- Social login authenticates the global user account.
+- Social login must not automatically add a user to an organization unless a valid invitation or organization login policy allows it.
+- Social login is not the same as enterprise SSO.
+
+Enterprise SSO:
+- Organization-scoped.
+- Supports SAML and OIDC.
+- Each organization may configure one or more SSO providers.
+- Each organization may enforce SSO for verified domains.
+- Each organization may enable or disable JIT provisioning.
+- Each organization may map IdP groups to LMS organization roles.
+- Enterprise SSO must never assign platform-level super_admin role.
+- Suspended or deactivated organization membership must block access even when SSO authentication succeeds.
+
+Organization resolution strategy:
+Before redirecting to enterprise SSO, the system must determine the organization
+context from one of the following sources:
+- /o/:slug/login route.
+- Subdomain.
+- Custom domain.
+- Email domain discovery.
+- Invitation link.
+- Signed RelayState for IdP-initiated SSO.
+
+If organization cannot be resolved, do not start enterprise SSO. Ask the user to
+select organization or enter email for discovery.
+
+Recommended user experience:
+
+1. Organization-first login:
+- User visits /o/acme/login or acme.app.example.com/login.
+- The login page shows Acme branding.
+- The login page only shows login methods allowed by Acme's OrganizationLoginPolicy.
+- If Acme requires SSO, show only the Acme SSO button and hide password login.
+
+2. Email discovery login:
+- User visits /login.
+- User enters email.
+- System checks verified OrganizationDomain records.
+- If the email domain maps to one organization with enforced SSO, redirect to that organization's SSO provider.
+- If the domain maps to multiple organizations, show organization selection.
+- If no organization is matched, show regular password/social login if allowed.
+
+3. Invite-based login:
+- User opens invitation link.
+- Invitation contains organizationId, email, intended role, allowed login methods, and expiry.
+- If the organization requires SSO, redirect to that organization's SSO provider.
+- After successful SSO, accept invite and create OrganizationMember if policy allows.
+
+4. IdP-initiated SSO:
+- Use signed and expiring RelayState.
+- RelayState must include organizationSlug or organizationId, ssoProviderId, returnUrl, nonce, and issuedAt.
+- Reject unsigned, expired, or mismatched RelayState.
+
+Mandatory data model additions or updates:
+
+SsoProvider:
+- id
+- organizationId
+- type enum: SAML, OIDC, GOOGLE_WORKSPACE, MICROSOFT_ENTRA
+- name
+- issuer
+- entityId nullable
+- clientId nullable
+- clientSecretEncrypted nullable
+- metadataUrl nullable
+- metadataXml nullable
+- authorizationUrl nullable
+- tokenUrl nullable
+- userInfoUrl nullable
+- jwksUrl nullable
+- callbackUrl
+- enabled
+- jitProvisioningEnabled
+- inviteOnly
+- defaultRoleId nullable
+- groupRoleMappings JSON nullable
+- config JSON
+- createdAt
+- updatedAt
+
+UserIdentity:
+- id
+- userId
+- organizationId nullable
+- providerType enum: PASSWORD, GOOGLE, MICROSOFT, GITHUB, SAML, OIDC
+- ssoProviderId nullable
+- providerSubject
+- providerEmail
+- providerEmailVerified
+- rawProfile JSON
+- lastLoginAt nullable
+- createdAt
+- updatedAt
+
+Rules:
+- UserIdentity for public social login may have organizationId nullable.
+- UserIdentity for enterprise SSO must have ssoProviderId.
+- Enterprise SSO identity lookup must use ssoProviderId + providerSubject, not email alone.
+
+OrganizationDomain:
+- id
+- organizationId
+- domain
+- verificationStatus enum: PENDING, VERIFIED, REJECTED
+- verificationMethod enum: DNS_TXT, EMAIL, MANUAL
+- verificationToken nullable
+- verifiedAt nullable
+- ssoProviderId nullable
+- enforceSso boolean
+- autoJoinEnabled boolean
+- createdAt
+- updatedAt
+
+OrganizationLoginPolicy:
+- id
+- organizationId
+- allowPasswordLogin boolean
+- allowSocialLogin boolean
+- allowSsoLogin boolean
+- requireSsoForVerifiedDomains boolean
+- jitProvisioningEnabled boolean
+- inviteOnly boolean
+- mfaRequired boolean
+- allowedSocialProviders JSON
+- sessionTtlMinutes integer
+- createdAt
+- updatedAt
+
+UserSession:
+- id
+- userId
+- activeOrganizationId nullable
+- refreshTokenHash
+- ipAddress nullable
+- userAgent nullable
+- expiresAt
+- createdAt
+- updatedAt
+
+SsoLoginAttempt:
+- id
+- organizationId nullable
+- ssoProviderId nullable
+- userId nullable
+- email nullable
+- status enum: STARTED, SUCCEEDED, FAILED, BLOCKED
+- failureReason nullable
+- ipAddress nullable
+- userAgent nullable
+- metadata JSON
+- createdAt
+
+SsoState:
+- id
+- organizationId
+- ssoProviderId
+- stateHash
+- nonceHash nullable
+- pkceVerifierHash nullable
+- relayStateHash nullable
+- returnUrl nullable
+- expiresAt
+- consumedAt nullable
+- createdAt
+
+Optional but recommended:
+
+SsoGroupRoleMapping:
+- id
+- organizationId
+- ssoProviderId
+- idpGroup
+- roleId
+- enabled
+- createdAt
+- updatedAt
+
+OrganizationInvitation:
+- id
+- organizationId
+- email
+- invitedById
+- roleId nullable
+- tokenHash
+- status enum: PENDING, ACCEPTED, EXPIRED, REVOKED
+- expiresAt
+- acceptedAt nullable
+- createdAt
+- updatedAt
+
+SSO callback flow:
+1. Validate state, nonce, PKCE, issuer, audience, signature, and callback URL.
+2. Resolve SsoProvider and Organization from signed state or RelayState.
+3. Read stable provider subject from IdP.
+4. Find UserIdentity by ssoProviderId + providerSubject.
+5. If identity does not exist:
+   - If JIT provisioning is enabled, create or link user safely.
+   - If invite-only is enabled, require a valid invitation.
+   - If domain auto-join is enabled, require verified organization domain.
+   - Otherwise reject login.
+6. Link or create global User only using safe account linking rules.
+7. Create or update OrganizationMember.
+8. Apply default role or group-to-role mapping if allowed.
+9. Reject access if organization is disabled.
+10. Reject access if membership is suspended, deactivated, or removed.
+11. Set session.activeOrganizationId.
+12. Issue access token for active organization context.
+13. Write audit log and SsoLoginAttempt.
+
+Safe account linking rules:
+- Do not link an SSO identity to an existing user only because email matches.
+- Link automatically only if:
+  - IdP email is verified, and
+  - organization domain is verified, and
+  - organization policy allows auto-linking.
+- Otherwise require the user to authenticate with the existing account before linking.
+- Never let an unverified email claim an existing user account.
+
+JIT provisioning rules:
+- JIT provisioning is organization-scoped.
+- JIT provisioning must respect OrganizationLoginPolicy.
+- If inviteOnly is true, JIT provisioning requires a valid invitation.
+- If autoJoinEnabled is true, the user's email domain must match a VERIFIED OrganizationDomain.
+- New JIT users get defaultRoleId or mapped roles.
+- If no safe default role exists, use learner or block provisioning.
+- JIT provisioning must never create platform super_admin.
+
+Group-to-role mapping rules:
+- Group role mapping is optional per organization and per SSO provider.
+- IdP groups may map only to organization-scoped roles.
+- IdP groups must never map to platform super_admin.
+- Organization admin must explicitly configure mappings.
+- Record mapping changes in audit logs.
+- If group claims are missing, fallback to default role or existing membership roles.
+
+Organization switching:
+- A user with multiple active memberships can switch active organization.
+- Switching organization must re-check membership status.
+- Switching organization must re-resolve roles and permissions.
+- Switching organization should issue a new access token or update server-side session context.
+- Sidebar, permissions, available features, branding, and data scope must follow activeOrganizationId.
+- Cross-tenant data must not remain cached after switching organization.
+
+Access token/session claims:
+Access tokens or server-side sessions must include or resolve:
+- userId
+- activeOrganizationId
+- organizationMemberId
+- organization role keys or permission version
+- sessionId
+
+Do not put large permission lists in long-lived tokens if permissions can change frequently.
+Prefer short-lived access tokens and server-side permission resolution or permissionVersion invalidation.
+
+Required endpoints:
+
+Auth discovery:
+- POST /api/v1/auth/discovery
+- POST /api/v1/auth/organization-discovery
+
+SSO:
+- GET /api/v1/auth/sso/:organizationSlug/:providerId/start
+- GET /api/v1/auth/sso/:providerId/callback
+- POST /api/v1/auth/sso/saml/:providerId/acs
+- POST /api/v1/auth/sso/idp-initiated
+
+Organization switching:
+- GET /api/v1/auth/organizations
+- POST /api/v1/auth/switch-organization
+
+Admin SSO management:
+- GET /api/v1/admin/sso-providers
+- POST /api/v1/admin/sso-providers
+- GET /api/v1/admin/sso-providers/:id
+- PATCH /api/v1/admin/sso-providers/:id
+- DELETE /api/v1/admin/sso-providers/:id
+- POST /api/v1/admin/sso-providers/:id/test
+
+Organization domains:
+- GET /api/v1/admin/organization-domains
+- POST /api/v1/admin/organization-domains
+- POST /api/v1/admin/organization-domains/:id/verify
+- PATCH /api/v1/admin/organization-domains/:id
+- DELETE /api/v1/admin/organization-domains/:id
+
+Login policy:
+- GET /api/v1/admin/login-policy
+- PATCH /api/v1/admin/login-policy
+
+Invitations:
+- GET /api/v1/admin/invitations
+- POST /api/v1/admin/invitations
+- POST /api/v1/invitations/:token/accept
+- POST /api/v1/admin/invitations/:id/revoke
+
+Security requirements:
+- Use signed and expiring state or RelayState.
+- Use nonce and PKCE for OIDC.
+- Validate SAML signatures and metadata.
+- Validate issuer and audience.
+- Validate callback URL and provider ownership.
+- Require verified email for auto-linking.
+- Require verified domains for domain-based auto-join.
+- Store client secrets encrypted.
+- Never allow cross-tenant data access.
+- Never allow IdP group mapping to platform super_admin.
+- Suspended membership must block access even if SSO succeeds.
+- Log all SSO login attempts, failures, account linking, JIT provisioning, and role mapping changes.
+- Add rate limiting to discovery and SSO start endpoints.
+- Prevent open redirect attacks by validating returnUrl.
+
+Audit log events:
+- SSO_PROVIDER_CREATED
+- SSO_PROVIDER_UPDATED
+- SSO_PROVIDER_DELETED
+- SSO_LOGIN_STARTED
+- SSO_LOGIN_SUCCEEDED
+- SSO_LOGIN_FAILED
+- SSO_LOGIN_BLOCKED
+- SSO_IDENTITY_LINKED
+- SSO_JIT_USER_CREATED
+- SSO_MEMBER_PROVISIONED
+- SSO_GROUP_ROLE_MAPPING_APPLIED
+- ORGANIZATION_DOMAIN_CREATED
+- ORGANIZATION_DOMAIN_VERIFIED
+- ORGANIZATION_LOGIN_POLICY_UPDATED
+- ACTIVE_ORGANIZATION_SWITCHED
+
+Frontend requirements:
+- Global login starts with email discovery when appropriate.
+- Organization login page shows organization branding.
+- Login methods shown must respect OrganizationLoginPolicy.
+- Organization switcher must appear in dashboard topbar for users with multiple memberships.
+- When organization is switched, reload role-aware navigation and clear tenant-scoped client caches.
+- SSO error pages must show safe user-friendly messages without leaking sensitive IdP configuration.
+- Admin SSO settings page must support provider config, domain verification, login policy, group mapping, and test connection.
+
+Acceptance criteria:
+- One user can belong to multiple organizations.
+- Each organization can configure its own SSO provider.
+- Enterprise SSO cannot start without organization context.
+- SSO callback safely resolves provider and organization.
+- UserIdentity is matched by provider subject, not email alone.
+- Domain auto-join works only with verified organization domain.
+- Invite-only organizations require valid invitations.
+- Suspended membership cannot access organization even after successful SSO.
+- Switching organization changes activeOrganizationId, permissions, branding, and data scope.
+- IdP groups can map to organization roles but never to platform super_admin.
+- All SSO actions are audited.
+================================================================================
+
+
+================================================================================
+ARCHITECTURE DECISION: PLUGIN-READY LMS STRATEGY
+================================================================================
+
+The LMS must be modular and plugin-ready from the foundation phase.
+
+The current architecture is module-based, but a module-based codebase is not automatically plugin-ready. The LMS must include a controlled plugin system so future capabilities such as 3D content, coding exercises, external labs, custom quiz types, proctoring, SCORM/H5P, new payment gateways, new notification channels, and AI tools can be added without rewriting the LMS core.
+
+Core principle:
+- The LMS core owns users, organizations, memberships, RBAC, courses, modules, lessons, activities, enrollments, progress, grades, certificates, files, analytics events, audit logs, and tenant isolation.
+- Plugins may extend behavior only through controlled extension points.
+- Plugins must not bypass RBAC, organization scoping, audit logs, security rules, file access rules, or certificate completion rules.
+- Plugins must be organization-aware and permission-aware.
+- Plugins must be enableable/disableable per organization.
+- Internal plugins are the initial implementation strategy.
+- Arbitrary third-party plugin upload, remote JavaScript execution, or dynamic untrusted code loading is not allowed in MVP.
+
+Difference between modular and plugin-ready:
+- Modular means the code is organized into modules such as CoursesModule, QuizModule, CertificateModule, and AiModule.
+- Plugin-ready means the core has registries, extension points, manifests, permissions, lifecycle events, organization-level enablement, and safe runtime boundaries for optional capabilities.
+
+Initial implementation strategy:
+1. Start with internal plugins registered in the codebase.
+2. Use PluginRegistry on backend and PluginRendererRegistry on frontend.
+3. Store plugin metadata, organization enablement, config, and execution logs in database.
+4. Do not allow users to upload arbitrary plugin packages in MVP.
+5. Future phases may add plugin marketplace, external plugin review workflow, compatibility checks, signed plugin packages, and sandboxed extension execution.
+
+Important compatibility rule:
+If earlier sections mention Activity.type as an enum, treat those values as core activity type keys, not as a rigid database enum. The implementation should prefer a flexible string key or ActivityType registry table:
+- core.text
+- core.video
+- core.file
+- core.link
+- core.quiz
+- core.assignment
+- core.discussion
+- core.live_session
+- core.survey
+- core.poll
+- plugin.3d_viewer
+- plugin.code_runner
+- plugin.h5p
+- plugin.scorm
+- plugin.external_lab
+
+Activity model must support plugin-ready fields:
+Activity:
+- id
+- organizationId
+- courseId
+- moduleId
+- lessonId
+- activityTypeKey
+- pluginKey nullable
+- pluginVersion nullable
+- title
+- description
+- orderIndex
+- isRequired
+- config JSON
+- content JSON
+- completionRule JSON
+- gradingRule JSON nullable
+- metadata JSON
+- status
+- createdAt
+- updatedAt
+- deletedAt
+
+Plugin categories:
+- ACTIVITY
+- CONTENT
+- ASSESSMENT
+- AI_TOOL
+- INTEGRATION
+- PAYMENT_PROVIDER
+- NOTIFICATION_CHANNEL
+- STORAGE_PROVIDER
+- VIDEO_PROVIDER
+- PROCTORING_PROVIDER
+- ANALYTICS
+- CERTIFICATE_REQUIREMENT
+- REPORT_EXPORTER
+- AUTH_PROVIDER
+- SEARCH_PROVIDER
+
+Plugin capabilities may include:
+- activityRenderer
+- activityEditor
+- completionEvaluator
+- assessmentGrader
+- contentProcessor
+- aiIndexer
+- analyticsEmitter
+- notificationTrigger
+- certificateRequirementEvaluator
+- adminSettingsPanel
+- workerJobHandler
+- webhookHandler
+- publicApiExtension
+
+Plugin data model:
+Plugin:
+- id
+- key unique
+- name
+- description
+- version
+- category
+- status enum: DRAFT, ACTIVE, DISABLED, DEPRECATED
+- author
+- homepageUrl nullable
+- manifest JSON
+- configSchema JSON
+- permissions JSON
+- capabilities JSON
+- compatibility JSON
+- createdAt
+- updatedAt
+
+OrganizationPlugin:
+- id
+- organizationId
+- pluginId
+- enabled
+- config JSON
+- installedById nullable
+- installedAt
+- updatedAt
+
+PluginPermission:
+- id
+- pluginId
+- permissionKey
+- description
+- createdAt
+
+PluginEventSubscription:
+- id
+- pluginId
+- eventType
+- handlerKey
+- enabled
+- createdAt
+- updatedAt
+
+PluginExecutionLog:
+- id
+- organizationId
+- pluginId
+- userId nullable
+- action
+- status enum: SUCCESS, FAILED, BLOCKED
+- input JSON nullable
+- output JSON nullable
+- error nullable
+- durationMs nullable
+- requestId nullable
+- createdAt
+
+PluginSecret:
+- id
+- organizationId nullable
+- pluginId
+- key
+- encryptedValue
+- createdAt
+- updatedAt
+
+PluginAsset:
+- id
+- organizationId nullable
+- pluginId
+- fileId nullable
+- key
+- type
+- metadata JSON
+- createdAt
+- updatedAt
+
+Plugin lifecycle:
+- register
+- install
+- enable
+- configure
+- disable
+- update
+- deprecate
+- uninstall
+
+Plugin lifecycle requirements:
+- Install and enable must be audited.
+- Disable must not delete learner data.
+- Uninstall must be safe and should not orphan core progress, grades, certificates, or files.
+- Plugin config secrets must be encrypted.
+- Plugin config must be validated against configSchema.
+- Organization admin can only manage plugins allowed for their organization.
+- Super admin can globally activate/deprecate plugins.
+
+Backend components:
+- PluginModule
+- PluginRegistry
+- PluginManifestValidator
+- PluginPermissionService
+- PluginConfigService
+- PluginEventBus
+- PluginExecutionLogger
+- PluginActivityTypeService
+- PluginCapabilityResolver
+- PluginSecurityPolicyService
+
+Frontend components:
+- PluginRendererRegistry
+- PluginEditorRegistry
+- PluginAdminSettingsRegistry
+- PluginActivityRenderer
+- PluginActivityEditor
+- PluginErrorBoundary
+- PluginLoadingState
+- PluginUnsupportedState
+
+Plugin extension points:
+ActivityRenderer:
+- Renders learner-facing activity UI.
+- Must receive organizationId, courseId, lessonId, activityId, user context, activity config, and safe signed file URLs.
+
+ActivityEditor:
+- Renders instructor-facing editor UI for plugin activity configuration.
+- Must validate config using plugin config schema.
+
+ActivityCompletionEvaluator:
+- Determines whether plugin activity is completed.
+- Must return normalized completion result used by ProgressModule.
+
+AssessmentGrader:
+- Grades plugin assessments such as coding exercises, simulations, hotspot questions, external labs, or custom exams.
+- Must return normalized grade result used by Grade/Progress/Certificate modules.
+
+ContentProcessor:
+- Processes plugin content for metadata, preview, file validation, and indexing.
+
+AiIndexingProvider:
+- Converts plugin content into text/chunks for RAG where possible.
+- Example: 3D hotspot labels, code exercise instructions, SCORM metadata, transcript data.
+
+AnalyticsEventProvider:
+- Allows plugins to emit standardized LearningEvent records.
+
+NotificationTrigger:
+- Allows plugins to trigger notifications through NotificationModule, not directly through external providers.
+
+CertificateRequirementProvider:
+- Allows plugin completion or grade to become a certificate requirement.
+
+AdminSettingsPanel:
+- Provides organization-level plugin settings UI.
+
+WorkerJobHandler:
+- Handles plugin background jobs through queue system.
+- Must not run unsafe work inside API request lifecycle.
+
+Required backend endpoints:
+- GET /api/v1/admin/plugins
+- GET /api/v1/admin/plugins/:pluginKey
+- POST /api/v1/admin/plugins/:pluginKey/enable
+- POST /api/v1/admin/plugins/:pluginKey/disable
+- PATCH /api/v1/admin/plugins/:pluginKey/config
+- GET /api/v1/admin/plugins/:pluginKey/logs
+- GET /api/v1/plugins/activity-types
+- GET /api/v1/plugins/capabilities
+
+Security requirements:
+- Plugins must respect organizationId and activeOrganizationId.
+- Plugins must use existing RBAC permission checks.
+- Plugins must write audit logs for sensitive actions.
+- Plugins must not access cross-tenant data.
+- Plugins must not receive raw secrets in frontend.
+- Plugin configuration secrets must be encrypted at rest.
+- User-generated code must never run in the main API process.
+- Code execution plugins must use isolated sandbox runners.
+- External plugins must be reviewed before installation in future marketplace phase.
+- Unsafe dynamic code loading is not allowed in MVP.
+- Remote plugin frontend bundles are not allowed in MVP.
+- Plugin database migrations must be controlled. Do not run arbitrary plugin migrations at runtime.
+- In MVP, internal plugin tables should be included in normal Prisma migrations.
+
+Plugin manifest example for 3D viewer:
+{
+  "key": "plugin.3d_viewer",
+  "name": "3D Model Viewer",
+  "version": "1.0.0",
+  "category": "ACTIVITY",
+  "activityTypes": [
+    {
+      "key": "plugin.3d_viewer.model",
+      "name": "3D Model",
+      "supportedFiles": [".glb", ".gltf", ".obj"],
+      "completionRules": ["viewed", "minimum_time_spent", "all_hotspots_viewed"]
+    }
+  ],
+  "permissions": ["files:read", "activities:read", "progress:write"],
+  "capabilities": ["activityRenderer", "activityEditor", "completionEvaluator", "aiIndexer", "analyticsEmitter"],
+  "frontend": {
+    "learnerComponent": "ThreeDViewerPlayer",
+    "instructorEditor": "ThreeDViewerEditor"
+  }
+}
+
+Plugin manifest example for code runner:
+{
+  "key": "plugin.code_runner",
+  "name": "Code Runner",
+  "version": "1.0.0",
+  "category": "ASSESSMENT",
+  "activityTypes": [
+    {
+      "key": "plugin.code_runner.exercise",
+      "name": "Coding Exercise",
+      "supportedLanguages": ["javascript", "python", "java", "cpp"],
+      "completionRules": ["tests_passed", "minimum_score", "manual_review"]
+    }
+  ],
+  "permissions": ["code:execute", "submissions:create", "submissions:grade"],
+  "requiresWorker": true,
+  "security": {
+    "sandboxRequired": true,
+    "networkDisabled": true,
+    "timeoutMs": 5000,
+    "memoryLimitMb": 256,
+    "maxOutputKb": 512
+  }
+}
+
+3D content plugin requirements:
+- Plugin key: plugin.3d_viewer.
+- Activity type key: plugin.3d_viewer.model.
+- Support GLB and GLTF at minimum. OBJ optional.
+- Use Three.js, Babylon.js, or React Three Fiber on frontend.
+- Support orbit controls, zoom, pan, reset camera, fullscreen view.
+- Support hotspot annotations.
+- Support label, description, and optional quiz prompt per hotspot.
+- Support interaction tracking.
+- Completion rules:
+  - viewed
+  - minimum time spent
+  - all hotspots viewed
+- Emit analytics events:
+  - THREE_D_MODEL_OPENED
+  - THREE_D_HOTSPOT_VIEWED
+  - THREE_D_ACTIVITY_COMPLETED
+- AI indexing should include model title, description, hotspot labels, hotspot descriptions, and instructor notes.
+
+3D activity config example:
+{
+  "modelFileId": "file_id",
+  "defaultCamera": {
+    "position": [0, 1, 5],
+    "target": [0, 0, 0]
+  },
+  "hotspots": [
+    {
+      "id": "hotspot_1",
+      "label": "Part A",
+      "position": [1, 2, 0],
+      "description": "Explanation for Part A"
+    }
+  ],
+  "completionRule": {
+    "type": "ALL_HOTSPOTS_VIEWED"
+  }
+}
+
+Code runner plugin requirements:
+- Plugin key: plugin.code_runner.
+- Activity type key: plugin.code_runner.exercise.
+- Use Monaco Editor or equivalent code editor on frontend.
+- Code execution must happen in isolated runner worker/sandbox.
+- Never execute learner code inside the API server.
+- Support language allowlist.
+- Support starter code per language.
+- Support visible test cases.
+- Support hidden test cases.
+- Support time limit, memory limit, CPU limit, and max output size.
+- Support auto grading.
+- Support manual review fallback.
+- Support submission history.
+- Completion rules:
+  - all required tests passed
+  - minimum score reached
+  - instructor manually approved
+- Emit analytics events:
+  - CODE_EXERCISE_STARTED
+  - CODE_SUBMITTED
+  - CODE_TESTS_PASSED
+  - CODE_TESTS_FAILED
+  - CODE_EXERCISE_COMPLETED
+
+Code runner data model:
+CodeExercise:
+- id
+- organizationId
+- courseId
+- activityId
+- title
+- instructions
+- languageOptions JSON
+- starterCode JSON
+- solutionCodeEncrypted nullable
+- testCases JSON
+- hiddenTestCases JSON
+- timeLimitMs
+- memoryLimitMb
+- maxOutputKb
+- gradingMode enum: AUTO, MANUAL, AUTO_WITH_MANUAL_REVIEW
+- createdAt
+- updatedAt
+
+CodeSubmission:
+- id
+- organizationId
+- exerciseId
+- userId
+- language
+- sourceCode
+- status enum: QUEUED, RUNNING, PASSED, FAILED, ERROR, TIMEOUT, CANCELLED
+- score nullable
+- passedTests
+- totalTests
+- output nullable
+- error nullable
+- executionTimeMs nullable
+- memoryUsedMb nullable
+- submittedAt
+- gradedAt nullable
+- metadata JSON
+
+CodeExecutionJob:
+- id
+- organizationId
+- submissionId
+- runnerProvider
+- status
+- startedAt nullable
+- finishedAt nullable
+- logs JSON nullable
+- createdAt
+- updatedAt
+
+Code execution architecture:
+Frontend Code Editor
+-> API submission endpoint
+-> Queue: code-execution
+-> Isolated Runner Worker
+-> Sandbox runtime using Docker, Firecracker microVM, Judge0, or Piston
+-> Result normalized
+-> Grade stored
+-> Progress and analytics updated
+
+Code execution security:
+- Network disabled by default.
+- CPU limit enforced.
+- Memory limit enforced.
+- Execution timeout enforced.
+- Output size limit enforced.
+- Filesystem isolated and cleaned after execution.
+- No access to API environment variables.
+- No access to database credentials.
+- No privileged Docker container.
+- Log suspicious or repeated abuse.
+- Rate limit submissions per learner and per organization.
+
+External plugin marketplace future scope:
+- Plugin package signing.
+- Plugin review workflow.
+- Compatibility checks by LMS version.
+- Security scanning.
+- Admin approval before installation.
+- Tenant-specific enablement.
+- Plugin billing and licensing.
+- Plugin update and rollback.
+- Plugin deprecation strategy.
+- Sandboxed frontend extension strategy.
+- Sandboxed backend extension strategy.
+
+Acceptance criteria for plugin-ready foundation:
+- Core LMS can render activity by activityTypeKey.
+- Core LMS no longer requires database migration just to add a new activity type key.
+- Internal plugins can register activity renderer, editor, completion evaluator, and grader.
+- Organization admin can enable/disable plugins for their organization.
+- Plugin config is stored per organization.
+- Plugin logs are recorded.
+- Plugin permissions respect RBAC and tenant isolation.
+- A sample internal plugin can be registered and rendered end-to-end.
+- The architecture can support 3D viewer and code runner without rewriting Course, Lesson, Activity, Progress, Grade, Certificate, Analytics, or AI modules.
+
+
+================================================================================
+PHASE 64 - PLUGIN ARCHITECTURE FOUNDATION
+================================================================================
+
+Goal:
+Build the plugin-ready foundation before adding advanced plugin features.
+
+Scope:
+- PluginModule
+- PluginRegistry
+- PluginManifestValidator
+- PluginPermissionService
+- PluginConfigService
+- PluginEventBus
+- PluginExecutionLogger
+- PluginActivityTypeService
+- Backend plugin extension point interfaces
+- Frontend plugin registries
+- Database models for Plugin, OrganizationPlugin, PluginPermission, PluginEventSubscription, PluginExecutionLog, PluginSecret, PluginAsset
+
+Tasks:
+1. Refactor Activity model to use activityTypeKey and pluginKey.
+2. Treat existing core activity types as core keys, not as rigid enum values.
+3. Create core activity plugin registrations:
+   - core.text
+   - core.video
+   - core.file
+   - core.link
+   - core.quiz
+   - core.assignment
+   - core.discussion
+   - core.live_session
+   - core.survey
+   - core.poll
+4. Add PluginRegistry in backend.
+5. Add PluginRendererRegistry and PluginEditorRegistry in frontend.
+6. Add plugin admin page for super admin and organization admin.
+7. Add enable/disable/config endpoints.
+8. Add plugin logs endpoint.
+9. Add sample internal plugin with simple renderer and editor.
+10. Ensure progress, analytics, certificates, and AI indexing can call plugin extension points.
+
+Acceptance criteria:
+- Existing core activities still work.
+- Activity rendering uses registry lookup.
+- Instructor activity builder can list core and enabled plugin activity types.
+- Organization admin can enable or disable sample plugin.
+- Plugin execution logs appear in admin panel.
+- No cross-tenant plugin data access is possible.
+- No arbitrary external plugin code is loaded.
+
+
+================================================================================
+PHASE 65 - 3D INTERACTIVE CONTENT PLUGIN
+================================================================================
+
+Goal:
+Add an internal 3D content plugin for interactive learning content.
+
+Scope:
+- plugin.3d_viewer internal plugin
+- 3D model upload and validation
+- GLB/GLTF viewer
+- Hotspots and annotations
+- Completion tracking
+- Analytics events
+- AI indexing of textual 3D metadata
+
+Frontend:
+- Use Three.js, Babylon.js, or React Three Fiber.
+- Add 3D model player.
+- Add instructor editor for model file, camera setting, hotspots, and completion rule.
+- Add learner controls: rotate, zoom, pan, reset camera, fullscreen.
+- Add accessible fallback text for users who cannot interact with 3D content.
+
+Backend:
+- Validate supported model file types.
+- Generate signed URLs for model assets.
+- Store activity config.
+- Track hotspot interactions.
+- Evaluate completion rule.
+- Emit analytics events.
+
+Acceptance criteria:
+- Instructor can add 3D model activity.
+- Learner can view and interact with 3D model.
+- Hotspots can be opened.
+- Completion rule works.
+- Progress updates.
+- Analytics events are recorded.
+- AI indexing includes hotspot labels and descriptions.
+
+
+================================================================================
+PHASE 66 - CODE RUNNER AND CODING EXERCISE PLUGIN
+================================================================================
+
+Goal:
+Add an internal code runner plugin for programming exercises and auto-graded coding assessments.
+
+Scope:
+- plugin.code_runner internal plugin
+- Monaco Editor frontend
+- CodeExercise and CodeSubmission models
+- Queue-based execution
+- Isolated sandbox runner integration
+- Auto grading with visible and hidden test cases
+- Progress and grade integration
+
+Architecture:
+- API server receives submission.
+- API server stores submission.
+- API server enqueues code-execution job.
+- Worker sends code to isolated runner.
+- Runner executes code with CPU, memory, timeout, and output limits.
+- Worker stores normalized result.
+- Grader updates score and progress.
+
+Runner options:
+- Judge0
+- Piston
+- Docker sandbox
+- Firecracker microVM for stronger isolation
+
+MVP recommendation:
+- Use a runner provider abstraction.
+- Implement one safe provider for local/dev.
+- Keep Judge0/Piston provider ready for production.
+- Do not run untrusted code inside API process.
+
+Acceptance criteria:
+- Instructor can create coding exercise.
+- Instructor can configure languages, starter code, and test cases.
+- Learner can submit code.
+- Code runs in isolated worker/sandbox.
+- Result displays passed/failed tests.
+- Score is saved.
+- Progress updates when completion rule is met.
+- Submission abuse is rate-limited.
+- Execution logs are stored.
+
+
+================================================================================
+PHASE 67 - PLUGIN MARKETPLACE AND EXTERNAL PLUGIN GOVERNANCE READINESS
+================================================================================
+
+Goal:
+Prepare the LMS for future third-party plugins without implementing unsafe dynamic plugin loading in MVP.
+
+Scope:
+- Plugin marketplace data model placeholder
+- Plugin review workflow
+- Plugin compatibility checks
+- Plugin signing metadata
+- Plugin licensing placeholder
+- Plugin update/rollback plan
+- Plugin security scanning placeholder
+
+Important restriction:
+Do not implement arbitrary third-party plugin execution unless sandboxing, review workflow, signing, and compatibility checks are ready.
+
+Data model additions:
+PluginListing:
+- id
+- pluginId
+- title
+- description
+- screenshots JSON
+- pricingModel enum: FREE, PAID, SUBSCRIPTION, PRIVATE
+- status enum: DRAFT, REVIEW, APPROVED, REJECTED, PUBLISHED, DELISTED
+- createdAt
+- updatedAt
+
+PluginReview:
+- id
+- pluginListingId
+- reviewerId
+- status
+- notes
+- createdAt
+- updatedAt
+
+PluginInstallationRequest:
+- id
+- organizationId
+- pluginId
+- requestedById
+- status enum: PENDING, APPROVED, REJECTED, INSTALLED
+- reviewedById nullable
+- createdAt
+- updatedAt
+
+Acceptance criteria:
+- Marketplace concepts are modeled.
+- External plugin execution remains disabled by default.
+- Organization plugin installation can require approval.
+- Security and compatibility requirements are documented.
+- Future marketplace can be added without changing core plugin registry design.
+
+
+================================================================================
+ADVANCED LEARNING WORKSPACE ARCHITECTURE REQUIREMENTS
+================================================================================
+
+The LMS must provide an Advanced Learning Workspace, also called Interactive Learning Mode, inspired by modern platforms such as Coursera. The learning experience must not be a simple static lesson page. It must support flexible multi-panel layouts, side-by-side learning, pop-out windows, dual-monitor-friendly workflows, picture-in-picture video, transcript sync, timestamp notes, AI assistant panels, live coding, interactive preview, 3D preview, and plugin-powered activity panels.
+
+Core goals:
+- Make the learning page feel like a modern workspace, not a static content page.
+- Support video, article, PDF, quiz, assignment, code exercise, 3D content, SCORM, H5P, AI-assisted learning, interactive simulations, and future plugin activities.
+- Allow learners to customize layout based on their learning style.
+- Allow learners to study with material on one side and transcript, notes, AI assistant, quiz, code editor, discussion, or preview on the other side.
+- Support pop-out panels so learners can move notes, transcript, AI assistant, coding editor, preview, or discussion to another browser window and place it on a second monitor.
+- Keep course, lesson, activity, video timestamp, transcript selection, notes, AI context, code submissions, and progress synchronized across panels and pop-out windows.
+- Ensure progress tracking remains server-authoritative even when multiple windows are open.
+- Ensure assessment security policies can disable AI, notes, transcript, dual-window, or pop-out when required for exams.
+
+Important browser limitation:
+- The browser cannot reliably force a window to open on a specific physical monitor.
+- Dual-monitor mode must be implemented through pop-out windows and synchronized state.
+- The learner can manually drag the pop-out window to their second monitor.
+
+Layout modes:
+- standard: curriculum sidebar plus main content.
+- side_by_side: main content plus one secondary panel.
+- three_panel: curriculum sidebar, main content, and secondary panel.
+- focus: only main content, minimal distractions.
+- theatre: enlarged video or main activity area.
+- split_video_transcript: video and transcript side by side.
+- split_content_notes: content and notes side by side.
+- split_content_ai: content and AI assistant side by side.
+- coding_workspace: instructions, code editor, output, and preview.
+- interactive_preview: material plus simulation/3D/preview panel.
+- dual_window: one or more panels opened in separate windows.
+- popout_panel: individual panel opened in new window.
+- picture_in_picture_video: floating video while learner reads, takes notes, codes, or practices.
+
+Layout presets:
+- Normal Mode: main material full width with curriculum sidebar.
+- Side-by-Side Mode: material plus notes/transcript/AI/quiz.
+- Video + AI Mode: video on one side and AI assistant on the other.
+- Video + Transcript Mode: video with synced transcript.
+- Coding Mode: instructions, code editor, console output, and preview.
+- Interactive Preview Mode: content plus 3D/simulation/preview.
+- Dual Monitor Mode: supported panels open in new windows.
+- Focus Mode: only main learning content without distractions.
+- Theatre Mode: large video/content viewing experience.
+
+Split view and side-by-side learning requirements:
+- Support two-panel layout.
+- Support three-panel layout when screen size allows.
+- Panels must be resizable.
+- Panels must be collapsible.
+- Layout must be responsive.
+- Layout must work on desktop, tablet, and mobile.
+- User layout preferences must be saved.
+- User can restore default layout.
+- Each lesson can remember the last used layout state.
+- Main content must remain accessible when right panel is closed.
+- Curriculum sidebar must be collapsible.
+- Secondary panels can include transcript, notes, AI assistant, discussion, resources, quiz practice, flashcards, code editor, console output, live preview, 3D hotspots, or plugin panels.
+
+Dual monitor and pop-out requirements:
+- Provide Open in New Window / Pop Out controls for supported panels.
+- Supported pop-out panels include:
+  - video player
+  - transcript
+  - notes
+  - AI assistant
+  - discussion
+  - resources
+  - flashcards
+  - quiz practice
+  - coding editor
+  - console output
+  - live preview
+  - 3D preview
+  - plugin panels
+- Pop-out windows must display the same organization, course, lesson, and activity context.
+- Pop-out windows must not bypass RBAC.
+- Pop-out windows must not allow cross-tenant data access.
+- Pop-out sessions must expire.
+- Closing a pop-out window must update workspace state.
+- If the main learning tab closes, pop-out windows must gracefully show a reconnect or return-to-learning state.
+- Progress must continue to be saved through server APIs.
+- Local UI synchronization may use BroadcastChannel API.
+- localStorage event fallback should be available if BroadcastChannel is unsupported.
+- WebSocket or SSE may be used when server-side real-time state synchronization is required.
+
+Picture-in-picture video requirements:
+- Support browser Picture-in-Picture API where available.
+- Provide mini-player fallback when browser PiP is unavailable.
+- Video should continue while learner opens notes, transcript, quiz practice, or coding workspace if allowed.
+- Video must resume from last watched position.
+- Video progress must remain accurate.
+- PiP must respect assessment display policy. For exams or restricted assessments, PiP can be disabled.
+
+Transcript requirements:
+- Transcript panel can be shown beside video.
+- Transcript segments include start time, end time, text, and language.
+- Active transcript segment should highlight during video playback.
+- Transcript should auto-scroll with video.
+- Clicking a transcript segment should seek video to that timestamp.
+- Transcript should be searchable.
+- Transcript should support multiple languages when available.
+- Instructor can upload or edit transcript.
+- Transcript can be used as AI context.
+- Learner can select transcript text and ask AI to explain it.
+- Learner can create note from selected transcript text.
+
+Notes and bookmark requirements:
+- Learner can create private notes per course, lesson, activity, timestamp, transcript selection, selected material text, code exercise, or 3D hotspot.
+- Learner can create timestamp notes while watching video.
+- Learner can bookmark video timestamps.
+- Learner can highlight important text where technically feasible.
+- Learner can tag notes.
+- Learner can search notes.
+- Learner can export notes.
+- Learner can optionally share notes with instructor if feature is enabled.
+- Notes can be used as AI context only when learner explicitly includes them.
+- AI can turn learner notes into flashcards if learner requests it.
+
+AI assistant panel requirements:
+- AI assistant must be available as a side panel and optional pop-out panel.
+- AI assistant must be context-aware.
+- AI context must include current organization, course, module, lesson, activity, activity type, video timestamp, selected transcript text, selected material text, selected code, selected 3D hotspot, and learner-provided notes when explicitly included.
+- AI must answer from course material through RAG when course-specific questions are asked.
+- AI must not hallucinate when the answer is not present in course material.
+- AI conversations can be scoped to course, lesson, or activity.
+- AI conversation history must be saved.
+- Suggested prompts:
+  - Explain this part.
+  - Summarize this lesson.
+  - Explain more simply.
+  - Give me examples.
+  - Make practice questions.
+  - Make flashcards.
+  - Explain from this timestamp.
+  - Explain selected transcript.
+  - Turn my notes into flashcards.
+  - Help me debug this code.
+  - Explain this 3D hotspot.
+
+Live coding workspace requirements:
+- Support coding workspace for programming courses.
+- Layout can include instructions, code editor, console output, test results, preview, hints, and AI coding assistant.
+- Use Monaco Editor or equivalent.
+- Code editor can be shown side by side with instructions.
+- Code editor can be popped out into another window.
+- Preview/output panel can be popped out.
+- Code must auto-save draft.
+- Learner can reset starter code.
+- Learner can submit code.
+- Learner can run visible test cases.
+- Hidden tests can be used for grading.
+- Learner can download code if allowed.
+- AI coding assistant must respect organization and course AI policy.
+- Code execution must never run inside the main API process.
+- Code execution must use sandbox worker, Judge0, Piston, Docker sandbox, Firecracker microVM, or another isolated runner provider.
+
+Interactive preview and 3D preview requirements:
+- Support interactive preview panels for design, engineering, architecture, game development, data visualization, simulations, and technical training.
+- 3D preview plugin should support GLB, GLTF, OBJ if feasible.
+- Support rotate, zoom, pan.
+- Support fullscreen preview.
+- Support pop-out preview.
+- Support hotspot annotations.
+- Support hotspot progress tracking.
+- Support AI explanation for selected hotspot.
+- Support side-by-side layout:
+  - content or instructions on one side
+  - 3D preview, simulation, or interactive preview on the other side
+- Support completion rules such as viewed, minimum time spent, all hotspots viewed, or interaction completed.
+
+Workspace state synchronization:
+- Active organization, course, module, lesson, and activity must sync across workspace panels.
+- Active video timestamp must sync with transcript, notes, and AI panel.
+- Selected transcript text must be usable as AI context.
+- Selected material text must be usable as AI context.
+- Notes must know active lesson, activity, and timestamp.
+- Code editor pop-out must submit to the correct activity.
+- 3D hotspot panel must know selected model and hotspot.
+- Progress tracking must remain server-authoritative.
+- Do not rely only on client state for completion, grades, certificates, or assessment results.
+
+Plugin integration requirements:
+- Activity plugins may declare supported learning workspace layouts.
+- Activity plugins may register custom panels.
+- Plugin panels can be placed in main, right, bottom, or popout areas.
+- Plugin panels must not break workspace state synchronization.
+- Plugin panels must respect RBAC, activeOrganizationId, progress tracking, analytics events, and audit logging.
+- Plugin panels must declare whether they are allowed in pop-out windows.
+- Plugin panels must declare required permissions.
+
+Plugin manifest extension for workspace:
+supportedWorkspaceLayouts:
+- standard
+- side_by_side
+- three_panel
+- focus
+- theatre
+- coding_workspace
+- interactive_preview
+- dual_window
+- popout_panel
+
+Plugin panel declaration fields:
+- key
+- title
+- placement: main, right, bottom, popout
+- allowedInPopout boolean
+- requiredPermissions JSON
+- defaultVisible boolean
+- minWidth nullable
+- preferredWidth nullable
+- configSchema JSON nullable
+
+Assessment display policy:
+For quizzes, final exams, proctored assessments, and restricted activities, workspace features must be configurable:
+- allowPopout
+- allowDualWindow
+- allowPictureInPicture
+- allowAIAssistant
+- allowNotes
+- allowTranscript
+- allowDiscussion
+- allowResources
+- requireFocusMode
+- detectTabSwitch
+- blockCopyPaste
+- blockExternalNavigation
+
+For final exams or proctored exams:
+- AI assistant may be disabled.
+- Notes may be disabled.
+- Transcript may be disabled.
+- Pop-out may be disabled.
+- Dual-window may be disabled.
+- Picture-in-picture may be disabled.
+- Focus mode may be required.
+- Tab switching may be logged.
+
+Accessibility requirements:
+- Workspace must support keyboard navigation.
+- Panels must have accessible labels.
+- Resize handles must be keyboard-accessible when feasible.
+- Focus mode must preserve accessibility.
+- Pop-out windows must preserve accessible names and context.
+- Transcript should improve accessibility for video learners.
+- Captions and transcript should support WCAG-aligned learning experience.
+
+Keyboard shortcuts:
+- Space: play or pause video when video is focused.
+- F: toggle focus mode.
+- T: toggle theatre mode.
+- N: add note.
+- A: open AI assistant.
+- C: toggle curriculum sidebar.
+- Left arrow: previous lesson where safe.
+- Right arrow: next lesson where safe.
+- Shift + P: pop out active panel.
+- Esc: exit focus/theatre mode when applicable.
+
+Analytics events:
+- LEARNING_WORKSPACE_LAYOUT_CHANGED
+- LEARNING_PANEL_OPENED
+- LEARNING_PANEL_CLOSED
+- LEARNING_PANEL_RESIZED
+- LEARNING_PANEL_POPOUT_OPENED
+- LEARNING_PANEL_POPOUT_CLOSED
+- DUAL_WINDOW_MODE_STARTED
+- TRANSCRIPT_SEGMENT_CLICKED
+- TRANSCRIPT_SEARCHED
+- NOTE_CREATED
+- NOTE_UPDATED
+- NOTE_EXPORTED
+- VIDEO_PICTURE_IN_PICTURE_STARTED
+- VIDEO_PICTURE_IN_PICTURE_ENDED
+- FOCUS_MODE_ENABLED
+- FOCUS_MODE_DISABLED
+- THEATRE_MODE_ENABLED
+- THEATRE_MODE_DISABLED
+- CODE_WORKSPACE_OPENED
+- INTERACTIVE_PREVIEW_OPENED
+- THREE_D_HOTSPOT_SELECTED
+
+Data model additions:
+LearningWorkspacePreference:
+- id
+- userId
+- organizationId nullable
+- defaultLayoutMode
+- sidebarCollapsed
+- rightPanelDefault
+- preferredVideoMode
+- enablePopout
+- enableKeyboardShortcuts
+- metadata JSON
+- createdAt
+- updatedAt
+
+LessonWorkspaceState:
+- id
+- userId
+- organizationId
+- courseId
+- lessonId
+- activityId nullable
+- layoutMode
+- sidebarWidth
+- mainPanelWidth
+- rightPanelWidth
+- activeRightPanel
+- popoutPanels JSON
+- lastVideoTimeSeconds nullable
+- metadata JSON
+- updatedAt
+
+LearnerNote:
+- id
+- organizationId
+- userId
+- courseId
+- lessonId nullable
+- activityId nullable
+- timestampSeconds nullable
+- selectedText nullable
+- sourceType nullable
+- sourceRef JSON nullable
+- content
+- visibility enum: PRIVATE, INSTRUCTOR_VISIBLE, SHARED
+- tags JSON
+- createdAt
+- updatedAt
+
+LearnerBookmark:
+- id
+- organizationId
+- userId
+- courseId
+- lessonId nullable
+- activityId nullable
+- timestampSeconds nullable
+- selectedText nullable
+- title nullable
+- note nullable
+- metadata JSON
+- createdAt
+- updatedAt
+
+TranscriptSegment:
+- id
+- organizationId
+- courseId
+- lessonId
+- activityId
+- startTimeSeconds
+- endTimeSeconds
+- text
+- language
+- createdAt
+- updatedAt
+
+WorkspacePopoutSession:
+- id
+- organizationId
+- userId
+- courseId
+- lessonId nullable
+- activityId nullable
+- panelKey
+- tokenHash
+- expiresAt
+- lastSeenAt nullable
+- createdAt
+- updatedAt
+
+Required APIs:
+Learning workspace:
+- GET /api/v1/learn/workspace/preferences
+- PATCH /api/v1/learn/workspace/preferences
+- GET /api/v1/learn/lessons/:lessonId/workspace-state
+- PATCH /api/v1/learn/lessons/:lessonId/workspace-state
+- POST /api/v1/learn/workspace/popout-session
+- GET /api/v1/learn/workspace/popout-session/:id
+- DELETE /api/v1/learn/workspace/popout-session/:id
+
+Notes:
+- GET /api/v1/learn/lessons/:lessonId/notes
+- POST /api/v1/learn/lessons/:lessonId/notes
+- PATCH /api/v1/learn/notes/:noteId
+- DELETE /api/v1/learn/notes/:noteId
+- POST /api/v1/learn/notes/:noteId/ai/flashcards
+- GET /api/v1/learn/notes/export
+
+Bookmarks:
+- GET /api/v1/learn/bookmarks
+- POST /api/v1/learn/bookmarks
+- PATCH /api/v1/learn/bookmarks/:bookmarkId
+- DELETE /api/v1/learn/bookmarks/:bookmarkId
+
+Transcript:
+- GET /api/v1/learn/activities/:activityId/transcript
+- POST /api/v1/instructor/activities/:activityId/transcript
+- PATCH /api/v1/instructor/transcripts/:transcriptId
+- DELETE /api/v1/instructor/transcripts/:transcriptId
+
+Frontend components:
+- LearningWorkspace
+- LearningTopbar
+- CurriculumSidebar
+- ActivityMainPanel
+- LearningRightPanel
+- ResizablePanelGroup
+- TranscriptPanel
+- NotesPanel
+- BookmarkPanel
+- AiTutorPanel
+- DiscussionPanel
+- ResourcesPanel
+- FlashcardPanel
+- QuizPracticePanel
+- CodingWorkspacePanel
+- CodeEditorPanel
+- ConsoleOutputPanel
+- InteractivePreviewPanel
+- ThreeDPreviewPanel
+- PopoutPanelButton
+- PopoutWindowShell
+- VideoTranscriptSync
+- PictureInPictureControl
+- KeyboardShortcutProvider
+- FocusModeToggle
+- TheatreModeToggle
+- DualScreenModeToggle
+- LayoutPresetSelector
+
+Recommended frontend libraries:
+- react-resizable-panels or equivalent for split panels.
+- BroadcastChannel API for same-browser window sync.
+- Monaco Editor for coding workspace.
+- Three.js, React Three Fiber, or Babylon.js for 3D preview plugins.
+
+Acceptance criteria:
+- Learner can switch between standard, side-by-side, three-panel, focus, and theatre modes.
+- Learner can open transcript, notes, AI assistant, discussion, resources, flashcards, and supported plugin panels in side panel.
+- Learner can pop out supported panels into a separate browser window.
+- Pop-out windows stay synchronized with active organization, course, lesson, activity, and video timestamp.
+- Learner layout preference is persisted.
+- Lesson-specific workspace state is persisted.
+- Video transcript sync works.
+- Clicking transcript seeks video.
+- Timestamp notes work.
+- Bookmarks work.
+- Picture-in-picture or mini-player works where allowed.
+- AI assistant receives accurate learning context.
+- Coding workspace supports split view and pop-out editor.
+- 3D/interactive preview supports split view and pop-out preview.
+- Plugin activities can declare custom workspace panels.
+- Quiz and exam display policies can disable pop-out, dual-window, AI, notes, transcript, or PiP when needed.
+
+
+================================================================================
+PHASE 68 - ADVANCED LEARNING WORKSPACE FOUNDATION
+================================================================================
+
+Goal:
+Implement the core Coursera-style learning workspace foundation with flexible layouts, resizable panels, persisted preferences, and plugin-friendly panel architecture.
+
+Scope:
+- LearningWorkspace shell
+- Standard layout
+- Side-by-side layout
+- Three-panel layout
+- Focus mode
+- Theatre mode
+- Layout preset selector
+- Resizable panels
+- Collapsible curriculum sidebar
+- Right panel registry
+- Persisted user workspace preferences
+- Persisted lesson workspace state
+- Responsive behavior
+- Accessibility basics
+
+Backend:
+- Add LearningWorkspacePreference model.
+- Add LessonWorkspaceState model.
+- Add APIs for workspace preferences and state.
+- Add analytics events for layout changes.
+
+Frontend:
+- Create LearningWorkspace component.
+- Create LearningTopbar.
+- Create CurriculumSidebar.
+- Create ActivityMainPanel.
+- Create LearningRightPanel.
+- Create ResizablePanelGroup.
+- Create LayoutPresetSelector.
+- Create FocusModeToggle.
+- Create TheatreModeToggle.
+- Refactor existing learning page to use LearningWorkspace.
+
+Acceptance criteria:
+- Learner can switch layout modes.
+- Learner can resize panels.
+- Learner can collapse sidebar.
+- Learner can open and close right panels.
+- Preferences persist across sessions.
+- Lesson-specific layout state persists.
+- Existing video, text, PDF, quiz, assignment, and plugin activities still render correctly.
+
+
+================================================================================
+PHASE 69 - POP-OUT PANELS AND DUAL-MONITOR FRIENDLY MODE
+================================================================================
+
+Goal:
+Support dual-monitor-friendly workflows using pop-out windows and synchronized workspace state.
+
+Scope:
+- Pop-out window shell
+- Workspace popout sessions
+- Pop-out controls for supported panels
+- BroadcastChannel synchronization
+- localStorage event fallback
+- Reconnect behavior
+- Server-authoritative progress
+- Pop-out security and expiration
+
+Backend:
+- Add WorkspacePopoutSession model.
+- Add APIs for creating, reading, and closing popout sessions.
+- Add audit and analytics events for popout usage.
+- Ensure popout session validates organization, user, course, lesson, activity, and panel permission.
+
+Frontend:
+- Add PopoutPanelButton.
+- Add PopoutWindowShell.
+- Add BroadcastChannel sync layer.
+- Add fallback sync with localStorage events.
+- Add reconnect UI.
+- Add dual-monitor mode helper UI explaining that the user can drag pop-out windows to another monitor.
+
+Security:
+- Popout token must be signed, scoped, and expiring.
+- Popout must not bypass RBAC.
+- Popout must not allow cross-tenant access.
+- Popout must respect assessment display policy.
+
+Acceptance criteria:
+- Learner can pop out notes, transcript, AI assistant, discussion, resources, and supported plugin panels.
+- Pop-out windows know current learning context.
+- Video timestamp can sync with transcript/notes/AI popout.
+- Closing popout updates workspace state.
+- Progress is still saved correctly.
+- Restricted assessments can disable popout.
+
+
+================================================================================
+PHASE 70 - TRANSCRIPT, TIMESTAMP NOTES, BOOKMARKS, PICTURE-IN-PICTURE, AND CONTEXT-AWARE AI PANEL
+================================================================================
+
+Goal:
+Make the learning workspace deeply interactive with transcript sync, timestamp notes, bookmarks, picture-in-picture video, and context-aware AI.
+
+Scope:
+- Transcript segment model
+- Transcript upload/edit
+- Transcript panel
+- Video-transcript sync
+- Timestamp notes
+- Selected text notes
+- Video bookmarks
+- Note search and export
+- Picture-in-picture or mini-player
+- AI assistant side panel
+- AI assistant popout support
+- Selected text/transcript/video timestamp as AI context
+
+Backend:
+- Add LearnerNote model if not already present.
+- Add LearnerBookmark model.
+- Add TranscriptSegment model.
+- Add notes APIs.
+- Add bookmark APIs.
+- Add transcript APIs.
+- Update AI ask endpoints to accept learning context payload.
+- Add analytics events.
+
+Frontend:
+- Create TranscriptPanel.
+- Create NotesPanel.
+- Create BookmarkPanel.
+- Create VideoTranscriptSync.
+- Create PictureInPictureControl.
+- Update AiTutorPanel to include current learning context.
+- Add selected text to AI prompt flow.
+- Add timestamp note creation from video.
+
+Acceptance criteria:
+- Transcript appears beside video.
+- Active transcript segment highlights during playback.
+- Clicking transcript seeks video.
+- Learner can search transcript.
+- Learner can create timestamp notes.
+- Learner can bookmark video timestamps.
+- Learner can export notes.
+- Picture-in-picture or mini-player works where allowed.
+- AI can explain selected transcript, selected text, current timestamp, or current lesson.
+
+
+================================================================================
+PHASE 71 - LIVE CODING WORKSPACE, INTERACTIVE PREVIEW, AND PLUGIN WORKSPACE PANEL INTEGRATION
+================================================================================
+
+Goal:
+Extend the workspace so coding, 3D, simulation, H5P, SCORM, and future plugin activities can declare custom panels and layout behavior.
+
+Scope:
+- Plugin workspace panel manifest extension
+- Plugin panel registry
+- Coding workspace preset
+- Interactive preview preset
+- 3D preview workspace support
+- Activity plugin panel placement
+- Assessment display policy integration
+
+Backend:
+- Extend Plugin manifest validation with supportedWorkspaceLayouts and panel declarations.
+- Add assessment display policy fields for activities/quizzes/exams if not already present.
+- Ensure plugin activity completion and grading can work from workspace panels.
+- Add analytics events for plugin panels.
+
+Frontend:
+- Add PluginWorkspacePanelRegistry.
+- Add PluginActivityWorkspaceRenderer.
+- Add CodingWorkspacePanel.
+- Add CodeEditorPanel.
+- Add ConsoleOutputPanel.
+- Add InteractivePreviewPanel.
+- Add ThreeDPreviewPanel.
+- Add assessment display policy enforcement in workspace UI.
+
+Code runner workspace:
+- Instructions/material on one side.
+- Code editor, console output, tests, and preview on the other side.
+- Pop-out editor supported if assessment policy allows.
+- Code execution remains in secure sandbox worker.
+
+3D workspace:
+- 3D model viewer on one side.
+- Hotspots, explanation, notes, and AI assistant on the other side.
+- Hotspot tracking updates progress.
+- Pop-out preview supported if allowed.
+
+Acceptance criteria:
+- Plugin activities can declare supported workspace layouts.
+- Plugin activities can register custom panels.
+- Code runner activity supports coding workspace layout.
+- 3D activity supports side-by-side preview and hotspot panel.
+- Assessment policy can disable AI, notes, transcript, popout, dual-window, and PiP.
+- Workspace remains stable across core and plugin activity types.
