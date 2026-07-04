@@ -21,6 +21,7 @@ docker compose up -d postgres redis minio
 pnpm db:generate
 pnpm db:migrate
 pnpm db:seed
+pnpm build
 pnpm dev
 ```
 
