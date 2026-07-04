@@ -13,6 +13,7 @@ import { LearningWorkspaceModule } from "./learning-workspace/learning-workspace
 import { OrganizationsModule } from "./organizations/organizations.module";
 import { PluginsModule } from "./plugins/plugins.module";
 import { PrismaModule } from "./prisma/prisma.module";
+import { QuizModule } from "./quiz/quiz.module";
 import { RbacModule } from "./rbac/rbac.module";
 
 @Module({
@@ -35,6 +36,7 @@ import { RbacModule } from "./rbac/rbac.module";
     OrganizationsModule,
     PluginsModule,
     LearningWorkspaceModule,
+    QuizModule,
     HealthModule,
   ],
 })

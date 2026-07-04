@@ -26,6 +26,7 @@ import {
   useContentLibrary,
   useFiles,
   useInstructorCourse,
+  useInstructorQuizzes,
   usePluginActivityTypes,
   useSession,
 } from "../../../../../lib/api-hooks";
@@ -43,6 +44,7 @@ export default function BuilderPage() {
   const filesQuery = useFiles();
   const libraryQuery = useContentLibrary();
   const activityTypesQuery = usePluginActivityTypes();
+  const quizzesQuery = useInstructorQuizzes();
   const session = useSession();
   const course = courseQuery.data;
   const canCreate = hasPermission(session, PERMISSIONS.coursesCreate);
@@ -328,6 +330,7 @@ export default function BuilderPage() {
                     activity={selectedActivity}
                     fileOptions={filesQuery.data?.data ?? []}
                     libraryOptions={libraryQuery.data ?? []}
+                    quizOptions={quizzesQuery.data ?? []}
                     onAttachFile={(fileId) =>
                       run(
                         () => api.attachFileToActivity(selectedActivity.id, fileId),
@@ -342,6 +345,12 @@ export default function BuilderPage() {
                             libraryItemId,
                           ),
                         "Library item attached.",
+                      )
+                    }
+                    onAttachQuiz={(quizId) =>
+                      run(
+                        () => api.attachQuizToActivity(selectedActivity.id, quizId),
+                        "Quiz attached.",
                       )
                     }
                     onSave={(input) =>
@@ -941,16 +950,20 @@ function ActivityContentForm({
   activity,
   fileOptions,
   libraryOptions,
+  quizOptions,
   onSave,
   onAttachFile,
   onAttachLibraryItem,
+  onAttachQuiz,
 }: {
   activity: Activity;
   fileOptions: Array<{ id: string; originalFilename: string }>;
   libraryOptions: Array<{ id: string; title: string }>;
+  quizOptions: Array<{ id: string; title: string; status: string }>;
   onSave: (input: Record<string, unknown>) => Promise<unknown>;
   onAttachFile: (fileId: string) => Promise<unknown>;
   onAttachLibraryItem: (libraryItemId: string) => Promise<unknown>;
+  onAttachQuiz: (quizId: string) => Promise<unknown>;
 }) {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -972,11 +985,21 @@ function ActivityContentForm({
         ? content.body
         : activity.activityContent?.textContent ?? "";
   const isTextActivity = activity.activityTypeKey === "core.text";
+  const isQuizActivity = activity.activityTypeKey === "core.quiz";
 
   return (
     <div className="grid gap-4">
       <PluginActivityEditor activity={activity}>
-        {isTextActivity ? (
+        {isQuizActivity ? (
+          <AttachSelect
+            label="Attach quiz"
+            options={quizOptions.map((quiz) => ({
+              id: quiz.id,
+              label: `${quiz.title} (${quiz.status})`,
+            }))}
+            onAttach={onAttachQuiz}
+          />
+        ) : isTextActivity ? (
           <RichTextEditor
             defaultValue={htmlDefault}
             onSubmit={(_value, payload) =>
@@ -1019,22 +1042,26 @@ function ActivityContentForm({
           </form>
         )}
 
-        <AttachSelect
-          label="Attach file"
-          options={fileOptions.map((file) => ({
-            id: file.id,
-            label: file.originalFilename,
-          }))}
-          onAttach={onAttachFile}
-        />
-        <AttachSelect
-          label="Attach library item"
-          options={libraryOptions.map((item) => ({
-            id: item.id,
-            label: item.title,
-          }))}
-          onAttach={onAttachLibraryItem}
-        />
+        {!isQuizActivity ? (
+          <>
+            <AttachSelect
+              label="Attach file"
+              options={fileOptions.map((file) => ({
+                id: file.id,
+                label: file.originalFilename,
+              }))}
+              onAttach={onAttachFile}
+            />
+            <AttachSelect
+              label="Attach library item"
+              options={libraryOptions.map((item) => ({
+                id: item.id,
+                label: item.title,
+              }))}
+              onAttach={onAttachLibraryItem}
+            />
+          </>
+        ) : null}
       </PluginActivityEditor>
     </div>
   );

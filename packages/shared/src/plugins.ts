@@ -108,20 +108,25 @@ export const INTERNAL_PLUGIN_MANIFESTS: InternalPluginManifest[] = [
   },
   {
     key: "core.quiz",
-    name: "Quiz Activity Placeholder",
-    description: "Reserved for the future quiz engine phase.",
-    version: "0.1.0",
+    name: "Quiz Activity",
+    description: "Core quiz assessment activity renderer and grading engine.",
+    version: "1.0.0",
     category: "ASSESSMENT",
     activityTypes: [
       {
         key: "core.quiz",
         name: "Quiz",
         supportedWorkspaceLayouts: ["standard", "focus"],
-        implemented: false,
+        implemented: true,
       },
     ],
-    capabilities: ["reserved_activity_type"],
-    placeholder: true,
+    permissions: ["courses:read", "quiz:manage", "quiz:grade"],
+    capabilities: [
+      "render_activity",
+      "edit_activity",
+      "track_progress",
+      "grade_assessment",
+    ],
   },
   {
     key: "core.assignment",

@@ -17,6 +17,7 @@ export type ActivityTypeKey =
   | "core.video"
   | "core.file"
   | "core.link"
+  | "core.quiz"
   | string;
 
 export interface ApiMeta {
@@ -413,4 +414,119 @@ export interface WorkspaceContext {
   transcriptAvailable: boolean;
   notesCount: number;
   bookmarksCount: number;
+}
+
+export type QuestionType =
+  | "MULTIPLE_CHOICE"
+  | "MULTIPLE_ANSWER"
+  | "TRUE_FALSE"
+  | "SHORT_ANSWER"
+  | "ESSAY"
+  | "NUMERIC";
+
+export interface QuestionOption {
+  id: string;
+  text: string;
+  isCorrect?: boolean;
+  orderIndex: number;
+  feedback?: string | null;
+}
+
+export interface Question {
+  id: string;
+  questionBankId: string;
+  type: QuestionType;
+  prompt: string;
+  explanation?: string | null;
+  points: number;
+  acceptedAnswers?: string[];
+  numericTolerance?: number | null;
+  options: QuestionOption[];
+}
+
+export interface QuestionBank {
+  id: string;
+  title: string;
+  description?: string | null;
+  courseId?: string | null;
+  _count?: { questions?: number };
+}
+
+export interface QuizQuestion {
+  id: string;
+  questionId: string;
+  orderIndex: number;
+  points?: number | null;
+  question: Question;
+}
+
+export interface Quiz {
+  id: string;
+  title: string;
+  description?: string | null;
+  status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+  courseId?: string | null;
+  activityId?: string | null;
+  passingScorePercent: number;
+  attemptLimit: number;
+  timeLimitMinutes?: number | null;
+  shuffleQuestions: boolean;
+  showCorrectAnswers: boolean;
+  showFeedback: boolean;
+  questions?: QuizQuestion[];
+  _count?: { questions?: number; attempts?: number };
+}
+
+export interface QuizAttempt {
+  id: string;
+  quizId: string;
+  activityId?: string | null;
+  userId: string;
+  attemptNumber: number;
+  status:
+    | "IN_PROGRESS"
+    | "SUBMITTED"
+    | "GRADED"
+    | "NEEDS_MANUAL_GRADING"
+    | "EXPIRED";
+  startedAt: string;
+  dueAt?: string | null;
+  submittedAt?: string | null;
+  score: number;
+  maxScore: number;
+  percentage: number;
+  passed: boolean;
+  user?: { email: string; name?: string | null };
+}
+
+export interface QuizAnswer {
+  id: string;
+  attemptId: string;
+  questionId: string;
+  selectedOptionIds?: string[];
+  textAnswer?: string | null;
+  numericAnswer?: number | null;
+  isCorrect?: boolean | null;
+  pointsAwarded: number;
+  maxPoints: number;
+  status:
+    | "NOT_GRADED"
+    | "CORRECT"
+    | "PARTIALLY_CORRECT"
+    | "INCORRECT"
+    | "NEEDS_MANUAL_GRADING";
+  feedback?: string | null;
+}
+
+export type LearnerQuizQuestion = Question & { quizQuestionId?: string };
+
+export interface LearnerQuizResponse {
+  quiz: Omit<Quiz, "questions"> & { questions: LearnerQuizQuestion[] };
+  lastAttempt?: (QuizAttempt & { answers?: QuizAnswer[] }) | null;
+}
+
+export interface QuizResult {
+  attempt: QuizAttempt;
+  quiz: Omit<Quiz, "questions"> & { questions: LearnerQuizQuestion[] };
+  answers: QuizAnswer[];
 }

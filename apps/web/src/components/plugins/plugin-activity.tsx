@@ -7,12 +7,14 @@ import {
   RichTextHtmlViewer,
   VideoPlayer,
 } from "../content/content";
+import { QuizActivityRenderer } from "../quiz/quiz";
 import { StatusBadge } from "../ui/core";
 import type { Activity, ActivityContentResponse } from "../../lib/lms-types";
 
 type RendererProps = {
   response: ActivityContentResponse;
   onVideoProgress?: (currentTime: number, duration: number) => void;
+  onRequestPictureInPicture?: () => void;
 };
 
 type EditorProps = {
@@ -25,6 +27,7 @@ const coreRenderers: Record<string, ComponentType<RendererProps>> = {
   "core.video": CoreVideoRenderer,
   "core.file": CoreFileRenderer,
   "core.link": CoreLinkRenderer,
+  "core.quiz": QuizActivityRenderer,
 };
 
 const coreEditors: Record<string, ComponentType<EditorProps>> = {
@@ -32,6 +35,7 @@ const coreEditors: Record<string, ComponentType<EditorProps>> = {
   "core.video": CoreActivityEditor,
   "core.file": CoreActivityEditor,
   "core.link": CoreActivityEditor,
+  "core.quiz": CoreActivityEditor,
 };
 
 export const PluginRendererRegistry = {
@@ -105,10 +109,15 @@ function CoreTextRenderer({ response }: RendererProps) {
   );
 }
 
-function CoreVideoRenderer({ response, onVideoProgress }: RendererProps) {
+function CoreVideoRenderer({
+  response,
+  onVideoProgress,
+  onRequestPictureInPicture,
+}: RendererProps) {
   const { externalUrl } = activityPayload(response);
   return (
     <VideoPlayer
+      onRequestPictureInPicture={onRequestPictureInPicture}
       onProgress={onVideoProgress}
       src={externalUrl}
       title={response.activity.title}

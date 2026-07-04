@@ -19,6 +19,9 @@ describe("PluginRegistry", () => {
     expect(activityTypes.some((type) => type.key === "core.quiz")).toBe(true);
     expect(
       activityTypes.find((type) => type.key === "core.quiz")?.placeholder,
+    ).toBe(false);
+    expect(
+      activityTypes.find((type) => type.key === "core.quiz")?.implemented,
     ).toBe(true);
   });
 

@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { AuthGate } from "../../../../components/auth/auth-gate";
 import { AppShell } from "../../../../components/layout/shells";
+import { findResumeActivity } from "../../../../components/lms/courses";
 import { LearningWorkspace } from "../../../../components/learning-workspace/workspace";
-import { PageHeader } from "../../../../components/ui/core";
 import { ApiErrorState, LoadingState } from "../../../../components/ui/states";
 import {
   useCompleteActivity,
@@ -16,9 +16,12 @@ import {
 
 export default function LearnLessonPage() {
   const params = useParams<{ lessonId: string }>();
+  const searchParams = useSearchParams();
+  const requestedActivityId = searchParams.get("activity");
   const lessonQuery = useLesson(params.lessonId);
   const lesson = lessonQuery.data;
   const courseQuery = useLearningCourse(lesson?.courseId ?? null);
+  const lastActivityId = courseQuery.data?.enrollment.lastActivityId ?? null;
   const course = courseQuery.data?.curriculum ?? lesson?.course ?? null;
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(
     null,
@@ -27,11 +30,66 @@ export default function LearnLessonPage() {
   const startActivity = useStartActivity();
   const completeActivity = useCompleteActivity();
 
+  function selectActivity(activityId: string) {
+    setActionMessage(null);
+    setSelectedActivityId(activityId);
+  }
+
+  // The curriculum sidebar lists every activity in the course (across all
+  // lessons), so selection must be resolved course-wide rather than limited to
+  // the lesson referenced by the route param. Otherwise selecting an activity
+  // from another lesson (e.g. the "Learning Resources" link/file activities)
+  // would fail the guard below and bounce back to the first activity.
+  const courseActivities = useMemo(
+    () =>
+      (course?.modules ?? []).flatMap((module) =>
+        module.lessons.flatMap((lessonItem) => lessonItem.activities),
+      ),
+    [course],
+  );
+
+  const allActivities = courseActivities.length
+    ? courseActivities
+    : lesson?.activities ?? [];
+
   useEffect(() => {
-    if (!selectedActivityId && lesson?.activities[0]) {
-      setSelectedActivityId(lesson.activities[0].id);
+    // Keep a valid, user-driven selection untouched.
+    if (
+      selectedActivityId &&
+      allActivities.some((activity) => activity.id === selectedActivityId)
+    ) {
+      return;
     }
-  }, [lesson, selectedActivityId]);
+    // Wait for the course curriculum before auto-selecting so the resume target
+    // is computed from full completion progress. Selecting prematurely would
+    // land on (and auto-start) the first activity, overwriting resume progress.
+    if (courseQuery.loading) {
+      return;
+    }
+    if (!allActivities.length) {
+      return;
+    }
+    const requestedActivity =
+      requestedActivityId &&
+      allActivities.find((activity) => activity.id === requestedActivityId);
+    const resumeActivity =
+      requestedActivity ||
+      findResumeActivity(course, lastActivityId) ||
+      lesson?.activities[0] ||
+      allActivities[0] ||
+      null;
+    if (resumeActivity) {
+      setSelectedActivityId(resumeActivity.id);
+    }
+  }, [
+    allActivities,
+    course,
+    courseQuery.loading,
+    lastActivityId,
+    lesson,
+    requestedActivityId,
+    selectedActivityId,
+  ]);
 
   useEffect(() => {
     if (!selectedActivityId) return;
@@ -40,17 +98,37 @@ export default function LearnLessonPage() {
 
   const selectedActivity = useMemo(
     () =>
-      lesson?.activities.find((activity) => activity.id === selectedActivityId) ??
+      allActivities.find((activity) => activity.id === selectedActivityId) ??
       null,
-    [lesson, selectedActivityId],
+    [allActivities, selectedActivityId],
   );
+
+  // Resolve the lesson that actually owns the selected activity so workspace
+  // context (notes, resources, saved state) is scoped correctly even when the
+  // learner jumps to an activity in a different lesson.
+  const activeLesson = useMemo(() => {
+    if (course && selectedActivityId) {
+      for (const module of course.modules ?? []) {
+        for (const lessonItem of module.lessons) {
+          if (
+            lessonItem.activities.some(
+              (activity) => activity.id === selectedActivityId,
+            )
+          ) {
+            return lessonItem;
+          }
+        }
+      }
+    }
+    return lesson ?? null;
+  }, [course, lesson, selectedActivityId]);
 
   async function completeSelectedActivity() {
     if (!selectedActivityId) return;
     setActionMessage(null);
     try {
       const result = await completeActivity(selectedActivityId);
-      await lessonQuery.reload();
+      await Promise.all([lessonQuery.reload(), courseQuery.reload()]);
       setActionMessage(
         `Completed. Course progress: ${Math.round(
           result.courseProgress.progressPercent,
@@ -63,7 +141,14 @@ export default function LearnLessonPage() {
 
   return (
     <AuthGate>
-      <AppShell currentPath="/my-learning">
+      <AppShell
+        currentPath="/my-learning"
+        immersive
+        showBackButton
+        backHref="/"
+        backLabel="Back to dashboard"
+        mainClassName="px-2 py-3 sm:px-4 lg:px-6"
+      >
         {lessonQuery.loading ? (
           <LoadingState title="Loading lesson" />
         ) : lessonQuery.error || !lesson ? (
@@ -74,23 +159,6 @@ export default function LearnLessonPage() {
           />
         ) : (
           <>
-            <PageHeader
-              breadcrumbs={[
-                { label: "My Learning", href: "/my-learning" },
-                {
-                  label: lesson.course?.title ?? "Course",
-                  href: lesson.courseId ? `/learn/courses/${lesson.courseId}` : undefined,
-                },
-                { label: lesson.title },
-              ]}
-              eyebrow={lesson.course?.title ?? "Lesson"}
-              title={lesson.title}
-              description={
-                lesson.summary ??
-                "Lesson content, activity content, and learner progress are loaded from the API."
-              }
-            />
-
             {courseQuery.loading && !course ? (
               <LoadingState title="Loading curriculum" />
             ) : courseQuery.error || !course ? (
@@ -100,11 +168,11 @@ export default function LearnLessonPage() {
               />
             ) : (
               <LearningWorkspace
-                lesson={lesson}
+                lesson={activeLesson ?? lesson}
                 course={course}
                 selectedActivity={selectedActivity}
                 selectedActivityId={selectedActivityId}
-                onSelectActivity={setSelectedActivityId}
+                onSelectActivity={selectActivity}
                 onCompleteActivity={completeSelectedActivity}
                 actionMessage={actionMessage}
               />

@@ -28,6 +28,8 @@ export const PERMISSIONS = {
   filesDelete: "files:delete",
   contentLibraryManage: "content-library:manage",
   contentProcess: "content:process",
+  quizManage: "quiz:manage",
+  quizGrade: "quiz:grade",
   pluginsConfigure: "plugins:configure",
 } as const;
 

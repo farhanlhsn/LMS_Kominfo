@@ -1,6 +1,7 @@
 import {
   ArrowUpRight,
   Bold,
+  Copy,
   File,
   FileText,
   Heading2,
@@ -10,6 +11,7 @@ import {
   List,
   PlayCircle,
   Pilcrow,
+  PictureInPicture,
   Upload,
   Video,
 } from "lucide-react";
@@ -409,14 +411,22 @@ export function VideoPlayer({
   title,
   src,
   onProgress,
+  onRequestPictureInPicture,
 }: {
   title: string;
   src?: string | null;
   onProgress?: (currentTime: number, duration: number) => void;
+  onRequestPictureInPicture?: () => void;
 }) {
+  const canUsePictureInPicture =
+    typeof document !== "undefined" &&
+    "pictureInPictureEnabled" in document &&
+    document.pictureInPictureEnabled &&
+    Boolean(onRequestPictureInPicture);
+
   return (
     <section className="overflow-hidden rounded-lg border border-border bg-card shadow-subtle">
-      <div className="flex aspect-video items-center justify-center bg-muted">
+      <div className="relative flex aspect-video items-center justify-center bg-muted">
         {src ? (
           <video
             className="h-full w-full"
@@ -434,6 +444,19 @@ export function VideoPlayer({
         ) : (
           <PlayCircle aria-hidden="true" className="h-14 w-14 text-primary" />
         )}
+        {canUsePictureInPicture ? (
+          <button
+            className="absolute right-3 top-3 inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background/90 px-2 text-xs font-semibold text-foreground shadow-subtle"
+            onClick={(event) => {
+              event.preventDefault();
+              onRequestPictureInPicture?.();
+            }}
+            type="button"
+          >
+            <PictureInPicture aria-hidden="true" className="h-3.5 w-3.5" />
+            PiP
+          </button>
+        ) : null}
       </div>
       <div className="p-4">
         <h2 className="text-base font-semibold">{title}</h2>
@@ -552,19 +575,49 @@ export function ExternalLinkCard({
   title: string;
   description: string;
 }) {
+  const canLaunch = href !== "#";
+
   return (
     <article className="rounded-lg border border-border bg-card p-5 shadow-subtle">
-      <Link2 aria-hidden="true" className="h-6 w-6 text-primary" />
-      <h2 className="mt-4 text-lg font-semibold">{title}</h2>
-      <p className="mt-2 text-sm leading-6 text-muted-foreground">
-        {description}
-      </p>
-      {href !== "#" ? (
-        <ButtonLink className="mt-5" href={href} variant="secondary">
-          Open resource
-          <ArrowUpRight aria-hidden="true" className="h-4 w-4" />
-        </ButtonLink>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <span className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary">
+            <Link2 aria-hidden="true" className="h-5 w-5" />
+          </span>
+          <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            External lab or resource
+          </p>
+          <h2 className="mt-1 text-lg font-semibold">{title}</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+            {description}
+          </p>
+        </div>
+      </div>
+      {canLaunch ? (
+        <div className="mt-5 grid gap-2 sm:flex sm:flex-wrap">
+          <a
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-primary bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90"
+            href={href}
+            rel="noreferrer"
+            target="_blank"
+          >
+            Launch in new tab
+            <ArrowUpRight aria-hidden="true" className="h-4 w-4" />
+          </a>
+          <button
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border bg-background px-4 py-2 text-sm font-semibold transition hover:bg-muted"
+            onClick={() => void navigator.clipboard?.writeText(href)}
+            type="button"
+          >
+            Copy link
+            <Copy aria-hidden="true" className="h-4 w-4" />
+          </button>
+        </div>
       ) : null}
+      <p className="mt-4 text-xs leading-5 text-muted-foreground">
+        Use a new tab for dual-monitor work, or keep this lesson open
+        side-by-side with notes and resources.
+      </p>
     </article>
   );
 }

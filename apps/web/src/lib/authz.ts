@@ -6,6 +6,7 @@ export type NavigationKey =
   | "catalog"
   | "my-learning"
   | "instructor"
+  | "quizzes"
   | "files"
   | "library"
   | "plugins";
@@ -49,6 +50,10 @@ export function canUseContentLibrary(session: AuthSession | null) {
   return hasPermission(session, PERMISSIONS.contentLibraryManage);
 }
 
+export function canManageQuizzes(session: AuthSession | null) {
+  return hasPermission(session, PERMISSIONS.quizManage);
+}
+
 export function canConfigurePlugins(session: AuthSession | null) {
   return hasPermission(session, PERMISSIONS.pluginsConfigure);
 }
@@ -57,6 +62,7 @@ export function visibleNavigationKeys(session: AuthSession | null) {
   const keys: NavigationKey[] = ["dashboard", "catalog", "my-learning"];
 
   if (canUseInstructorWorkspace(session)) keys.push("instructor");
+  if (canManageQuizzes(session)) keys.push("quizzes");
   if (canUseFileWorkspace(session)) keys.push("files");
   if (canUseContentLibrary(session)) keys.push("library");
   if (canConfigurePlugins(session)) keys.push("plugins");

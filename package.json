@@ -13,9 +13,13 @@
     "db:migrate": "pnpm --filter @lms/db prisma:migrate",
     "db:deploy": "pnpm --filter @lms/db prisma:deploy",
     "db:seed": "pnpm --filter @lms/db db:seed",
+    "e2e": "pnpm db:seed && playwright test",
+    "e2e:api": "pnpm db:seed && playwright test --project=api",
+    "e2e:ui": "pnpm db:seed && playwright test --project=chromium",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css}\""
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "prettier": "^3.6.2",
     "prisma": "^6.10.1",
     "tsx": "^4.20.3",
