@@ -45,6 +45,7 @@ export function activityIcon(type: ActivityTypeKey): LucideIcon {
   if (type === "core.video") return PlayCircle;
   if (type === "core.file") return ListChecks;
   if (type === "core.link") return Link2;
+  if (type === "core.quiz") return ListChecks;
   return FileText;
 }
 
@@ -116,6 +117,46 @@ export function findLessonByActivityId(
         lesson.activities.some((activity) => activity.id === activityId),
       ) ?? null
   );
+}
+
+export function flattenCourseActivities(course?: Course | null): Activity[] {
+  return (
+    course?.modules?.flatMap((module) =>
+      module.lessons.flatMap((lesson) => lesson.activities),
+    ) ?? []
+  );
+}
+
+function isActivityCompleted(activity: Activity) {
+  return activity.progress?.[0]?.status === "COMPLETED";
+}
+
+/**
+ * Resolve where a learner should resume in a course.
+ *
+ * "Continue where you left off" means the activity right after the furthest
+ * completed one, not merely the last accessed activity. This is resilient to
+ * `lastActivityId` being overwritten (e.g. by auto-start on page load) and
+ * matches the learner expectation of moving forward through the curriculum.
+ */
+export function findResumeActivity(
+  course: Course | null | undefined,
+  lastActivityId?: string | null,
+): Activity | null {
+  const activities = flattenCourseActivities(course);
+  if (!activities.length) return null;
+  let lastCompletedIndex = -1;
+  activities.forEach((activity, index) => {
+    if (isActivityCompleted(activity)) lastCompletedIndex = index;
+  });
+  const lastActivityIndex = lastActivityId
+    ? activities.findIndex((activity) => activity.id === lastActivityId)
+    : -1;
+  const resumeIndex = Math.min(
+    Math.max(lastCompletedIndex + 1, lastActivityIndex, 0),
+    activities.length - 1,
+  );
+  return activities[resumeIndex] ?? null;
 }
 
 export function CourseStatusBadge({ status }: { status: CourseStatus }) {
@@ -191,7 +232,9 @@ export function CourseProgressCard({
   enrollment: Enrollment;
 }) {
   const course = enrollment.course;
+  const resumeActivity = findResumeActivity(course, enrollment.lastActivityId);
   const resumeLesson =
+    findLessonByActivityId(course, resumeActivity?.id) ??
     findLessonByActivityId(course, enrollment.lastActivityId) ??
     firstLesson(course);
   const resumeHref = resumeLesson
@@ -369,15 +412,21 @@ export function LessonPlayerLayout({
 export function LearningWorkspaceShell({
   course,
   activeLesson,
+  activeActivityId,
   children,
 }: {
   course: Course;
   activeLesson: Lesson;
+  activeActivityId?: string;
   children: ReactNode;
 }) {
   return (
     <section className="grid min-h-[620px] gap-4 xl:grid-cols-[280px_1fr_320px]">
-      <CurriculumSidebar course={course} activeLessonId={activeLesson.id} />
+      <CurriculumSidebar
+        course={course}
+        activeLessonId={activeLesson.id}
+        activeActivityId={activeActivityId}
+      />
       <main className="rounded-lg border border-border bg-card p-5 shadow-subtle">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -395,34 +444,109 @@ export function LearningWorkspaceShell({
   );
 }
 
+function activityKindLabel(type: ActivityTypeKey): string {
+  if (type === "core.video") return "Video";
+  if (type === "core.text") return "Reading";
+  if (type === "core.file") return "File";
+  if (type === "core.quiz") return "Quiz";
+  if (type === "core.link") return "Link / Lab";
+  return "Activity";
+}
+
 export function CurriculumSidebar({
   course,
   activeLessonId,
+  activeActivityId,
 }: {
   course: Course;
   activeLessonId?: string;
+  activeActivityId?: string;
 }) {
-  const lessons = course.modules?.flatMap((module) => module.lessons) ?? [];
+  const modules = (course.modules ?? []).map((module) => ({
+    module,
+    activities: module.lessons.flatMap((lesson) => lesson.activities),
+  }));
 
   return (
-    <aside className="rounded-lg border border-border bg-card p-4 shadow-subtle">
-      <p className="text-sm font-semibold">{course.title}</p>
-      <div className="mt-4 space-y-2">
-        {lessons.map((lesson, index) => (
-          <Link
-            key={lesson.id}
-            className={cn(
-              "block rounded-md border px-3 py-2 text-sm",
-              activeLessonId === lesson.id
-                ? "border-primary bg-primary/10 text-primary"
-                : "border-border text-muted-foreground hover:text-foreground",
-            )}
-            href={`/learn/lessons/${lesson.id}`}
-          >
-            <span className="text-xs font-semibold">Lesson {index + 1}</span>
-            <span className="mt-1 block font-medium">{lesson.title}</span>
-          </Link>
-        ))}
+    <aside className="rounded-lg border border-border bg-card shadow-subtle">
+      <div className="border-b border-border p-4">
+        <p className="text-sm font-semibold">{course.title}</p>
+      </div>
+      <div className="divide-y divide-border">
+        {modules.map((entry, index) => {
+          const { module, activities } = entry;
+          const completedCount = activities.filter((activity) =>
+            isActivityCompleted(activity),
+          ).length;
+
+          return (
+            <section key={module.id} className="p-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+                  Module {index + 1}
+                </p>
+                <p className="mt-1 text-sm font-semibold text-foreground">
+                  {module.title}
+                </p>
+                {activities.length ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {completedCount}/{activities.length} completed
+                  </p>
+                ) : null}
+              </div>
+              <div className="mt-3 space-y-1">
+                {activities.length ? (
+                  activities.map((activity) => {
+                    const isActive =
+                      activeActivityId === activity.id ||
+                      (!activeActivityId && activeLessonId === activity.lessonId);
+                    const completed = isActivityCompleted(activity);
+
+                    return (
+                      <Link
+                        key={activity.id}
+                        className={cn(
+                          "flex items-start gap-3 rounded-md px-3 py-2 text-left transition",
+                          isActive
+                            ? "bg-primary/10 text-primary ring-1 ring-primary/30"
+                            : "text-foreground hover:bg-muted",
+                        )}
+                        href={`/learn/lessons/${activity.lessonId}?activity=${activity.id}`}
+                      >
+                        <span
+                          className={cn(
+                            "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border",
+                            completed
+                              ? "border-success bg-success text-success-foreground"
+                              : "border-border bg-background text-transparent",
+                          )}
+                        >
+                          <CheckCircle2
+                            aria-hidden="true"
+                            className="h-3.5 w-3.5"
+                          />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-medium">
+                            {activity.title}
+                          </span>
+                          <span className="mt-0.5 block text-xs text-muted-foreground">
+                            {activityKindLabel(activity.activityTypeKey)} ·{" "}
+                            {activity.estimatedMinutes || 1} min
+                          </span>
+                        </span>
+                      </Link>
+                    );
+                  })
+                ) : (
+                  <p className="px-3 py-2 text-xs text-muted-foreground">
+                    No activities yet.
+                  </p>
+                )}
+              </div>
+            </section>
+          );
+        })}
       </div>
     </aside>
   );
@@ -498,6 +622,7 @@ export function ActivityTypeLegend() {
     ["core.video", Video],
     ["core.file", ListChecks],
     ["core.link", Link2],
+    ["core.quiz", ListChecks],
   ];
 
   return (

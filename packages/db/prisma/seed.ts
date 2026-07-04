@@ -34,6 +34,8 @@ const permissions = [
   ["files:delete", "Delete files"],
   ["content-library:manage", "Manage content library"],
   ["content:process", "Process activity content"],
+  ["quiz:manage", "Manage question banks and quizzes"],
+  ["quiz:grade", "Grade quiz attempts"],
   ["plugins:configure", "Configure plugins"],
 ] as const;
 
@@ -203,6 +205,8 @@ async function main() {
     "files:delete",
     "content-library:manage",
     "content:process",
+    "quiz:manage",
+    "quiz:grade",
     "plugins:configure",
   ];
 
@@ -456,6 +460,8 @@ async function seedRolePermissions(
       "files:delete",
       "content-library:manage",
       "content:process",
+      "quiz:manage",
+      "quiz:grade",
     ],
     org_admin: permissions
       .map((permission) => permission.key)
@@ -464,10 +470,13 @@ async function seedRolePermissions(
       "courses:read",
       "courses:create",
       "courses:update",
+      "courses:publish",
       "files:read",
       "files:create",
       "content-library:manage",
       "content:process",
+      "quiz:manage",
+      "quiz:grade",
     ],
     assistant_instructor: [
       "courses:read",
@@ -475,8 +484,9 @@ async function seedRolePermissions(
       "files:read",
       "files:create",
       "content-library:manage",
+      "quiz:manage",
     ],
-    reviewer: ["courses:read", "courses:publish", "files:read"],
+    reviewer: ["courses:read", "courses:publish", "files:read", "quiz:grade"],
     mentor: ["courses:read"],
     learner: ["courses:read"],
     support_admin: ["users:read", "audit:read", "files:read"],
@@ -671,6 +681,7 @@ async function seedLmsDemoData(input: {
 
   await seedContentLibraryDemoData(input.organizationId, input.adminUserId);
   await seedWorkspaceDemoData(input.organizationId, learnerOne.id);
+  await seedQuizDemoData(input.organizationId, instructor.id);
 }
 
 async function upsertDemoUser(email: string, name: string, roleKey: string) {
@@ -1043,7 +1054,14 @@ async function seedContentLibraryDemoData(
 
 async function seedWorkspaceDemoData(organizationId: string, learnerId: string) {
   const enrollments = await prisma.enrollment.findMany({
-    where: { organizationId, userId: learnerId, status: "ACTIVE" },
+    where: {
+      organizationId,
+      userId: learnerId,
+      status: "ACTIVE",
+      course: {
+        deletedAt: null,
+      },
+    },
     include: {
       course: {
         include: {
@@ -1272,6 +1290,249 @@ async function seedWorkspaceDemoData(organizationId: string, learnerId: string) 
       },
     });
   }
+}
+
+async function seedQuizDemoData(organizationId: string, instructorId: string) {
+  const course = await prisma.course.findFirst({
+    where: {
+      organizationId,
+      slug: "foundations-modern-web-apps",
+      deletedAt: null,
+    },
+    include: {
+      modules: {
+        orderBy: { orderIndex: "asc" },
+        include: {
+          lessons: {
+            orderBy: { orderIndex: "asc" },
+            include: { activities: true },
+          },
+        },
+      },
+    },
+  });
+  if (!course) return;
+  const lesson = course.modules[0]?.lessons[0];
+  if (!lesson) return;
+
+  await prisma.quiz.deleteMany({
+    where: { organizationId, metadata: { path: ["seededPhase"], equals: "06" } },
+  });
+  await prisma.questionBank.deleteMany({
+    where: { organizationId, metadata: { path: ["seededPhase"], equals: "06" } },
+  });
+  await prisma.activity.deleteMany({
+    where: {
+      organizationId,
+      lessonId: lesson.id,
+      activityTypeKey: "core.quiz",
+      metadata: { path: ["seededPhase"], equals: "06" },
+    },
+  });
+
+  const bank = await prisma.questionBank.create({
+    data: {
+      organizationId,
+      ownerId: instructorId,
+      courseId: course.id,
+      title: "Modern Web Foundations Question Bank",
+      description: "Seeded question bank covering core LMS demo concepts.",
+      metadata: { seededPhase: "06" },
+    },
+  });
+
+  const questionInputs: Array<{
+    type: Prisma.QuestionCreateInput["type"];
+    prompt: string;
+    points?: number;
+    acceptedAnswers?: string[];
+    numericTolerance?: number;
+    options?: Array<{ text: string; isCorrect: boolean }>;
+  }> = [
+    {
+      type: "MULTIPLE_CHOICE",
+      prompt: "Which layer usually exposes LMS data to the frontend?",
+      options: [
+        { text: "REST API", isCorrect: true },
+        { text: "Local browser cache only", isCorrect: false },
+        { text: "Static screenshots", isCorrect: false },
+      ],
+    },
+    {
+      type: "MULTIPLE_ANSWER",
+      prompt: "Which items are tenant-scoped in this LMS?",
+      options: [
+        { text: "Courses", isCorrect: true },
+        { text: "Enrollments", isCorrect: true },
+        { text: "A public JavaScript language keyword", isCorrect: false },
+      ],
+    },
+    {
+      type: "TRUE_FALSE",
+      prompt: "Published course activities can contribute to course progress.",
+      options: [
+        { text: "True", isCorrect: true },
+        { text: "False", isCorrect: false },
+      ],
+    },
+    {
+      type: "SHORT_ANSWER",
+      prompt: "What HTTP style does this LMS API use?",
+      acceptedAnswers: ["REST", "REST API"],
+    },
+    {
+      type: "NUMERIC",
+      prompt: "How many points is a 70 percent passing threshold out of 100?",
+      acceptedAnswers: ["70"],
+      numericTolerance: 0,
+    },
+    {
+      type: "ESSAY",
+      prompt: "Explain why tenant isolation matters in a learning platform.",
+      points: 3,
+    },
+    {
+      type: "MULTIPLE_CHOICE",
+      prompt: "What activity key is used for quiz activities?",
+      options: [
+        { text: "core.quiz", isCorrect: true },
+        { text: "phase.quiz", isCorrect: false },
+        { text: "demo.quiz", isCorrect: false },
+      ],
+    },
+    {
+      type: "TRUE_FALSE",
+      prompt: "A failed required quiz should automatically complete the activity.",
+      options: [
+        { text: "True", isCorrect: false },
+        { text: "False", isCorrect: true },
+      ],
+    },
+    {
+      type: "MULTIPLE_ANSWER",
+      prompt: "Which question types can be auto-graded here?",
+      options: [
+        { text: "Multiple choice", isCorrect: true },
+        { text: "Numeric with accepted answer", isCorrect: true },
+        { text: "Essay without rubric", isCorrect: false },
+      ],
+    },
+    {
+      type: "SHORT_ANSWER",
+      prompt: "Name the active organization header.",
+      acceptedAnswers: ["x-organization-id"],
+    },
+    ...Array.from({ length: 10 }, (_, index) => ({
+      type: "MULTIPLE_CHOICE" as const,
+      prompt: `Practice check ${index + 1}: Which option is correct?`,
+      options: [
+        { text: "Correct option", isCorrect: true },
+        { text: "Distractor option", isCorrect: false },
+        { text: "Another distractor", isCorrect: false },
+      ],
+    })),
+  ];
+
+  const questions = [];
+  for (const [index, input] of questionInputs.entries()) {
+    const question = await prisma.question.create({
+      data: {
+        organizationId,
+        questionBankId: bank.id,
+        createdById: instructorId,
+        type: input.type,
+        prompt: input.prompt,
+        points: input.points ?? 1,
+        acceptedAnswers: input.acceptedAnswers ?? [],
+        numericTolerance: input.numericTolerance,
+        metadata: { seededPhase: "06" },
+        options: input.options
+          ? {
+              create: input.options.map((option, optionIndex) => ({
+                text: option.text,
+                isCorrect: option.isCorrect,
+                orderIndex: optionIndex,
+              })),
+            }
+          : undefined,
+      },
+    });
+    questions.push({ question, orderIndex: index, points: input.points ?? 1 });
+  }
+
+  const orderIndex = lesson.activities.length;
+  const activity = await prisma.activity.create({
+    data: {
+      organizationId,
+      courseId: course.id,
+      lessonId: lesson.id,
+      title: "Check your understanding",
+      description: "Seeded quiz activity for the quiz engine.",
+      activityTypeKey: "core.quiz",
+      pluginKey: "core.quiz",
+      pluginVersion: "1.0.0",
+      orderIndex,
+      isRequired: true,
+      isPublished: true,
+      estimatedMinutes: 10,
+      completionRule: { type: "quiz", passingRequired: true },
+      gradingRule: { type: "quiz", passingScorePercent: 70 },
+      assessmentDisplayPolicy: {
+        allowPopout: false,
+        allowDualWindow: false,
+        allowAIAssistant: false,
+        allowNotes: true,
+        allowTranscript: false,
+        requireFocusMode: false,
+        detectTabSwitch: false,
+      },
+      metadata: { seededPhase: "06" },
+      activityContent: {
+        create: {
+          organizationId,
+          body: { quiz: true },
+          content: { quiz: true },
+          textContent: "Answer the quiz to complete this activity.",
+          resources: [],
+          metadata: { seededPhase: "06" },
+        },
+      },
+    },
+  });
+
+  const quiz = await prisma.quiz.create({
+    data: {
+      organizationId,
+      courseId: course.id,
+      activityId: activity.id,
+      createdById: instructorId,
+      title: "Modern Web Foundations Quiz",
+      description: "A seeded published quiz attached to the demo course.",
+      status: "PUBLISHED",
+      passingScorePercent: 70,
+      attemptLimit: 3,
+      timeLimitMinutes: 20,
+      showCorrectAnswers: true,
+      showFeedback: true,
+      publishedAt: new Date(),
+      metadata: { seededPhase: "06" },
+      questions: {
+        create: questions.map((item) => ({
+          questionId: item.question.id,
+          orderIndex: item.orderIndex,
+          points: item.points,
+        })),
+      },
+    },
+  });
+
+  await prisma.activity.update({
+    where: { id: activity.id },
+    data: {
+      completionRule: { type: "quiz", quizId: quiz.id, passingRequired: true },
+      gradingRule: { type: "quiz", quizId: quiz.id, passingScorePercent: 70 },
+    },
+  });
 }
 
 function demoActivityContentFields(activityTypeKey: string, title: string) {

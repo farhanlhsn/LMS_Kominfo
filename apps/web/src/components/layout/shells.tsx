@@ -7,9 +7,11 @@ import {
   Building2,
   Check,
   ChevronDown,
+  ChevronLeft,
   FolderOpen,
   GraduationCap,
   Library,
+  ListChecks,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -49,6 +51,12 @@ const dashboardNav = [
     label: "Instructor",
     icon: Settings,
   },
+  {
+    key: "quizzes",
+    href: "/instructor/quizzes",
+    label: "Quizzes",
+    icon: ListChecks,
+  },
   { key: "files", href: "/instructor/files", label: "Files", icon: FolderOpen },
   {
     key: "library",
@@ -85,25 +93,51 @@ export function AppShell({
   children,
   currentPath,
   branding,
+  immersive = false,
+  mainClassName,
+  showBackButton = false,
+  backHref = "/",
+  backLabel = "Dashboard",
 }: {
   children: ReactNode;
   currentPath?: string;
   branding?: OrganizationBranding | null;
+  immersive?: boolean;
+  mainClassName?: string;
+  showBackButton?: boolean;
+  backHref?: string;
+  backLabel?: string;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
     <ThemeProvider branding={branding}>
       <div className="min-h-screen bg-background text-foreground">
-        <DashboardSidebar currentPath={currentPath} />
-        <MobileSidebar
-          currentPath={currentPath}
-          onClose={() => setMobileOpen(false)}
-          open={mobileOpen}
-        />
-        <div className="lg:pl-64">
-          <DashboardTopbar onOpenNavigation={() => setMobileOpen(true)} />
-          <main className="px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+        {!immersive ? <DashboardSidebar currentPath={currentPath} /> : null}
+        {!immersive ? (
+          <MobileSidebar
+            currentPath={currentPath}
+            onClose={() => setMobileOpen(false)}
+            open={mobileOpen}
+          />
+        ) : null}
+        <div className={immersive ? "" : "lg:pl-64"}>
+          <DashboardTopbar
+            onOpenNavigation={() => setMobileOpen(true)}
+            showNavigationButton={!immersive}
+            showBackButton={showBackButton}
+            backHref={backHref}
+            backLabel={backLabel}
+          />
+          <main
+            className={cn(
+              "px-4 py-6 sm:px-6 lg:px-8",
+              immersive && "px-2 py-3 sm:px-4 lg:px-6",
+              mainClassName,
+            )}
+          >
+            {children}
+          </main>
         </div>
       </div>
     </ThemeProvider>
@@ -215,20 +249,40 @@ function MobileSidebar({
 
 export function DashboardTopbar({
   onOpenNavigation,
+  showNavigationButton = true,
+  showBackButton = false,
+  backHref = "/",
+  backLabel = "Dashboard",
 }: {
   onOpenNavigation?: () => void;
+  showNavigationButton?: boolean;
+  showBackButton?: boolean;
+  backHref?: string;
+  backLabel?: string;
 }) {
   return (
     <header className="sticky top-0 z-20 border-b border-border bg-card/95 backdrop-blur">
       <div className="flex min-h-16 flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
         <div className="flex items-center gap-3">
-          <IconButton
-            className="lg:hidden"
-            label="Open navigation"
-            onClick={onOpenNavigation}
-          >
-            <Menu aria-hidden="true" className="h-4 w-4" />
-          </IconButton>
+          {showBackButton ? (
+            <Link
+              className="inline-flex min-w-0 items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground shadow-subtle hover:bg-muted"
+              href={backHref}
+              title={backLabel}
+            >
+              <ChevronLeft aria-hidden="true" className="h-4 w-4 text-primary" />
+              <span className="max-w-40 truncate">{backLabel}</span>
+            </Link>
+          ) : null}
+          {showNavigationButton ? (
+            <IconButton
+              className="lg:hidden"
+              label="Open navigation"
+              onClick={onOpenNavigation}
+            >
+              <Menu aria-hidden="true" className="h-4 w-4" />
+            </IconButton>
+          ) : null}
           <OrganizationSwitcher />
         </div>
         <div className="flex items-center gap-2">

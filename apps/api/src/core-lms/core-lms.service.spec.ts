@@ -59,6 +59,7 @@ function createPrismaMock() {
     },
     auditLog: { create: vi.fn() },
     learningEvent: { create: vi.fn() },
+    quizAttempt: { findFirst: vi.fn() },
   };
 }
 

@@ -2,6 +2,7 @@
 
 import type {
   ActivityContentResponse,
+  ActivityProgress,
   AuthSession,
   ContentLibraryItem,
   Course,
@@ -17,6 +18,13 @@ import type {
   Plugin,
   PluginActivityType,
   PluginExecutionLog,
+  Question,
+  QuestionBank,
+  Quiz,
+  QuizAnswer,
+  QuizAttempt,
+  LearnerQuizResponse,
+  QuizResult,
   TranscriptSegment,
   WorkspaceContext,
 } from "./lms-types";
@@ -97,39 +105,112 @@ export function clearSession() {
   window.dispatchEvent(new Event("lms-session-changed"));
 }
 
-export async function apiRequest<T>(
-  path: string,
-  init: RequestInit = {},
-): Promise<T> {
-  const session = getSession();
-  const headers = new Headers(init.headers);
-  if (!(init.body instanceof FormData) && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
-  }
+function authHeaders(session: AuthSession | null, base?: HeadersInit) {
+  const headers = new Headers(base);
   if (session?.accessToken) {
     headers.set("Authorization", `Bearer ${session.accessToken}`);
   }
   if (session?.activeOrganization?.id) {
     headers.set("x-organization-id", session.activeOrganization.id);
   }
+  return headers;
+}
 
-  const response = await fetch(`${apiBaseUrl()}${path}`, {
-    ...init,
-    headers,
-  });
+// Shared in-flight refresh so multiple concurrent 401s trigger a single
+// /auth/refresh call (avoids refresh-token rotation racing against itself).
+let refreshPromise: Promise<AuthSession | null> | null = null;
+
+async function refreshSession(): Promise<AuthSession | null> {
+  const current = getSession();
+  if (!current?.refreshToken) {
+    return null;
+  }
+  try {
+    const response = await fetch(`${apiBaseUrl()}/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken: current.refreshToken }),
+    });
+    const body = (await response.json().catch(() => null)) as
+      | ApiSuccess<{ tokens: { accessToken: string; refreshToken: string } }>
+      | ApiFailure
+      | null;
+    if (!response.ok || body?.success !== true) {
+      return null;
+    }
+    // Keep the already-hydrated user/organization context; only rotate tokens.
+    return mergeSession(current, {
+      accessToken: body.data.tokens.accessToken,
+      refreshToken: body.data.tokens.refreshToken ?? current.refreshToken,
+    });
+  } catch {
+    return null;
+  }
+}
+
+function ensureRefreshedSession(): Promise<AuthSession | null> {
+  if (!refreshPromise) {
+    refreshPromise = refreshSession().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+}
+
+async function requestOnce<T>(
+  path: string,
+  init: RequestInit,
+  session: AuthSession | null,
+) {
+  const headers = authHeaders(session, init.headers);
+  if (!(init.body instanceof FormData) && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  const response = await fetch(`${apiBaseUrl()}${path}`, { ...init, headers });
   const body = (await response.json().catch(() => null)) as
     | ApiSuccess<T>
     | ApiFailure
     | null;
+  return { response, body };
+}
+
+function throwApiError(
+  response: Response,
+  body: ApiSuccess<unknown> | ApiFailure | null,
+): never {
+  const error = body?.success === false ? body.error : undefined;
+  throw new ApiClientError(
+    error?.message ?? response.statusText ?? "Request failed",
+    response.status,
+    error?.code,
+    error?.details,
+  );
+}
+
+export async function apiRequest<T>(
+  path: string,
+  init: RequestInit = {},
+): Promise<T> {
+  const session = getSession();
+  let { response, body } = await requestOnce<T>(path, init, session);
+
+  // On an expired access token, transparently refresh once and retry. Skip the
+  // refresh endpoint itself to avoid recursion.
+  if (
+    response.status === 401 &&
+    session?.refreshToken &&
+    !path.startsWith("/auth/refresh")
+  ) {
+    const refreshed = await ensureRefreshedSession();
+    if (refreshed) {
+      ({ response, body } = await requestOnce<T>(path, init, refreshed));
+    } else {
+      clearSession();
+    }
+  }
 
   if (!response.ok || body?.success === false) {
-    const error = body?.success === false ? body.error : undefined;
-    throw new ApiClientError(
-      error?.message ?? response.statusText ?? "Request failed",
-      response.status,
-      error?.code,
-      error?.details,
-    );
+    throwApiError(response, body);
   }
 
   if (body?.success === true) {
@@ -139,32 +220,36 @@ export async function apiRequest<T>(
   return body as T;
 }
 
-export async function apiList<T>(
-  path: string,
-): Promise<ListResponse<T>> {
-  const session = getSession();
-  const headers = new Headers();
-  if (session?.accessToken) {
-    headers.set("Authorization", `Bearer ${session.accessToken}`);
-  }
-  if (session?.activeOrganization?.id) {
-    headers.set("x-organization-id", session.activeOrganization.id);
-  }
-
-  const response = await fetch(`${apiBaseUrl()}${path}`, { headers });
+async function listOnce<T>(path: string, session: AuthSession | null) {
+  const response = await fetch(`${apiBaseUrl()}${path}`, {
+    headers: authHeaders(session),
+  });
   const body = (await response.json().catch(() => null)) as
     | (ApiSuccess<T[]> & { meta?: Record<string, unknown> })
     | ApiFailure
     | null;
+  return { response, body };
+}
+
+export async function apiList<T>(path: string): Promise<ListResponse<T>> {
+  const session = getSession();
+  let { response, body } = await listOnce<T>(path, session);
+
+  if (
+    response.status === 401 &&
+    session?.refreshToken &&
+    !path.startsWith("/auth/refresh")
+  ) {
+    const refreshed = await ensureRefreshedSession();
+    if (refreshed) {
+      ({ response, body } = await listOnce<T>(path, refreshed));
+    } else {
+      clearSession();
+    }
+  }
 
   if (!response.ok || body?.success === false) {
-    const error = body?.success === false ? body.error : undefined;
-    throw new ApiClientError(
-      error?.message ?? response.statusText ?? "Request failed",
-      response.status,
-      error?.code,
-      error?.details,
-    );
+    throwApiError(response, body);
   }
 
   return {
@@ -223,6 +308,7 @@ export const api = {
       clearSession();
     }
   },
+  refresh: () => ensureRefreshedSession(),
   me: () =>
     apiRequest<{
       user: AuthSession["user"];
@@ -302,7 +388,7 @@ export const api = {
     durationSeconds: number,
     watchedPercent?: number,
   ) =>
-    apiRequest(
+    apiRequest<ActivityProgress>(
       `/learn/activities/${encodeURIComponent(activityId)}/video-progress`,
       {
         method: "PATCH",
@@ -542,5 +628,94 @@ export const api = {
   pluginLogs: (pluginKey: string) =>
     apiRequest<PluginExecutionLog[]>(
       `/admin/plugins/${encodeURIComponent(pluginKey)}/logs`,
+    ),
+  questionBanks: () => apiRequest<QuestionBank[]>("/instructor/question-banks"),
+  createQuestionBank: (input: Record<string, unknown>) =>
+    apiRequest<QuestionBank>("/instructor/question-banks", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  questions: (bankId?: string | null) =>
+    apiRequest<Question[]>(
+      `/instructor/questions${bankId ? `?bankId=${encodeURIComponent(bankId)}` : ""}`,
+    ),
+  createQuestion: (input: Record<string, unknown>) =>
+    apiRequest<Question>("/instructor/questions", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateQuestion: (questionId: string, input: Record<string, unknown>) =>
+    apiRequest<Question>(`/instructor/questions/${encodeURIComponent(questionId)}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  instructorQuizzes: () => apiRequest<Quiz[]>("/instructor/quizzes"),
+  createQuiz: (input: Record<string, unknown>) =>
+    apiRequest<Quiz>("/instructor/quizzes", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  instructorQuiz: (quizId: string) =>
+    apiRequest<Quiz>(`/instructor/quizzes/${encodeURIComponent(quizId)}`),
+  updateQuiz: (quizId: string, input: Record<string, unknown>) =>
+    apiRequest<Quiz>(`/instructor/quizzes/${encodeURIComponent(quizId)}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  publishQuiz: (quizId: string) =>
+    apiRequest<Quiz>(`/instructor/quizzes/${encodeURIComponent(quizId)}/publish`, {
+      method: "POST",
+    }),
+  addQuizQuestion: (quizId: string, input: Record<string, unknown>) =>
+    apiRequest(`/instructor/quizzes/${encodeURIComponent(quizId)}/questions`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  removeQuizQuestion: (quizId: string, questionId: string) =>
+    apiRequest(
+      `/instructor/quizzes/${encodeURIComponent(quizId)}/questions/${encodeURIComponent(questionId)}`,
+      { method: "DELETE" },
+    ),
+  attachQuizToActivity: (activityId: string, quizId: string) =>
+    apiRequest<Quiz>(`/instructor/activities/${encodeURIComponent(activityId)}/quiz`, {
+      method: "POST",
+      body: JSON.stringify({ quizId }),
+    }),
+  quizAttempts: (quizId: string) =>
+    apiRequest<QuizAttempt[]>(`/instructor/quizzes/${encodeURIComponent(quizId)}/attempts`),
+  quizAttemptDetail: (attemptId: string) =>
+    apiRequest<QuizAttempt & { answers: Array<QuizAnswer & { question: Question }> }>(
+      `/instructor/quiz-attempts/${encodeURIComponent(attemptId)}`,
+    ),
+  manualGradeAnswer: (answerId: string, input: Record<string, unknown>) =>
+    apiRequest<QuizAnswer>(`/instructor/quiz-answers/${encodeURIComponent(answerId)}/grade`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  learnerQuiz: (activityId: string) =>
+    apiRequest<LearnerQuizResponse>(
+      `/learn/activities/${encodeURIComponent(activityId)}/quiz`,
+    ),
+  startQuizAttempt: (activityId: string) =>
+    apiRequest<QuizAttempt>(
+      `/learn/activities/${encodeURIComponent(activityId)}/quiz/attempts`,
+      { method: "POST" },
+    ),
+  saveQuizAnswer: (attemptId: string, input: Record<string, unknown>) =>
+    apiRequest<QuizAnswer>(
+      `/learn/quiz-attempts/${encodeURIComponent(attemptId)}/answers`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      },
+    ),
+  submitQuizAttempt: (attemptId: string) =>
+    apiRequest<QuizResult>(
+      `/learn/quiz-attempts/${encodeURIComponent(attemptId)}/submit`,
+      { method: "POST" },
+    ),
+  quizResult: (attemptId: string) =>
+    apiRequest<QuizResult>(
+      `/learn/quiz-attempts/${encodeURIComponent(attemptId)}/result`,
     ),
 };

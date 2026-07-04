@@ -4,17 +4,18 @@ import {
   Bot,
   Bookmark,
   CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   Columns3,
   ExternalLink,
   FileText,
   Info,
   ListChecks,
+  PlayCircle,
   Maximize2,
   MessageSquare,
   MonitorUp,
   PanelRight,
-  PictureInPicture,
   Search,
   Sparkles,
   StickyNote,
@@ -23,7 +24,7 @@ import {
 import type { ReactNode } from "react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { PluginActivityRenderer } from "../plugins/plugin-activity";
-import { ButtonLink, StatusBadge } from "../ui/core";
+import { StatusBadge } from "../ui/core";
 import { ApiErrorState, EmptyState, LoadingState } from "../ui/states";
 import {
   useActivityContent,
@@ -81,6 +82,74 @@ const panelTabs: Array<{
   { value: "activity_info", label: "Info", icon: Info },
 ];
 
+function panelForLayout(layout: WorkspaceLayoutMode): WorkspacePanelMode | null {
+  if (layout === "split_video_transcript") return "transcript";
+  if (layout === "split_content_notes") return "notes";
+  if (layout === "split_content_ai") return "ai";
+  return null;
+}
+
+function layoutUsesRightPanel(layout: WorkspaceLayoutMode) {
+  return [
+    "side_by_side",
+    "split_video_transcript",
+    "split_content_notes",
+    "split_content_ai",
+    "dual_window",
+    "popout_panel",
+  ].includes(layout);
+}
+
+function isVideoActivity(activity: Activity | null) {
+  return activity?.activityTypeKey === "core.video";
+}
+
+function activityKind(activity: Activity) {
+  if (activity.activityTypeKey === "core.video") return "Video";
+  if (activity.activityTypeKey === "core.text") return "Reading";
+  if (activity.activityTypeKey === "core.file") return "File";
+  if (activity.activityTypeKey === "core.quiz") return "Quiz";
+  if (activity.activityTypeKey === "core.link") return "Link / Lab";
+  return "Activity";
+}
+
+function visiblePanelsForActivity(
+  activity: Activity | null,
+  availablePanels: Set<WorkspacePanelMode>,
+  policy?: {
+    allowAIAssistant?: boolean;
+    allowNotes?: boolean;
+    allowTranscript?: boolean;
+  },
+) {
+  const base = panelTabs
+    .map((panel) => panel.value)
+    .filter((panel) => availablePanels.has(panel));
+
+  return new Set(
+    base.filter((panel) => {
+      if (panel === "transcript") {
+        return isVideoActivity(activity) && policy?.allowTranscript !== false;
+      }
+      if (panel === "notes") return policy?.allowNotes !== false;
+      if (panel === "ai") return policy?.allowAIAssistant !== false;
+      return true;
+    }),
+  );
+}
+
+function flattenCourseActivities(course: Course) {
+  return (course.modules ?? []).flatMap((module) =>
+    module.lessons.flatMap((lesson) =>
+      lesson.activities.map((activity) => ({
+        activity,
+        lesson,
+        module,
+      })),
+    ),
+  );
+}
+
 type LearningWorkspaceProps = {
   course: Course;
   lesson: Lesson;
@@ -116,7 +185,23 @@ export function LearningWorkspace({
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
   const [videoTime, setVideoTime] = useState(0);
+  const [locallyCompletedIds, setLocallyCompletedIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [lastVideoProgressSent, setLastVideoProgressSent] = useState<
+    Record<string, number>
+  >({});
+  const [localMessage, setLocalMessage] = useState<string | null>(null);
+  const [isCompactViewport, setIsCompactViewport] = useState(false);
   const updateVideoProgress = useUpdateVideoProgress();
+
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 767px)");
+    const update = () => setIsCompactViewport(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
 
   useEffect(() => {
     const preferred = preferences.data?.preferredLayout ?? "standard";
@@ -132,16 +217,22 @@ export function LearningWorkspace({
     );
     setSidebarCollapsed(
       workspaceState.data?.sidebarCollapsed ??
-        preferences.data?.sidebarCollapsed ??
-        false,
+        (isCompactViewport ? true : preferences.data?.sidebarCollapsed ?? false),
     );
+    const defaultRightCollapsed =
+      nextLayout === "standard" || nextLayout === "focus";
     setRightCollapsed(
       workspaceState.data?.rightPanelCollapsed ??
         preferences.data?.rightPanelCollapsed ??
-        false,
+        defaultRightCollapsed,
     );
     setVideoTime(workspaceState.data?.lastVideoTimeSeconds ?? 0);
-  }, [preferences.data, policy?.requireFocusMode, workspaceState.data]);
+  }, [
+    isCompactViewport,
+    preferences.data,
+    policy?.requireFocusMode,
+    workspaceState.data,
+  ]);
 
   useEffect(() => {
     if (!selectedActivityId) return;
@@ -175,13 +266,52 @@ export function LearningWorkspace({
     }).catch(() => undefined);
   }
 
+  const rawAvailablePanels = useMemo(
+    () =>
+      new Set(
+        workspaceContext.data?.availablePanels ?? panelTabs.map((p) => p.value),
+      ),
+    [workspaceContext.data?.availablePanels],
+  );
+  const availablePanels = useMemo(
+    () => visiblePanelsForActivity(selectedActivity, rawAvailablePanels, policy),
+    [policy, rawAvailablePanels, selectedActivity],
+  );
+
+  useEffect(() => {
+    if (availablePanels.has(rightPanel)) return;
+    const nextPanel = availablePanels.values().next().value as
+      | WorkspacePanelMode
+      | undefined;
+    if (nextPanel) setRightPanel(nextPanel);
+  }, [availablePanels, rightPanel]);
+
   async function changeLayout(next: WorkspaceLayoutMode) {
     const policyLayout = policy?.requireFocusMode ? "focus" : next;
+    const layoutPanel = panelForLayout(policyLayout);
+    const nextPanel =
+      layoutPanel && availablePanels.has(layoutPanel)
+        ? layoutPanel
+        : rightPanel;
+    const nextRightCollapsed =
+      policyLayout === "focus"
+        ? true
+        : layoutUsesRightPanel(policyLayout)
+          ? false
+          : rightCollapsed;
     setLayout(policyLayout);
-    await updatePreferences({ preferredLayout: policyLayout }).catch(
-      () => undefined,
-    );
-    await persistState({ layout: policyLayout });
+    if (nextPanel !== rightPanel) setRightPanel(nextPanel);
+    setRightCollapsed(nextRightCollapsed);
+    await updatePreferences({
+      preferredLayout: policyLayout,
+      rightPanelMode: nextPanel,
+      rightPanelCollapsed: nextRightCollapsed,
+    }).catch(() => undefined);
+    await persistState({
+      layout: policyLayout,
+      rightPanelMode: nextPanel,
+      rightPanelCollapsed: nextRightCollapsed,
+    });
   }
 
   async function changePanel(next: WorkspacePanelMode) {
@@ -191,6 +321,13 @@ export function LearningWorkspace({
     await persistState({ rightPanelMode: next, rightPanelCollapsed: false });
   }
 
+  async function completeCurrentActivity() {
+    if (selectedActivityId) {
+      setLocallyCompletedIds((current) => new Set(current).add(selectedActivityId));
+    }
+    await onCompleteActivity();
+  }
+
   function onVideoProgress(currentTime: number, duration: number) {
     if (!selectedActivityId || duration <= 0) return;
     setVideoTime(currentTime);
@@ -198,36 +335,81 @@ export function LearningWorkspace({
       void persistState({ lastVideoTimeSeconds: currentTime });
     }
     const watchedPercent = Math.round((currentTime / duration) * 100);
-    if (watchedPercent % 10 === 0) {
+    const previousSent = lastVideoProgressSent[selectedActivityId] ?? -1;
+    const shouldSendProgress =
+      (watchedPercent >= 80 && previousSent < 80) ||
+      watchedPercent >= previousSent + 10 ||
+      (watchedPercent === 100 && previousSent < 100);
+    if (shouldSendProgress) {
+      setLastVideoProgressSent((current) => ({
+        ...current,
+        [selectedActivityId]: watchedPercent,
+      }));
       void updateVideoProgress(
         selectedActivityId,
         currentTime,
         duration,
         watchedPercent,
-      ).catch(() => undefined);
+      )
+        .then(async (progress) => {
+          if (
+            progress?.status === "COMPLETED" &&
+            !locallyCompletedIds.has(selectedActivityId)
+          ) {
+            setLocallyCompletedIds((current) =>
+              new Set(current).add(selectedActivityId),
+            );
+            setLocalMessage("Video completed automatically after 80% watched.");
+          }
+        })
+        .catch(() => undefined);
     }
   }
 
-  const availablePanels = useMemo(
-    () => new Set(workspaceContext.data?.availablePanels ?? panelTabs.map((p) => p.value)),
-    [workspaceContext.data?.availablePanels],
+  const progressByActivityId = useMemo(() => {
+    const map = new Map<string, Activity["progress"]>();
+    for (const item of flattenCourseActivities(course)) {
+      map.set(item.activity.id, item.activity.progress);
+    }
+    for (const activity of lesson.activities) {
+      map.set(activity.id, activity.progress);
+    }
+    return map;
+  }, [course, lesson.activities]);
+  const completedActivityIds = useMemo(() => {
+    const ids = new Set(locallyCompletedIds);
+    for (const [activityId, progress] of progressByActivityId.entries()) {
+      if (progress?.[0]?.status === "COMPLETED") ids.add(activityId);
+    }
+    return ids;
+  }, [locallyCompletedIds, progressByActivityId]);
+  const orderedActivities = useMemo(() => flattenCourseActivities(course), [course]);
+  const selectedActivityIndex = orderedActivities.findIndex(
+    (item) => item.activity.id === selectedActivityId,
   );
+  const nextActivity =
+    selectedActivityIndex >= 0
+      ? orderedActivities[selectedActivityIndex + 1]?.activity ?? null
+      : null;
+  const selectedCompleted = selectedActivityId
+    ? completedActivityIds.has(selectedActivityId)
+    : false;
   const isTheatre = layout === "theatre" || layout === "picture_in_picture_video";
   const isFocus = layout === "focus";
   const showRightPanel = !rightCollapsed && !isFocus;
   const shellClass = [
-    "min-h-[calc(100vh-9rem)] min-h-0 overflow-hidden rounded-lg border border-border bg-background shadow-subtle",
+    "min-h-[calc(100vh-8rem)] min-h-0 overflow-hidden rounded-lg border border-border bg-background shadow-subtle",
     isTheatre ? "bg-foreground text-background" : "",
   ].join(" ");
   const gridClass = isFocus
     ? "grid min-h-0 flex-1 grid-cols-1"
     : sidebarCollapsed
       ? showRightPanel
-        ? "grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px]"
+        ? "grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px]"
         : "grid min-h-0 flex-1 grid-cols-1"
       : showRightPanel
-        ? "grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[300px_minmax(0,1fr)_360px]"
-        : "grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[300px_minmax(0,1fr)]";
+        ? "grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[280px_minmax(0,1fr)_340px]"
+        : "grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[280px_minmax(0,1fr)]";
 
   return (
     <section className={shellClass}>
@@ -235,8 +417,6 @@ export function LearningWorkspace({
         activity={selectedActivity}
         layout={layout}
         onLayoutChange={changeLayout}
-        onPanelChange={changePanel}
-        onPictureInPicture={requestPictureInPicture}
         onToggleRight={() => {
           const next = !rightCollapsed;
           setRightCollapsed(next);
@@ -250,12 +430,12 @@ export function LearningWorkspace({
           void persistState({ sidebarCollapsed: next });
         }}
         policy={policy}
-        rightPanel={rightPanel}
       />
       <div className={[gridClass, "min-h-0"].join(" ")}>
         {!sidebarCollapsed && !isFocus ? (
           <CurriculumSidebar
             course={course}
+            completedActivityIds={completedActivityIds}
             selectedActivityId={selectedActivityId}
             onSelectActivity={onSelectActivity}
           />
@@ -264,7 +444,16 @@ export function LearningWorkspace({
           actionMessage={actionMessage}
           activity={selectedActivity}
           contentState={activityContent}
-          onCompleteActivity={onCompleteActivity}
+          isCompleted={selectedCompleted}
+          localMessage={localMessage}
+          nextActivity={nextActivity}
+          onRequestPictureInPicture={requestPictureInPicture}
+          onCompleteActivity={completeCurrentActivity}
+          onNextActivity={() => {
+            if (!nextActivity) return;
+            setLocalMessage(null);
+            onSelectActivity(nextActivity.id);
+          }}
           onVideoProgress={onVideoProgress}
         />
         {showRightPanel ? (
@@ -287,52 +476,43 @@ export function LearningWorkspace({
 export function LearningTopbar({
   activity,
   layout,
-  rightPanel,
   policy,
   onLayoutChange,
-  onPanelChange,
   onToggleSidebar,
   onToggleRight,
-  onPictureInPicture,
 }: {
   activity: Activity | null;
   layout: WorkspaceLayoutMode;
-  rightPanel: WorkspacePanelMode;
   policy?: { allowDualWindow: boolean; allowPopout: boolean };
   onLayoutChange: (layout: WorkspaceLayoutMode) => void;
-  onPanelChange: (panel: WorkspacePanelMode) => void;
   onToggleSidebar: () => void;
   onToggleRight: () => void;
-  onPictureInPicture: () => void;
 }) {
   return (
-    <div className="flex flex-col gap-2 border-b border-border bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-3 border-b border-border bg-card px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
       <div className="min-w-0">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Learning workspace
         </p>
-        <h2 className="mt-1 truncate text-base font-semibold">
+        <h2 className="mt-1 truncate text-base font-semibold text-foreground">
           {activity?.title ?? "Select an activity"}
         </h2>
       </div>
-      <div className="flex min-w-0 flex-wrap items-center gap-2 overflow-x-auto pb-1">
+      <div className="grid min-w-0 grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
         <button
-          className="inline-flex shrink-0 h-10 items-center gap-2 rounded-md border border-border px-3 text-xs font-semibold whitespace-nowrap hover:bg-muted"
+          className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-border bg-background px-3 text-xs font-semibold whitespace-nowrap hover:bg-muted"
           onClick={onToggleSidebar}
+          title="Show or hide curriculum"
           type="button"
         >
           <ChevronLeft aria-hidden="true" className="h-4 w-4" />
-          Sidebar
+          Curriculum
         </button>
         <WorkspaceLayoutSwitcher value={layout} onChange={onLayoutChange} />
-        <WorkspacePanelTabs
-          compact
-          value={rightPanel}
-          onChange={onPanelChange}
-        />
         <button
-          className="inline-flex shrink-0 h-10 items-center gap-2 rounded-md border border-border px-3 text-xs font-semibold whitespace-nowrap hover:bg-muted"
+          className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-border bg-background px-3 text-xs font-semibold whitespace-nowrap hover:bg-muted"
           onClick={onToggleRight}
+          title="Show or hide learning panel"
           type="button"
         >
           <PanelRight aria-hidden="true" className="h-4 w-4" />
@@ -341,7 +521,6 @@ export function LearningTopbar({
         {policy?.allowDualWindow !== false ? (
           <DualWindowToggle layout={layout} onLayoutChange={onLayoutChange} />
         ) : null}
-        <PictureInPictureButton onClick={onPictureInPicture} />
       </div>
     </div>
   );
@@ -355,10 +534,10 @@ export function WorkspaceLayoutSwitcher({
   onChange: (value: WorkspaceLayoutMode) => void;
 }) {
   return (
-    <label className="inline-flex items-center gap-2 text-xs font-semibold shrink-0 whitespace-nowrap">
-      <Columns3 aria-hidden="true" className="h-4 w-4 text-primary" />
+    <label className="inline-flex min-w-0 shrink-0 items-center gap-2 text-xs font-semibold whitespace-nowrap">
+      <Columns3 aria-hidden="true" className="h-4 w-4 text-muted-foreground" />
       <select
-        className="h-10 rounded-md border border-input bg-card px-3 text-xs outline-none focus:ring-2 focus:ring-ring"
+        className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-xs outline-none focus:ring-2 focus:ring-ring sm:w-44"
         value={value}
         onChange={(event) => onChange(event.target.value as WorkspaceLayoutMode)}
       >
@@ -381,7 +560,7 @@ export function FocusModeToggle({
 }) {
   return (
     <button
-      className="inline-flex h-10 shrink-0 items-center gap-2 rounded-md border border-border px-3 text-xs font-semibold whitespace-nowrap hover:bg-muted"
+      className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-border bg-background px-3 text-xs font-semibold whitespace-nowrap hover:bg-muted"
       onClick={onClick}
       type="button"
     >
@@ -400,7 +579,7 @@ export function TheatreModeToggle({
 }) {
   return (
     <button
-      className="inline-flex h-10 shrink-0 items-center gap-2 rounded-md border border-border px-3 text-xs font-semibold whitespace-nowrap hover:bg-muted"
+      className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-border bg-background px-3 text-xs font-semibold whitespace-nowrap hover:bg-muted"
       onClick={onClick}
       type="button"
     >
@@ -419,7 +598,7 @@ export function DualWindowToggle({
 }) {
   return (
     <button
-      className="inline-flex h-10 shrink-0 items-center gap-2 rounded-md border border-border px-3 text-xs font-semibold whitespace-nowrap hover:bg-muted"
+      className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-border bg-background px-3 text-xs font-semibold whitespace-nowrap hover:bg-muted"
       onClick={() => onLayoutChange(layout === "dual_window" ? "standard" : "dual_window")}
       type="button"
     >
@@ -429,67 +608,188 @@ export function DualWindowToggle({
   );
 }
 
-export function PictureInPictureButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      className="inline-flex h-10 shrink-0 items-center gap-2 rounded-md border border-border px-3 text-xs font-semibold whitespace-nowrap hover:bg-muted"
-      onClick={onClick}
-      type="button"
-    >
-      <PictureInPicture aria-hidden="true" className="h-4 w-4" />
-      PiP
-    </button>
-  );
-}
-
 export function CurriculumSidebar({
   course,
+  completedActivityIds,
   selectedActivityId,
   onSelectActivity,
 }: {
   course: Course;
+  completedActivityIds: Set<string>;
   selectedActivityId: string | null;
   onSelectActivity: (activityId: string) => void;
 }) {
+  // Group activities by module (flattening the lesson layer) so the curriculum
+  // reads like a Coursera-style outline: modules that expand to reveal their
+  // activities directly.
+  const modules = useMemo(
+    () =>
+      (course.modules ?? []).map((module) => ({
+        module,
+        activities: module.lessons.flatMap((lesson) => lesson.activities),
+      })),
+    [course.modules],
+  );
+
+  const moduleIdForSelected = useMemo(() => {
+    for (const entry of modules) {
+      if (
+        entry.activities.some((activity) => activity.id === selectedActivityId)
+      ) {
+        return entry.module.id;
+      }
+    }
+    return modules[0]?.module.id ?? null;
+  }, [modules, selectedActivityId]);
+
+  const [expandedModules, setExpandedModules] = useState<Set<string>>(
+    () => new Set(moduleIdForSelected ? [moduleIdForSelected] : []),
+  );
+
+  // Keep the module that owns the current activity expanded when navigating.
+  useEffect(() => {
+    if (!moduleIdForSelected) return;
+    setExpandedModules((current) => {
+      if (current.has(moduleIdForSelected)) return current;
+      const next = new Set(current);
+      next.add(moduleIdForSelected);
+      return next;
+    });
+  }, [moduleIdForSelected]);
+
+  function toggleModule(moduleId: string) {
+    setExpandedModules((current) => {
+      const next = new Set(current);
+      if (next.has(moduleId)) next.delete(moduleId);
+      else next.add(moduleId);
+      return next;
+    });
+  }
+
   return (
-    <aside className="border-r border-border bg-card p-4 min-h-0">
-      <p className="text-sm font-medium text-muted-foreground">Curriculum</p>
-      <h3 className="mt-1 line-clamp-2 text-base font-semibold">{course.title}</h3>
-      <div className="mt-4 space-y-4 overflow-auto">
-        {course.modules?.map((module) => (
-          <section key={module.id}>
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              {module.title}
-            </p>
-            <div className="mt-2 space-y-2">
-              {module.lessons.map((lesson) =>
-                lesson.activities.map((activity) => (
-                  <button
-                    key={activity.id}
-                    className={[
-                      "flex w-full items-center justify-between gap-3 rounded-md border px-3 py-2 text-left text-sm",
-                      selectedActivityId === activity.id
-                        ? "border-primary bg-primary/10"
-                        : "border-border hover:bg-muted",
-                    ].join(" ")}
-                    onClick={() => onSelectActivity(activity.id)}
-                    type="button"
-                  >
-                    <span className="min-w-0 truncate">{activity.title}</span>
-                    {activity.progress?.[0]?.status === "COMPLETED" ? (
-                      <CheckCircle2
-                        aria-hidden="true"
-                        className="h-4 w-4 text-success"
+    <aside className="flex min-h-0 flex-col border-r border-border bg-card/70 max-xl:max-h-[42vh] max-xl:border-b max-xl:border-r-0 xl:max-h-none">
+      <div className="border-b border-border p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Curriculum
+        </p>
+        <h3 className="mt-1 line-clamp-2 text-sm font-semibold">
+          {course.title}
+        </h3>
+      </div>
+      <div className="min-h-0 flex-1 overflow-auto">
+        {modules.map((entry, index) => {
+          const { module, activities } = entry;
+          const completedCount = activities.filter((activity) =>
+            completedActivityIds.has(activity.id),
+          ).length;
+          const isExpanded = expandedModules.has(module.id);
+          const containsSelected = activities.some(
+            (activity) => activity.id === selectedActivityId,
+          );
+
+          return (
+            <section
+              key={module.id}
+              className="border-b border-border last:border-b-0"
+            >
+              <button
+                aria-expanded={isExpanded}
+                className={[
+                  "flex w-full items-start justify-between gap-3 px-4 py-3 text-left transition hover:bg-muted",
+                  containsSelected ? "bg-primary/5" : "",
+                ].join(" ")}
+                onClick={() => toggleModule(module.id)}
+                type="button"
+              >
+                <span className="min-w-0">
+                  <span className="block text-xs font-semibold uppercase tracking-wide text-primary">
+                    Module {index + 1}
+                  </span>
+                  <span className="mt-1 block text-sm font-semibold text-foreground">
+                    {module.title}
+                  </span>
+                  {activities.length ? (
+                    <span className="mt-1 block text-xs text-muted-foreground">
+                      {completedCount}/{activities.length} completed
+                    </span>
+                  ) : null}
+                </span>
+                <ChevronDown
+                  aria-hidden="true"
+                  className={[
+                    "mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                    isExpanded ? "rotate-180" : "",
+                  ].join(" ")}
+                />
+              </button>
+              {isExpanded ? (
+                <div className="space-y-1 px-3 pb-3">
+                  {activities.length ? (
+                    activities.map((activity) => (
+                      <CurriculumActivityRow
+                        key={activity.id}
+                        activity={activity}
+                        isCompleted={completedActivityIds.has(activity.id)}
+                        isSelected={selectedActivityId === activity.id}
+                        onSelect={() => onSelectActivity(activity.id)}
                       />
-                    ) : null}
-                  </button>
-                )),
-              )}
-            </div>
-          </section>
-        ))}
+                    ))
+                  ) : (
+                    <p className="px-3 py-2 text-xs text-muted-foreground">
+                      No activities yet.
+                    </p>
+                  )}
+                </div>
+              ) : null}
+            </section>
+          );
+        })}
       </div>
     </aside>
+  );
+}
+
+function CurriculumActivityRow({
+  activity,
+  isCompleted,
+  isSelected,
+  onSelect,
+}: {
+  activity: Activity;
+  isCompleted: boolean;
+  isSelected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      className={[
+        "flex w-full items-start gap-3 rounded-md px-3 py-2 text-left transition",
+        isSelected
+          ? "bg-primary/10 text-primary ring-1 ring-primary/30"
+          : "text-foreground hover:bg-muted",
+      ].join(" ")}
+      onClick={onSelect}
+      type="button"
+    >
+      <span
+        className={[
+          "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border",
+          isCompleted
+            ? "border-success bg-success text-success-foreground"
+            : "border-border bg-background text-transparent",
+        ].join(" ")}
+      >
+        <CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5" />
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate text-sm font-medium">
+          {activity.title}
+        </span>
+        <span className="mt-0.5 block text-xs text-muted-foreground">
+          {activityKind(activity)} · {activity.estimatedMinutes || 1} min
+        </span>
+      </span>
+    </button>
   );
 }
 
@@ -498,16 +798,28 @@ export function ActivityMainPanel({
   contentState,
   onVideoProgress,
   onCompleteActivity,
+  onNextActivity,
+  onRequestPictureInPicture,
   actionMessage,
+  localMessage,
+  isCompleted,
+  nextActivity,
 }: {
   activity: Activity | null;
   contentState: ReturnType<typeof useActivityContent>;
   onVideoProgress: (currentTime: number, duration: number) => void;
+  onRequestPictureInPicture: () => void;
   onCompleteActivity: () => Promise<void>;
+  onNextActivity: () => void;
   actionMessage?: string | null;
+  localMessage?: string | null;
+  isCompleted: boolean;
+  nextActivity: Activity | null;
 }) {
+  const message = localMessage ?? actionMessage;
+
   return (
-    <main className="min-w-0 min-h-0 overflow-auto p-4 lg:p-6">
+    <main className="min-w-0 min-h-0 overflow-auto bg-muted/30 p-3 sm:p-4 lg:p-8">
       {!activity ? (
         <EmptyState
           title="No activity selected"
@@ -522,22 +834,52 @@ export function ActivityMainPanel({
         />
       ) : (
         <>
-          <PluginActivityRenderer
-            onVideoProgress={onVideoProgress}
-            response={contentState.data}
-          />
-          <div className="mt-5 flex flex-wrap items-center gap-3">
-            <button
-              className="inline-flex min-h-10 items-center gap-2 rounded-md border border-primary bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
-              onClick={() => void onCompleteActivity()}
-              type="button"
-            >
-              <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
-              Mark complete
-            </button>
-            {actionMessage ? (
-              <p className="text-sm text-muted-foreground">{actionMessage}</p>
-            ) : null}
+          <div className="mx-auto max-w-4xl">
+            <PluginActivityRenderer
+              onRequestPictureInPicture={onRequestPictureInPicture}
+              onVideoProgress={onVideoProgress}
+              response={contentState.data}
+            />
+          </div>
+          <div className="mx-auto mt-5 flex max-w-4xl flex-col gap-3 rounded-md border border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold">
+                {isCompleted ? "Section complete" : "Ready when you are"}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {message ??
+                  (isVideoActivity(activity)
+                    ? "Video activities auto-complete after 80% watched."
+                    : "Mark this section complete when you finish it.")}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {!isCompleted ? (
+                <button
+                  className="inline-flex min-h-10 items-center gap-2 rounded-md border border-primary bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
+                  onClick={() => void onCompleteActivity()}
+                  type="button"
+                >
+                  <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+                  Mark complete
+                </button>
+              ) : null}
+              {isCompleted && nextActivity ? (
+                <button
+                  className="inline-flex min-h-10 items-center gap-2 rounded-md border border-primary bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
+                  onClick={onNextActivity}
+                  type="button"
+                >
+                  <PlayCircle aria-hidden="true" className="h-4 w-4" />
+                  Next section
+                </button>
+              ) : null}
+              {isCompleted && !nextActivity ? (
+                <span className="inline-flex min-h-10 items-center rounded-md border border-success/30 bg-success/10 px-3 text-sm font-semibold text-success">
+                  Course complete
+                </span>
+              ) : null}
+            </div>
           </div>
         </>
       )}
@@ -565,8 +907,8 @@ export function LearningRightPanel({
   onPanelChange: (panel: WorkspacePanelMode) => void;
 }) {
   return (
-    <aside className="border-l border-border bg-card flex min-h-0 flex-col">
-      <div className="border-b border-border p-3">
+    <aside className="border-l border-border bg-card/90 flex min-h-0 flex-col">
+      <div className="border-b border-border px-4 py-3">
         <WorkspacePanelTabs
           value={panel}
           availablePanels={availablePanels}
@@ -606,24 +948,31 @@ export function WorkspacePanelTabs({
   onChange: (panel: WorkspacePanelMode) => void;
 }) {
   return (
-    <div className="flex gap-1 overflow-x-auto">
+    <div className="flex flex-wrap gap-1">
       {panelTabs
         .filter((tab) => !availablePanels || availablePanels.has(tab.value))
         .map((tab) => {
           const Icon = tab.icon;
+          const active = value === tab.value;
           return (
             <button
               key={tab.value}
-            className={[
-                 "inline-flex h-9 shrink-0 items-center gap-2 rounded-md px-2 text-xs font-semibold whitespace-nowrap",
-                 value === tab.value ? "bg-primary text-primary-foreground" : "hover:bg-muted",
-               ].join(" ")}
+              className={[
+                "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2 text-xs font-semibold whitespace-nowrap transition",
+                active
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              ].join(" ")}
               onClick={() => onChange(tab.value)}
               title={tab.label}
               type="button"
             >
               <Icon aria-hidden="true" className="h-4 w-4" />
-              {compact ? null : tab.label}
+              {compact ? null : (
+                <span className={active ? "inline" : "hidden"}>
+                  {tab.label}
+                </span>
+              )}
             </button>
           );
         })}
@@ -736,26 +1085,31 @@ export function NotesPanel({
       <TimestampNoteButton videoTime={videoTime} />
       <form className="mt-4 grid gap-3" onSubmit={submit}>
         <textarea
-          className="min-h-28 rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+          className="min-h-24 rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
           name="content"
           placeholder="Write a private note..."
         />
         <button
-          className="inline-flex min-h-10 w-fit items-center rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+          className="inline-flex min-h-9 w-fit items-center rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground"
           disabled={saving}
           type="submit"
         >
           {saving ? "Saving" : "Save note"}
         </button>
       </form>
-        <PanelList
-          empty="No notes yet"
-          error={notes.error}
-          loading={notes.loading}
-          items={notes.data}
-          render={(note: LearnerNote) => (
-            <article key={note.id} className="rounded-md border border-border p-3">
-              <p className="whitespace-pre-wrap text-sm leading-6">{note.content}</p>
+      <PanelList
+        empty="No notes yet"
+        error={notes.error}
+        loading={notes.loading}
+        items={notes.data}
+        render={(note: LearnerNote) => (
+          <article
+            key={note.id}
+            className="rounded-md border border-border bg-background p-3"
+          >
+            <p className="whitespace-pre-wrap text-sm leading-6">
+              {note.content}
+            </p>
             <div className="mt-2 flex items-center justify-between gap-2">
               <span className="text-xs text-muted-foreground">
                 {formatTimestamp(note.videoTimeSeconds)}
@@ -814,16 +1168,19 @@ export function BookmarksPanel({
       title="Bookmarks"
     >
       <TimestampBookmarkButton onClick={addBookmark} videoTime={videoTime} />
-        <PanelList
-          empty="No bookmarks yet"
-          error={bookmarks.error}
-          loading={bookmarks.loading}
-          items={bookmarks.data}
-          render={(bookmark: LearnerBookmark) => (
-            <article key={bookmark.id} className="rounded-md border border-border p-3">
-              <p className="text-sm font-semibold">
-                {bookmark.title ?? "Bookmark"}
-              </p>
+      <PanelList
+        empty="No bookmarks yet"
+        error={bookmarks.error}
+        loading={bookmarks.loading}
+        items={bookmarks.data}
+        render={(bookmark: LearnerBookmark) => (
+          <article
+            key={bookmark.id}
+            className="rounded-md border border-border bg-background p-3"
+          >
+            <p className="text-sm font-semibold">
+              {bookmark.title ?? "Bookmark"}
+            </p>
             <p className="mt-1 text-xs text-muted-foreground">
               {formatTimestamp(bookmark.videoTimeSeconds)}
             </p>
@@ -1085,7 +1442,7 @@ export function PopoutPanelButton({
 }) {
   return (
     <button
-      className="inline-flex h-9 items-center gap-2 rounded-md border border-border px-3 text-sm font-semibold hover:bg-muted"
+      className="inline-flex h-8 items-center gap-2 rounded-md border border-border bg-background px-2.5 text-xs font-semibold text-muted-foreground hover:bg-muted hover:text-foreground"
       onClick={() => openPopoutPanel({ courseId, lessonId, activityId, panel })}
       type="button"
     >
@@ -1211,7 +1568,12 @@ function PanelList<T>({
   if (loading) return <LoadingState title="Loading panel" />;
   if (error) return <ApiErrorState error={error} fallbackTitle="Panel error" />;
   if (!items?.length) {
-    return <EmptyState title={empty} description="Saved items appear here." />;
+    return (
+      <div className="mt-4 rounded-md border border-dashed border-border bg-background p-4 text-sm text-muted-foreground">
+        <p className="font-semibold text-foreground">{empty}</p>
+        <p className="mt-1">Saved items appear here.</p>
+      </div>
+    );
   }
   return <div className="mt-4 space-y-3">{items.map(render)}</div>;
 }
@@ -1234,11 +1596,11 @@ export function TimestampBookmarkButton({
 }) {
   return (
     <button
-      className="inline-flex min-h-10 items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+      className="inline-flex min-h-9 items-center gap-2 rounded-md border border-border bg-background px-3 py-2 text-sm font-semibold hover:bg-muted"
       onClick={onClick}
       type="button"
     >
-      <Bookmark aria-hidden="true" className="h-4 w-4" />
+      <Bookmark aria-hidden="true" className="h-4 w-4 text-primary" />
       Bookmark {formatTimestamp(videoTime)}
     </button>
   );

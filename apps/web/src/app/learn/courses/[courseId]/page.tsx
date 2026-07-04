@@ -7,6 +7,7 @@ import { AppShell } from "../../../../components/layout/shells";
 import {
   ActivityRenderer,
   findLessonByActivityId,
+  findResumeActivity,
   firstLesson,
   LearningWorkspaceShell,
   Meter,
@@ -20,15 +21,15 @@ export default function LearnCoursePage() {
   const query = useLearningCourse(params.courseId);
   const data = query.data;
   const course = data?.curriculum ?? null;
-  const lastActivityLesson = findLessonByActivityId(
-    course,
-    data?.enrollment.lastActivityId ?? null,
-  );
-  const activeLesson = lastActivityLesson ?? firstLesson(course);
+  const lastActivityId = data?.enrollment.lastActivityId ?? null;
+  const resumeActivity = findResumeActivity(course, lastActivityId);
+  const activeLesson =
+    findLessonByActivityId(course, resumeActivity?.id) ?? firstLesson(course);
   const activeActivity =
-    activeLesson?.activities.find(
-      (activity) => activity.id === data?.enrollment.lastActivityId,
-    ) ?? activeLesson?.activities[0];
+    resumeActivity ??
+    activeLesson?.activities.find((activity) => activity.id === lastActivityId) ??
+    activeLesson?.activities[0];
+  const hasStarted = Boolean(lastActivityId) || resumeActivity?.id !== activeLesson?.activities[0]?.id;
 
   return (
     <AuthGate>
@@ -71,13 +72,17 @@ export default function LearnCoursePage() {
             </section>
 
             {activeLesson ? (
-              <LearningWorkspaceShell course={course} activeLesson={activeLesson}>
+              <LearningWorkspaceShell
+                course={course}
+                activeLesson={activeLesson}
+                activeActivityId={activeActivity?.id}
+              >
                 <ActivityRenderer activity={activeActivity} />
                 <ButtonLink
                   className="mt-5"
                   href={`/learn/lessons/${activeLesson.id}`}
                 >
-                  {lastActivityLesson ? "Resume lesson" : "Open lesson"}
+                  {hasStarted ? "Resume lesson" : "Open lesson"}
                   <ArrowRight aria-hidden="true" className="h-4 w-4" />
                 </ButtonLink>
               </LearningWorkspaceShell>

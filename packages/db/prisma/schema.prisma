@@ -198,6 +198,37 @@ enum LearnerNoteVisibility {
   SHARED
 }
 
+enum QuestionType {
+  MULTIPLE_CHOICE
+  MULTIPLE_ANSWER
+  TRUE_FALSE
+  SHORT_ANSWER
+  ESSAY
+  NUMERIC
+}
+
+enum QuizStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum QuizAttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  GRADED
+  NEEDS_MANUAL_GRADING
+  EXPIRED
+}
+
+enum QuizAnswerStatus {
+  NOT_GRADED
+  CORRECT
+  PARTIALLY_CORRECT
+  INCORRECT
+  NEEDS_MANUAL_GRADING
+}
+
 model User {
   id                String               @id @default(cuid())
   email             String               @unique
@@ -224,6 +255,10 @@ model User {
   lessonWorkspaceStates LessonWorkspaceState[]
   learnerNotes      LearnerNote[]
   learnerBookmarks  LearnerBookmark[]
+  questionBanks     QuestionBank[]       @relation("QuestionBankOwner")
+  questions         Question[]           @relation("QuestionCreator")
+  quizzes           Quiz[]               @relation("QuizCreator")
+  quizAttempts      QuizAttempt[]
 
   @@index([status])
   @@index([createdAt])
@@ -260,6 +295,11 @@ model Organization {
   learnerNotes        LearnerNote[]
   learnerBookmarks    LearnerBookmark[]
   transcriptSegments  TranscriptSegment[]
+  questionBanks       QuestionBank[]
+  questions           Question[]
+  quizzes             Quiz[]
+  quizAttempts        QuizAttempt[]
+  quizAnswers         QuizAnswer[]
 
   @@index([status])
   @@index([createdAt])
@@ -495,6 +535,9 @@ model Course {
   learnerNotes      LearnerNote[]
   learnerBookmarks  LearnerBookmark[]
   transcriptSegments TranscriptSegment[]
+  questionBanks     QuestionBank[]
+  quizzes           Quiz[]
+  quizAttempts      QuizAttempt[]
 
   @@unique([organizationId, slug])
   @@index([organizationId, status])
@@ -597,6 +640,8 @@ model Activity {
   learnerNotes      LearnerNote[]
   learnerBookmarks  LearnerBookmark[]
   transcriptSegments TranscriptSegment[]
+  quiz              Quiz?
+  quizAttempts      QuizAttempt[]
 
   @@index([lessonId, orderIndex])
   @@index([organizationId, courseId])
@@ -915,6 +960,181 @@ model TranscriptSegment {
   @@index([organizationId, courseId])
   @@index([organizationId, activityId, orderIndex])
   @@index([activityId, startSeconds])
+}
+
+model QuestionBank {
+  id             String       @id @default(cuid())
+  organizationId String
+  courseId       String?
+  ownerId        String
+  title          String
+  description    String?
+  metadata       Json         @default("{}")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  deletedAt      DateTime?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  course         Course?      @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  owner          User         @relation("QuestionBankOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  questions      Question[]
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, courseId])
+  @@index([ownerId])
+}
+
+model Question {
+  id              String           @id @default(cuid())
+  organizationId  String
+  questionBankId  String
+  createdById     String
+  type            QuestionType
+  prompt          String
+  explanation     String?
+  points          Float            @default(1)
+  acceptedAnswers Json             @default("[]")
+  numericTolerance Float?
+  metadata        Json             @default("{}")
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  deletedAt       DateTime?
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bank            QuestionBank     @relation(fields: [questionBankId], references: [id], onDelete: Cascade)
+  createdBy       User             @relation("QuestionCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  options         QuestionOption[]
+  quizQuestions   QuizQuestion[]
+  answers         QuizAnswer[]
+
+  @@index([organizationId, questionBankId])
+  @@index([organizationId, type])
+  @@index([createdById])
+}
+
+model QuestionOption {
+  id          String   @id @default(cuid())
+  questionId  String
+  text        String
+  isCorrect   Boolean  @default(false)
+  orderIndex  Int      @default(0)
+  feedback    String?
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  question    Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId, orderIndex])
+}
+
+model Quiz {
+  id                 String        @id @default(cuid())
+  organizationId     String
+  courseId           String?
+  activityId         String?       @unique
+  createdById        String
+  title              String
+  description        String?
+  status             QuizStatus    @default(DRAFT)
+  passingScorePercent Float        @default(70)
+  attemptLimit       Int           @default(1)
+  timeLimitMinutes   Int?
+  shuffleQuestions   Boolean       @default(false)
+  showCorrectAnswers Boolean       @default(false)
+  showFeedback       Boolean       @default(true)
+  availableFrom      DateTime?
+  dueAt              DateTime?
+  publishedAt        DateTime?
+  metadata           Json          @default("{}")
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  deletedAt          DateTime?
+  organization       Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  course             Course?       @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  activity           Activity?     @relation(fields: [activityId], references: [id], onDelete: SetNull)
+  createdBy          User          @relation("QuizCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  questions          QuizQuestion[]
+  attempts           QuizAttempt[]
+
+  @@index([organizationId, status])
+  @@index([organizationId, courseId])
+  @@index([createdById])
+}
+
+model QuizQuestion {
+  id          String   @id @default(cuid())
+  quizId      String
+  questionId  String
+  orderIndex  Int      @default(0)
+  points      Float?
+  required    Boolean  @default(true)
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  quiz        Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  question    Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([quizId, questionId])
+  @@index([quizId, orderIndex])
+  @@index([questionId])
+}
+
+model QuizAttempt {
+  id             String            @id @default(cuid())
+  organizationId String
+  quizId         String
+  activityId     String?
+  courseId       String?
+  userId         String
+  attemptNumber  Int
+  status         QuizAttemptStatus @default(IN_PROGRESS)
+  startedAt      DateTime          @default(now())
+  dueAt          DateTime?
+  submittedAt    DateTime?
+  gradedAt       DateTime?
+  score          Float             @default(0)
+  maxScore       Float             @default(0)
+  percentage     Float             @default(0)
+  passed         Boolean           @default(false)
+  metadata       Json              @default("{}")
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  quiz           Quiz              @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  activity       Activity?         @relation(fields: [activityId], references: [id], onDelete: SetNull)
+  course         Course?           @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  answers        QuizAnswer[]
+
+  @@unique([quizId, userId, attemptNumber])
+  @@index([organizationId, userId, quizId])
+  @@index([organizationId, activityId])
+  @@index([organizationId, status])
+}
+
+model QuizAnswer {
+  id                String           @id @default(cuid())
+  organizationId    String
+  attemptId         String
+  questionId        String
+  selectedOptionIds Json             @default("[]")
+  textAnswer        String?
+  numericAnswer     Float?
+  isCorrect         Boolean?
+  pointsAwarded     Float            @default(0)
+  maxPoints         Float            @default(0)
+  status            QuizAnswerStatus @default(NOT_GRADED)
+  feedback          String?
+  gradedById        String?
+  gradedAt          DateTime?
+  metadata          Json             @default("{}")
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  organization      Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  attempt           QuizAttempt      @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question          Question         @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionId])
+  @@index([organizationId, attemptId])
+  @@index([questionId])
 }
 
 model Enrollment {

@@ -704,7 +704,13 @@ export class CoreLmsService {
     userId: string,
   ): Promise<unknown> {
     return this.prisma.enrollment.findMany({
-      where: { organizationId, userId },
+      where: {
+        organizationId,
+        userId,
+        course: {
+          deletedAt: null,
+        },
+      },
       include: {
         course: {
           include: {
@@ -748,7 +754,11 @@ export class CoreLmsService {
       userId,
       courseId,
     );
-    const curriculum = await this.getCourseCurriculum(organizationId, courseId);
+    const curriculum = await this.getCourseCurriculum(
+      organizationId,
+      courseId,
+      userId,
+    );
     const progress = await this.calculateCourseProgress(
       organizationId,
       userId,
@@ -848,6 +858,20 @@ export class CoreLmsService {
     activityId: string,
   ): Promise<unknown> {
     const activity = await this.getActivityOrThrow(organizationId, activityId);
+    if (activity.activityTypeKey === "core.quiz") {
+      const passedAttempt = await this.prisma.quizAttempt.findFirst({
+        where: {
+          organizationId,
+          userId,
+          activityId,
+          passed: true,
+          status: { in: ["SUBMITTED", "GRADED"] },
+        },
+      });
+      if (!passedAttempt) {
+        throw new ForbiddenException("Passing quiz attempt is required");
+      }
+    }
     const enrollment = await this.ensureEnrollment(
       organizationId,
       userId,
@@ -1023,19 +1047,56 @@ export class CoreLmsService {
     return activity;
   }
 
-  private async getCourseCurriculum(organizationId: string, courseId: string) {
+  private async getCourseCurriculum(
+    organizationId: string,
+    courseId: string,
+    userId?: string,
+  ) {
+    const orderAsc = Prisma.SortOrder.asc;
+    const orderDesc = Prisma.SortOrder.desc;
+
+    if (!userId) {
+      return this.prisma.course.findFirstOrThrow({
+        where: { id: courseId, organizationId, deletedAt: null },
+        include: {
+          modules: {
+            orderBy: { orderIndex: orderAsc },
+            include: {
+              lessons: {
+                orderBy: { orderIndex: orderAsc },
+                include: {
+                  activities: {
+                    orderBy: { orderIndex: orderAsc },
+                    include: {
+                      activityContent: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+    }
+
     return this.prisma.course.findFirstOrThrow({
       where: { id: courseId, organizationId, deletedAt: null },
       include: {
         modules: {
-          orderBy: { orderIndex: "asc" },
+          orderBy: { orderIndex: orderAsc },
           include: {
             lessons: {
-              orderBy: { orderIndex: "asc" },
+              orderBy: { orderIndex: orderAsc },
               include: {
                 activities: {
-                  orderBy: { orderIndex: "asc" },
-                  include: { activityContent: true },
+                  orderBy: { orderIndex: orderAsc },
+                  include: {
+                    activityContent: true,
+                    progress: {
+                      where: { organizationId, userId },
+                      orderBy: { updatedAt: orderDesc },
+                    },
+                  },
                 },
               },
             },

@@ -24,6 +24,11 @@ import type {
   Plugin,
   PluginActivityType,
   PluginExecutionLog,
+  Question,
+  QuestionBank,
+  Quiz,
+  QuizAttempt,
+  LearnerQuizResponse,
   TranscriptSegment,
   WorkspaceContext,
 } from "./lms-types";
@@ -398,6 +403,62 @@ export function usePluginLogs(pluginKey: string | null) {
       return api.pluginLogs(pluginKey);
     },
     [pluginKey],
+  );
+}
+
+export function useQuestionBanks() {
+  return useApiQuery<QuestionBank[]>(() => api.questionBanks(), []);
+}
+
+export function useCreateQuestionBank() {
+  return useCallback(
+    (input: Record<string, unknown>) => api.createQuestionBank(input),
+    [],
+  );
+}
+
+export function useQuestions(bankId?: string | null) {
+  return useApiQuery<Question[]>(() => api.questions(bankId), [bankId]);
+}
+
+export function useCreateQuestion() {
+  return useCallback(
+    (input: Record<string, unknown>) => api.createQuestion(input),
+    [],
+  );
+}
+
+export function useInstructorQuizzes() {
+  return useApiQuery<Quiz[]>(() => api.instructorQuizzes(), []);
+}
+
+export function useInstructorQuiz(quizId: string | null) {
+  return useApiQuery<Quiz>(
+    async () => {
+      if (!quizId) throw new Error("Quiz id is required");
+      return api.instructorQuiz(quizId);
+    },
+    [quizId],
+  );
+}
+
+export function useLearnerQuiz(activityId: string | null) {
+  return useApiQuery<LearnerQuizResponse>(
+    async () => {
+      if (!activityId) throw new Error("Activity id is required");
+      return api.learnerQuiz(activityId);
+    },
+    [activityId],
+  );
+}
+
+export function useQuizAttempts(quizId: string | null) {
+  return useApiQuery<QuizAttempt[]>(
+    async () => {
+      if (!quizId) throw new Error("Quiz id is required");
+      return api.quizAttempts(quizId);
+    },
+    [quizId],
   );
 }
 
