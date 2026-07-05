@@ -102,7 +102,7 @@ export function QuizActivityRenderer({
   const finalResult = result;
 
   return (
-    <section className="rounded-lg border border-border bg-card p-5 shadow-subtle">
+    <section className="min-h-full rounded-lg border border-border bg-card p-5 shadow-subtle sm:p-7 lg:p-9">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-sm font-medium text-muted-foreground">Quiz</p>

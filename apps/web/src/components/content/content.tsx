@@ -374,7 +374,7 @@ function EditorButton({
 
 export function RichTextViewer({ children }: { children: ReactNode }) {
   return (
-    <article className="rounded-lg border border-border bg-card p-5 text-card-foreground">
+    <article className="min-h-full rounded-lg border border-border bg-card p-5 text-card-foreground sm:p-7 lg:p-9">
       {children}
     </article>
   );
@@ -392,14 +392,14 @@ export function RichTextHtmlViewer({
   const safeHtml = sanitizeRichTextHtml(html ?? "");
   return (
     <RichTextViewer>
-      <h2 className="text-lg font-semibold">{title}</h2>
+      <h2 className="text-xl font-semibold">{title}</h2>
       {safeHtml ? (
         <div
-          className="prose-scope mt-4 text-sm leading-6 text-muted-foreground"
+          className="prose-scope mt-5 text-base leading-7 text-muted-foreground"
           dangerouslySetInnerHTML={{ __html: safeHtml }}
         />
       ) : (
-        <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
+        <p className="mt-4 whitespace-pre-wrap text-base leading-7 text-muted-foreground">
           {fallback ?? "No rich text content has been saved for this activity."}
         </p>
       )}

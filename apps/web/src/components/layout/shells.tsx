@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import {
-  Bell,
   BookOpen,
   Building2,
   Check,
@@ -21,6 +20,9 @@ import {
   Plug,
   UserCircle,
   X,
+  CalendarDays,
+  Radio,
+  MessageSquare,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
@@ -35,6 +37,7 @@ import {
 import { visibleNavigationKeys } from "../../lib/authz";
 import { cn } from "../../lib/utils";
 import { IconButton } from "../ui/core";
+import { NotificationBadge } from "../engagement/engagement";
 
 const dashboardNav = [
   { key: "dashboard", href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -45,12 +48,18 @@ const dashboardNav = [
     label: "My Learning",
     icon: GraduationCap,
   },
+  { key: "my-learning", href: "/live-classes", label: "Live classes", icon: Radio },
+  { key: "my-learning", href: "/discussions", label: "Discussions", icon: MessageSquare },
+  { key: "my-learning", href: "/calendar", label: "Calendar", icon: CalendarDays },
   {
     key: "instructor",
     href: "/instructor/courses",
     label: "Instructor",
     icon: Settings,
   },
+  { key: "instructor", href: "/instructor/discussions", label: "Discussions", icon: MessageSquare },
+  { key: "instructor", href: "/instructor/calendar", label: "Teaching schedule", icon: CalendarDays },
+  { key: "moderation", href: "/admin/discussions", label: "Moderation", icon: ShieldCheck },
   {
     key: "quizzes",
     href: "/instructor/quizzes",
@@ -289,9 +298,7 @@ export function DashboardTopbar({
           <IconButton label="Search">
             <Search aria-hidden="true" className="h-4 w-4" />
           </IconButton>
-          <IconButton label="Notifications">
-            <Bell aria-hidden="true" className="h-4 w-4" />
-          </IconButton>
+          <NotificationBadge />
           <UserMenu />
         </div>
       </div>

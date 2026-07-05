@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { CertificatesModule } from "../certificates/certificates.module";
 import { RbacModule } from "../rbac/rbac.module";
 import { CoreLmsService } from "./core-lms.service";
 import { CoursesController } from "./courses.controller";
@@ -6,7 +7,7 @@ import { InstructorController } from "./instructor.controller";
 import { LearningController } from "./learning.controller";
 
 @Module({
-  imports: [RbacModule],
+  imports: [RbacModule, CertificatesModule],
   controllers: [CoursesController, InstructorController, LearningController],
   providers: [CoreLmsService],
   exports: [CoreLmsService],

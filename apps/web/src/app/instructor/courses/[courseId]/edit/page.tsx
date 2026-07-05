@@ -14,11 +14,12 @@ import {
 } from "../../../../../components/ui/core";
 import { ApiErrorState, LoadingState } from "../../../../../components/ui/states";
 import { api } from "../../../../../lib/api-client";
-import { useInstructorCourse } from "../../../../../lib/api-hooks";
+import { useCertificateTemplates, useInstructorCourse } from "../../../../../lib/api-hooks";
 
 export default function EditCoursePage() {
   const params = useParams<{ courseId: string }>();
   const query = useInstructorCourse(params.courseId);
+  const templates = useCertificateTemplates();
   const course = query.data;
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -35,6 +36,8 @@ export default function EditCoursePage() {
         description: String(form.get("description") ?? ""),
         level: String(form.get("level") ?? "BEGINNER"),
         visibility: String(form.get("visibility") ?? "ORGANIZATION_ONLY"),
+        autoCertificate: form.get("autoCertificate") === "true",
+        autoCertificateTemplateId: String(form.get("autoCertificateTemplateId") || "") || null,
       });
       setMessage("Course profile saved.");
       await query.reload();
@@ -134,6 +137,39 @@ export default function EditCoursePage() {
                     name="description"
                   />
                 </label>
+
+                {/* Auto-certificate section */}
+                <div className="rounded-md border border-border bg-muted/30 p-4">
+                  <p className="text-sm font-semibold text-foreground">Auto-issue certificate on completion</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">When enabled, a certificate is automatically issued when a learner reaches 100% progress.</p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <label className="block text-sm font-medium text-foreground">
+                      Enable auto-certificate
+                      <select
+                        className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+                        defaultValue={course.autoCertificate ? "true" : "false"}
+                        name="autoCertificate"
+                      >
+                        <option value="false">Disabled</option>
+                        <option value="true">Enabled</option>
+                      </select>
+                    </label>
+                    <label className="block text-sm font-medium text-foreground">
+                      Certificate template
+                      <select
+                        className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+                        defaultValue={course.autoCertificateTemplateId ?? ""}
+                        name="autoCertificateTemplateId"
+                      >
+                        <option value="">No template (generic PDF)</option>
+                        {(templates.data ?? []).filter((t) => t.status === "ACTIVE").map((t) => (
+                          <option key={t.id} value={t.id}>{t.name}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                </div>
+
                 <div className="flex flex-wrap gap-2">
                   <button
                     className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60"

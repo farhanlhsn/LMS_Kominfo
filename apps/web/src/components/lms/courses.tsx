@@ -439,7 +439,7 @@ export function LearningWorkspaceShell({
         </div>
         <div className="mt-5">{children}</div>
       </main>
-      <LearningRightPanel />
+      <LearningRightPanel courseId={course.id} lessonId={activeLesson.id} activityId={activeActivityId} />
     </section>
   );
 }
@@ -552,12 +552,12 @@ export function CurriculumSidebar({
   );
 }
 
-export function LearningRightPanel() {
+export function LearningRightPanel({ courseId, lessonId, activityId }: { courseId: string; lessonId: string; activityId?: string }) {
   const panels = [
-    { label: "Notes", icon: FileText },
-    { label: "Transcript", icon: ListChecks },
-    { label: "Discussion", icon: MessageSquare },
-    { label: "Resources", icon: PanelRight },
+    { label: "Open learning workspace", icon: PanelRight, href: `/learn/lessons/${lessonId}${activityId ? `?activity=${activityId}` : ""}` },
+    { label: "Course discussion", icon: MessageSquare, href: `/learn/courses/${courseId}/discussions` },
+    { label: "Live classes", icon: ListChecks, href: `/learn/courses/${courseId}/live-classes` },
+    { label: "Upcoming schedule", icon: FileText, href: `/learn/courses/${courseId}/calendar` },
   ];
 
   return (
@@ -567,19 +567,19 @@ export function LearningRightPanel() {
         <PanelRight aria-hidden="true" className="h-4 w-4 text-primary" />
       </div>
       <div className="mt-4 grid gap-2">
-        {panels.map(({ label, icon: Icon }) => (
-          <button
+        {panels.map(({ label, icon: Icon, href }) => (
+          <Link
             key={label}
             className="flex min-h-10 items-center gap-2 rounded-md border border-border px-3 text-sm text-muted-foreground hover:text-foreground"
-            type="button"
+            href={href}
           >
             <Icon aria-hidden="true" className="h-4 w-4 text-primary" />
             {label}
-          </button>
+          </Link>
         ))}
       </div>
       <p className="mt-4 text-sm leading-6 text-muted-foreground">
-        Panels are prepared for future learning workspace features.
+        Open the full workspace for activity-level notes, transcript, resources, and discussion.
       </p>
     </aside>
   );

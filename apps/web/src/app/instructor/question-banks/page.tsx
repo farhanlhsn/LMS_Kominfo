@@ -16,19 +16,21 @@ export default function QuestionBanksPage() {
 
   async function createBank(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     await api.createQuestionBank({
       title: String(form.get("title") ?? ""),
       description: String(form.get("description") ?? ""),
     });
-    event.currentTarget.reset();
+    formElement.reset();
     await banks.reload();
   }
 
   async function createQuestion(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!activeBankId) return;
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const type = String(form.get("type") ?? "MULTIPLE_CHOICE");
     const correct = String(form.get("correct") ?? "");
     const options =
@@ -50,7 +52,7 @@ export default function QuestionBanksPage() {
       numericTolerance: Number(form.get("numericTolerance") ?? 0),
       options,
     });
-    event.currentTarget.reset();
+    formElement.reset();
     await questions.reload();
   }
 

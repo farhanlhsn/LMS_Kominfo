@@ -7,10 +7,7 @@ export type CourseStatus =
   | "ARCHIVED";
 
 export type CourseLevel =
-  | "BEGINNER"
-  | "INTERMEDIATE"
-  | "ADVANCED"
-  | "ALL_LEVELS";
+  "BEGINNER" | "INTERMEDIATE" | "ADVANCED" | "ALL_LEVELS";
 
 export type ActivityTypeKey =
   | "core.text"
@@ -18,6 +15,7 @@ export type ActivityTypeKey =
   | "core.file"
   | "core.link"
   | "core.quiz"
+  | "core.assignment"
   | string;
 
 export interface ApiMeta {
@@ -47,6 +45,8 @@ export interface Course {
   requirements?: unknown;
   targetAudience?: unknown;
   tags?: unknown;
+  autoCertificate?: boolean;
+  autoCertificateTemplateId?: string | null;
   category?: Category | null;
   instructors?: Array<{ user?: { name?: string | null; email?: string } }>;
   modules?: CourseModule[];
@@ -310,6 +310,7 @@ export type WorkspacePanelMode =
   | "discussion"
   | "flashcards"
   | "bookmarks"
+  | "upcoming"
   | "activity_info";
 
 export interface LearningWorkspacePreference {
@@ -484,11 +485,7 @@ export interface QuizAttempt {
   userId: string;
   attemptNumber: number;
   status:
-    | "IN_PROGRESS"
-    | "SUBMITTED"
-    | "GRADED"
-    | "NEEDS_MANUAL_GRADING"
-    | "EXPIRED";
+    "IN_PROGRESS" | "SUBMITTED" | "GRADED" | "NEEDS_MANUAL_GRADING" | "EXPIRED";
   startedAt: string;
   dueAt?: string | null;
   submittedAt?: string | null;
@@ -529,4 +526,274 @@ export interface QuizResult {
   attempt: QuizAttempt;
   quiz: Omit<Quiz, "questions"> & { questions: LearnerQuizQuestion[] };
   answers: QuizAnswer[];
+}
+
+export interface AiStatus {
+  enabled: boolean;
+  chatProvider: string;
+  embeddingProvider: string;
+  chatModel?: string | null;
+  embeddingModel?: string | null;
+  answerMode: string;
+  routerMode: string;
+  cacheEnabled: boolean;
+  followupsEnabled: boolean;
+  localClassifierEnabled: boolean;
+  needsReindex: boolean;
+  disabledReason?: string | null;
+}
+
+export interface AiCitation {
+  id: string;
+  chunkId: string;
+  title: string;
+  sourceType: string;
+  lessonId?: string | null;
+  activityId?: string | null;
+  excerpt: string;
+  score: number;
+}
+
+export interface AiTutorResponse {
+  conversationId: string;
+  answer: string;
+  sourceType:
+    | "COURSE_MATERIAL"
+    | "GENERAL_EDUCATIONAL"
+    | "BLOCKED"
+    | "OUT_OF_SCOPE"
+    | "DISABLED";
+  sourceLabel: string;
+  citations: AiCitation[];
+  suggestions: string[];
+  cacheHit: boolean;
+  disabled: boolean;
+}
+
+export interface RubricLevel {
+  id: string;
+  title: string;
+  description?: string | null;
+  points: number;
+  orderIndex: number;
+}
+
+export interface RubricCriterion {
+  id: string;
+  title: string;
+  description?: string | null;
+  maxPoints: number;
+  orderIndex: number;
+  levels?: RubricLevel[];
+}
+
+export interface Rubric {
+  id: string;
+  title: string;
+  description?: string | null;
+  courseId?: string | null;
+  totalPoints: number;
+  status: "DRAFT" | "ACTIVE" | "ARCHIVED";
+  criteria?: RubricCriterion[];
+}
+
+export interface Assignment {
+  id: string;
+  courseId: string;
+  activityId?: string | null;
+  title: string;
+  description?: string | null;
+  instructions?: string | null;
+  submissionType: "TEXT" | "FILE" | "LINK" | "TEXT_AND_FILE" | "PROJECT";
+  dueAt?: string | null;
+  availableFrom?: string | null;
+  availableUntil?: string | null;
+  allowLateSubmission: boolean;
+  latePenaltyPercent?: number | null;
+  maxAttempts?: number | null;
+  allowResubmission: boolean;
+  status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+  rubric?: Rubric | null;
+  _count?: { submissions?: number };
+}
+
+export interface RubricScore {
+  id: string;
+  criterionId: string;
+  levelId?: string | null;
+  points: number;
+  feedback?: string | null;
+}
+
+export interface AssignmentSubmission {
+  id: string;
+  assignmentId: string;
+  courseId: string;
+  activityId?: string | null;
+  userId: string;
+  attemptNumber: number;
+  status:
+    "DRAFT" | "SUBMITTED" | "LATE" | "GRADED" | "RETURNED" | "RESUBMITTED";
+  textAnswer?: string | null;
+  linkUrl?: string | null;
+  fileIds?: string[];
+  submittedAt?: string | null;
+  gradedAt?: string | null;
+  score?: number | null;
+  maxScore?: number | null;
+  feedback?: string | null;
+  assignment?: Assignment;
+  rubricScores?: RubricScore[];
+  user?: { email: string; name?: string | null };
+}
+
+export interface LearnerAssignmentResponse {
+  assignment: Assignment;
+  latestSubmission?: AssignmentSubmission | null;
+}
+
+export interface CertificateTemplate {
+  id: string;
+  name: string;
+  description?: string | null;
+  design?: Record<string, unknown>;
+  status: "DRAFT" | "ACTIVE" | "ARCHIVED";
+}
+
+export interface Certificate {
+  id: string;
+  courseId: string;
+  userId: string;
+  certificateNumber: string;
+  verificationCode: string;
+  issuedAt: string;
+  expiresAt?: string | null;
+  revokedAt?: string | null;
+  revokeReason?: string | null;
+  pdfFileId?: string | null;
+  pdfStatus: "PENDING" | "GENERATING" | "GENERATED" | "FAILED";
+  pdfGeneratedAt?: string | null;
+  pdfError?: string | null;
+  course?: Course;
+  user?: { id: string; name?: string | null; email?: string };
+  template?: CertificateTemplate | null;
+}
+
+export interface CertificateVerification {
+  id: string;
+  certificateNumber: string;
+  verificationCode: string;
+  status: "VALID" | "REVOKED" | "EXPIRED";
+  issuedAt: string;
+  expiresAt?: string | null;
+  revokedAt?: string | null;
+  learnerName?: string | null;
+  courseTitle: string;
+  organizationName: string;
+  templateName?: string | null;
+}
+
+export interface LearningGoal {
+  id: string;
+  courseId?: string | null;
+  title: string;
+  description?: string | null;
+  targetType:
+    | "COURSE_COMPLETION"
+    | "ACTIVITY_COMPLETION"
+    | "STUDY_TIME"
+    | "SCORE"
+    | "CUSTOM";
+  targetValue?: Record<string, unknown>;
+  progressValue?: Record<string, unknown>;
+  dueAt?: string | null;
+  status: "ACTIVE" | "COMPLETED" | "PAUSED" | "CANCELLED";
+  completedAt?: string | null;
+  course?: Course | null;
+}
+
+export interface DiscussionReply {
+  id: string;
+  threadId: string;
+  parentReplyId?: string | null;
+  authorId: string;
+  body: string;
+  status: "VISIBLE" | "HIDDEN" | "DELETED";
+  createdAt: string;
+  author?: { id: string; name?: string | null };
+}
+
+export interface DiscussionThread {
+  id: string;
+  courseId: string;
+  lessonId?: string | null;
+  activityId?: string | null;
+  authorId: string;
+  title: string;
+  body: string;
+  status: "VISIBLE" | "HIDDEN" | "DELETED";
+  pinned: boolean;
+  locked: boolean;
+  createdAt: string;
+  updatedAt: string;
+  author?: { id: string; name?: string | null };
+  replies?: DiscussionReply[];
+  _count?: { replies: number };
+}
+
+export interface DiscussionReport {
+  id: string;
+  reason: string;
+  details?: string | null;
+  status: "OPEN" | "RESOLVED" | "DISMISSED";
+  createdAt: string;
+  reporter?: { id: string; name?: string | null };
+  thread?: { id: string; title: string; courseId: string; status: string } | null;
+  reply?: { id: string; body: string; status: string; thread: { id: string; title: string; courseId: string } } | null;
+}
+
+export interface LiveClass {
+  id: string;
+  courseId: string;
+  title: string;
+  description?: string | null;
+  provider: "MANUAL_LINK" | "ZOOM" | "GOOGLE_MEET" | "CUSTOM";
+  meetingUrl?: string | null;
+  startAt: string;
+  endAt: string;
+  timezone: string;
+  status: "SCHEDULED" | "LIVE" | "ENDED" | "CANCELLED";
+  course?: { id: string; title: string };
+}
+
+export interface InAppNotification {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  actionUrl?: string | null;
+  readAt?: string | null;
+  createdAt: string;
+}
+
+export interface NotificationPreference {
+  inAppEnabled: boolean;
+  emailEnabled?: boolean | null;
+  mutedTypes: string[];
+}
+
+export interface CalendarEvent {
+  organizationId: string;
+  courseId?: string | null;
+  title: string;
+  description?: string | null;
+  type: string;
+  startsAt: string;
+  endsAt?: string | null;
+  timezone?: string | null;
+  sourceType: string;
+  sourceId: string;
+  visibility: string;
+  actionUrl?: string | null;
+  metadata?: { courseTitle?: string; status?: string; editable?: boolean };
 }

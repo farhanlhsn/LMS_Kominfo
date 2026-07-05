@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, MessageSquare } from "lucide-react";
 import { AuthGate } from "../../../../components/auth/auth-gate";
 import { AppShell } from "../../../../components/layout/shells";
 import {
@@ -15,6 +15,7 @@ import {
 import { ButtonLink, PageHeader } from "../../../../components/ui/core";
 import { ApiErrorState, EmptyState, LoadingState } from "../../../../components/ui/states";
 import { useLearningCourse } from "../../../../lib/api-hooks";
+import { CoursePhaseNavigation } from "../../../../components/engagement/engagement";
 
 export default function LearnCoursePage() {
   const params = useParams<{ courseId: string }>();
@@ -53,6 +54,7 @@ export default function LearnCoursePage() {
               title={course.title}
               description="Course progress and curriculum are loaded from the learning API."
             />
+            <CoursePhaseNavigation courseId={params.courseId} active="overview" />
 
             <section className="mb-5 rounded-lg border border-border bg-card p-5 shadow-subtle">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -69,6 +71,9 @@ export default function LearnCoursePage() {
               <div className="mt-5">
                 <Meter value={data.progress.progressPercent} />
               </div>
+              <ButtonLink className="mt-4" href={`/learn/courses/${params.courseId}/discussions`} variant="secondary">
+                <MessageSquare aria-hidden="true" className="h-4 w-4" /> Course discussions
+              </ButtonLink>
             </section>
 
             {activeLesson ? (

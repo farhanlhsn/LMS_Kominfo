@@ -13,8 +13,12 @@ function createService() {
     },
     lessonWorkspaceState: {
       findFirst: vi.fn(),
-      create: vi.fn().mockImplementation(({ data }) => ({ id: "state_1", ...data })),
-      update: vi.fn().mockImplementation(({ data }) => ({ id: "state_1", ...data })),
+      create: vi
+        .fn()
+        .mockImplementation(({ data }) => ({ id: "state_1", ...data })),
+      update: vi
+        .fn()
+        .mockImplementation(({ data }) => ({ id: "state_1", ...data })),
     },
     activity: {
       findFirst: vi.fn(),
@@ -28,8 +32,12 @@ function createService() {
     learnerNote: {
       findMany: vi.fn(),
       findFirst: vi.fn(),
-      create: vi.fn().mockImplementation(({ data }) => ({ id: "note_1", ...data })),
-      update: vi.fn().mockImplementation(({ data }) => ({ id: "note_1", ...data })),
+      create: vi
+        .fn()
+        .mockImplementation(({ data }) => ({ id: "note_1", ...data })),
+      update: vi
+        .fn()
+        .mockImplementation(({ data }) => ({ id: "note_1", ...data })),
       count: vi.fn().mockResolvedValue(0),
     },
     learnerBookmark: {
@@ -46,7 +54,10 @@ function createService() {
     },
   };
   return {
-    service: new LearningWorkspaceService(prisma as never),
+    service: new LearningWorkspaceService(
+      prisma as never,
+      { indexActivity: vi.fn().mockResolvedValue({}) } as never,
+    ),
     prisma,
   };
 }

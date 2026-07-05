@@ -88,9 +88,13 @@ describe("apiRequest token refresh", () => {
 
     expect(result).toEqual({ ok: true });
     expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(String(fetchMock.mock.calls[1][0])).toContain("/auth/refresh");
+    const refreshCall = fetchMock.mock.calls[1];
+    expect(refreshCall).toBeDefined();
+    expect(String(refreshCall?.[0])).toContain("/auth/refresh");
 
-    const retryHeaders = fetchMock.mock.calls[2][1].headers as Headers;
+    const retryCall = fetchMock.mock.calls[2];
+    expect(retryCall).toBeDefined();
+    const retryHeaders = retryCall?.[1]?.headers as Headers;
     expect(retryHeaders.get("Authorization")).toBe("Bearer access-new");
 
     // Tokens rotated but hydrated org context preserved.

@@ -55,4 +55,40 @@ describe("plugin activity registries", () => {
     expect(html).toContain("Activity unavailable");
     expect(html).not.toContain("Open resource");
   });
+
+  it("renders practice lab launch modes for lab link activities", () => {
+    const html = renderToStaticMarkup(
+      createElement(PluginActivityRenderer, {
+        response: {
+          activity: {
+            id: "activity_lab",
+            title: "Lab: Practice with GPT",
+            activityTypeKey: "core.link",
+          },
+          content: {
+            id: "content_lab",
+            activityId: "activity_lab",
+            externalUrl: "https://chatgpt.com/",
+            textContent: "Practice prompt iteration in an external lab.",
+            metadata: {
+              lab: {
+                enabled: true,
+                providerName: "ChatGPT",
+                instructions: ["Read the guide", "Open the lab"],
+              },
+            },
+          },
+          fileAccess: null,
+        },
+      }),
+    );
+
+    expect(html).toContain("Practice lab");
+    expect(html).toContain("Side by side");
+    expect(html).toContain("New tab + PiP");
+    expect(html).toContain("Dual monitor");
+    expect(html).toContain("Choose how you want to learn");
+    expect(html).not.toContain("Before you launch");
+    expect(html).not.toContain("Read the guide");
+  });
 });

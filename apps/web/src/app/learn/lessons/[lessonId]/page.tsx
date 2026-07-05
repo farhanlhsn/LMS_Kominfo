@@ -128,7 +128,7 @@ export default function LearnLessonPage() {
     setActionMessage(null);
     try {
       const result = await completeActivity(selectedActivityId);
-      await Promise.all([lessonQuery.reload(), courseQuery.reload()]);
+      await Promise.all([lessonQuery.refresh(), courseQuery.refresh()]);
       setActionMessage(
         `Completed. Course progress: ${Math.round(
           result.courseProgress.progressPercent,

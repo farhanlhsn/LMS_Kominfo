@@ -37,6 +37,10 @@ export class StorageService implements StorageProvider {
     return this.provider.getMetadata(bucket, key);
   }
 
+  getFile(bucket: string, key: string): Promise<Buffer> {
+    return this.provider.getFile(bucket, key);
+  }
+
   copyFile(
     sourceBucket: string,
     sourceKey: string,

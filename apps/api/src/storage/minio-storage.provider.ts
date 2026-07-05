@@ -94,6 +94,14 @@ export class MinioStorageProvider implements StorageProvider {
     };
   }
 
+  async getFile(bucket: string, key: string): Promise<Buffer> {
+    const object = await this.client.send(
+      new GetObjectCommand({ Bucket: bucket, Key: key }),
+    );
+    if (!object.Body) return Buffer.alloc(0);
+    return Buffer.from(await object.Body.transformToByteArray());
+  }
+
   async copyFile(
     sourceBucket: string,
     sourceKey: string,
