@@ -7,6 +7,7 @@ FROM node:24-alpine AS base
 WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@11.7.0 --activate
 COPY package.json pnpm-workspace.yaml turbo.json tsconfig.base.json ./
+COPY pnpm-lock.yaml ./
 COPY packages ./packages
 COPY apps/api ./apps/api
 
