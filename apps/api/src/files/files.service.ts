@@ -100,6 +100,70 @@ export class FilesService {
     return record;
   }
 
+  async createManagedFile(input: {
+    organizationId: string;
+    ownerId: string;
+    filename: string;
+    body: Buffer;
+    mimeType: string;
+    purpose?: "DOCUMENT" | "CERTIFICATE";
+    metadata?: Prisma.InputJsonObject;
+  }) {
+    const safeFilename = this.safeFilename(input.filename);
+    const extension = extname(safeFilename).replace(".", "").toLowerCase();
+    if (!extension || input.body.length > MAX_FILE_SIZE || !allowedMimeTypes.has(input.mimeType)) {
+      throw new BadRequestException("Invalid managed file");
+    }
+    const bucket = process.env.S3_BUCKET ?? "lms-local";
+    const key = `${input.organizationId}/certificates/${new Date().getFullYear()}/${randomUUID()}-${safeFilename}`;
+    const checksum = createHash("sha256").update(input.body).digest("hex");
+
+    await this.storage.uploadFile({
+      bucket,
+      key,
+      body: input.body,
+      mimeType: input.mimeType,
+      metadata: { organizationId: input.organizationId, ownerId: input.ownerId },
+    });
+
+    return this.prisma.file.create({
+      data: {
+        organizationId: input.organizationId,
+        ownerId: input.ownerId,
+        bucket,
+        key,
+        filename: safeFilename,
+        originalFilename: input.filename,
+        mimeType: input.mimeType,
+        extension,
+        size: input.body.length,
+        checksum,
+        storageProvider: "MINIO",
+        visibility: "PRIVATE",
+        accessLevel: "OWNER",
+        purpose: input.purpose ?? "DOCUMENT",
+        processingStatus: "READY",
+        metadata: input.metadata ?? {},
+      },
+    });
+  }
+
+  async managedSignedUrl(organizationId: string, fileId: string, expiresInSeconds = 300) {
+    const file = await this.prisma.file.findFirst({
+      where: { id: fileId, organizationId, deletedAt: null },
+    });
+    if (!file) throw new NotFoundException("Certificate file not found");
+    const url = await this.storage.getSignedUrl(file.bucket, file.key, expiresInSeconds);
+    return { url, expiresInSeconds };
+  }
+
+  async deleteManagedFile(organizationId: string, fileId: string) {
+    const file = await this.prisma.file.findFirst({ where: { id: fileId, organizationId, deletedAt: null } });
+    if (!file) return;
+    await this.storage.deleteFile(file.bucket, file.key);
+    await this.prisma.file.update({ where: { id: file.id }, data: { deletedAt: new Date() } });
+  }
+
   async list(organizationId: string, query: ListFilesDto) {
     const page = Math.max(Number(query.page ?? 1), 1);
     const limit = Math.min(Math.max(Number(query.limit ?? 20), 1), 100);

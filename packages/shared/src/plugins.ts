@@ -130,20 +130,29 @@ export const INTERNAL_PLUGIN_MANIFESTS: InternalPluginManifest[] = [
   },
   {
     key: "core.assignment",
-    name: "Assignment Activity Placeholder",
-    description: "Reserved for the future assignment phase.",
-    version: "0.1.0",
+    name: "Assignment Activity",
+    description: "Core assignment submission and grading activity renderer.",
+    version: "1.0.0",
     category: "ASSESSMENT",
     activityTypes: [
       {
         key: "core.assignment",
         name: "Assignment",
-        supportedWorkspaceLayouts: ["standard"],
-        implemented: false,
+        supportedWorkspaceLayouts: ["standard", "side_by_side", "focus"],
+        implemented: true,
       },
     ],
-    capabilities: ["reserved_activity_type"],
-    placeholder: true,
+    permissions: [
+      "courses:read",
+      "assignments:manage",
+      "assignments:grade",
+    ],
+    capabilities: [
+      "render_activity",
+      "edit_activity",
+      "track_progress",
+      "grade_assessment",
+    ],
   },
   {
     key: "plugin.3d_viewer",

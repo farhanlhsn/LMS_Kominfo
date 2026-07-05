@@ -21,6 +21,7 @@ import {
   StatusBadge,
 } from "../../../../../components/ui/core";
 import { ApiErrorState, EmptyState, LoadingState } from "../../../../../components/ui/states";
+import { CoursePhaseNavigation } from "../../../../../components/engagement/engagement";
 import { api } from "../../../../../lib/api-client";
 import {
   useContentLibrary,
@@ -107,6 +108,7 @@ export default function BuilderPage() {
                 </ButtonLink>
               }
             />
+            <CoursePhaseNavigation courseId={params.courseId} active="overview" instructor />
 
             <CourseBuilderShell
               course={course}
@@ -810,13 +812,14 @@ function CreateActivityForm({
 }) {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const data = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const data = new FormData(formElement);
     await onCreate(
       String(data.get("title") ?? ""),
       String(data.get("activityTypeKey") ?? "core.text"),
       String(data.get("description") ?? ""),
     );
-    event.currentTarget.reset();
+    formElement.reset();
   }
 
   return (
@@ -882,8 +885,9 @@ function MiniForm({
 }) {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await onSubmit(new FormData(event.currentTarget));
-    event.currentTarget.reset();
+    const formElement = event.currentTarget;
+    await onSubmit(new FormData(formElement));
+    formElement.reset();
   }
 
   return (

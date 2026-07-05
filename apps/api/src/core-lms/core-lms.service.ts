@@ -3,9 +3,11 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
 import { Prisma } from "@lms/db";
 import { PrismaService } from "../prisma/prisma.service";
+import { CertificatesService } from "../certificates/certificates.service";
 import type { OrganizationContext } from "../auth/types/authenticated-request";
 import type {
   CreateActivityDto,
@@ -22,7 +24,10 @@ import type {
 
 @Injectable()
 export class CoreLmsService {
-  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+  constructor(
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Optional() @Inject(CertificatesService) private readonly certificates?: CertificatesService,
+  ) {}
 
   async listCategories(organizationId: string): Promise<unknown> {
     return this.prisma.courseCategory.findMany({
@@ -254,6 +259,8 @@ export class CoreLmsService {
         categoryId: dto.categoryId,
         level: dto.level,
         visibility: dto.visibility,
+        autoCertificate: dto.autoCertificate,
+        autoCertificateTemplateId: dto.autoCertificateTemplateId,
       },
     });
   }
@@ -813,7 +820,7 @@ export class CoreLmsService {
       activity.courseId,
     );
     const now = new Date();
-    const progress = await this.prisma.activityProgress.upsert({
+    const existingProgress = await this.prisma.activityProgress.findUnique({
       where: {
         organizationId_userId_activityId: {
           organizationId,
@@ -821,25 +828,35 @@ export class CoreLmsService {
           activityId,
         },
       },
-      update: {
-        status: "IN_PROGRESS",
-        startedAt: now,
-        lastAccessedAt: now,
-        enrollmentId: enrollment.id,
-      },
-      create: {
-        organizationId,
-        userId,
-        courseId: activity.courseId,
-        lessonId: activity.lessonId,
-        activityId,
-        enrollmentId: enrollment.id,
-        status: "IN_PROGRESS",
-        progressPercent: 0,
-        startedAt: now,
-        lastAccessedAt: now,
-      },
     });
+
+    let progress;
+    if (existingProgress) {
+      progress = await this.prisma.activityProgress.update({
+        where: { id: existingProgress.id },
+        data: {
+          status: existingProgress.status === "COMPLETED" ? "COMPLETED" : "IN_PROGRESS",
+          startedAt: existingProgress.startedAt ?? now,
+          lastAccessedAt: now,
+          enrollmentId: enrollment.id,
+        },
+      });
+    } else {
+      progress = await this.prisma.activityProgress.create({
+        data: {
+          organizationId,
+          userId,
+          courseId: activity.courseId,
+          lessonId: activity.lessonId,
+          activityId,
+          enrollmentId: enrollment.id,
+          status: "IN_PROGRESS",
+          progressPercent: 0,
+          startedAt: now,
+          lastAccessedAt: now,
+        },
+      });
+    }
     await this.touchEnrollment(enrollment.id, activityId);
     await this.learningEvent(
       organizationId,
@@ -1176,6 +1193,7 @@ export class CoreLmsService {
       userId,
       courseId,
     );
+    const completed = progress.progressPercent === 100 && progress.requiredTotal > 0;
     await this.prisma.enrollment.update({
       where: {
         organizationId_courseId_userId: {
@@ -1186,12 +1204,15 @@ export class CoreLmsService {
       },
       data: {
         progressPercent: progress.progressPercent,
-        completedAt:
-          progress.progressPercent === 100 && progress.requiredTotal > 0
-            ? new Date()
-            : null,
+        completedAt: completed ? new Date() : null,
       },
     });
+    // Trigger auto-certificate if course just reached 100% completion
+    if (completed && this.certificates) {
+      this.certificates.autoIssue(organizationId, userId, courseId).catch(() => {
+        // Auto-certificate failure must never block the learner's progress update
+      });
+    }
   }
 
   private async touchEnrollment(enrollmentId: string, activityId: string) {

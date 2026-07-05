@@ -12,6 +12,7 @@ import { FileAccessPolicyService } from "../files/file-access-policy.service";
 import { FilesService } from "../files/files.service";
 import { ContentProcessingService } from "../content-processing/content-processing.service";
 import { PluginRegistry } from "../plugins/plugin-registry.service";
+import { AiIndexingService } from "../ai/ai-indexing.service";
 import type {
   AttachFileDto,
   AttachLibraryItemDto,
@@ -31,6 +32,8 @@ export class ActivityContentService {
     private readonly contentProcessing: ContentProcessingService,
     @Inject(PluginRegistry)
     private readonly pluginRegistry: PluginRegistry,
+    @Inject(AiIndexingService)
+    private readonly aiIndexing: AiIndexingService,
   ) {}
 
   async updateActivityContent(
@@ -87,7 +90,8 @@ export class ActivityContentService {
       data: {
         content: {
           ...contentPayload,
-          textContent: dto.textContent ?? htmlToPlainTextFromPayload(contentPayload),
+          textContent:
+            dto.textContent ?? htmlToPlainTextFromPayload(contentPayload),
           externalUrl: dto.externalUrl,
           fileId: dto.fileId,
         } as Prisma.InputJsonObject,
@@ -110,6 +114,9 @@ export class ActivityContentService {
         fileId: dto.fileId,
       });
     }
+    await this.aiIndexing
+      .indexActivity(organization.id, activityId)
+      .catch(() => undefined);
 
     return activityContent;
   }
@@ -234,7 +241,7 @@ export class ActivityContentService {
         : 0);
     const completedByWatchRule = watchedPercent >= 80;
     const now = new Date();
-    const progress = await this.prisma.activityProgress.upsert({
+    const existingProgress = await this.prisma.activityProgress.findUnique({
       where: {
         organizationId_userId_activityId: {
           organizationId: organization.id,
@@ -242,40 +249,69 @@ export class ActivityContentService {
           activityId,
         },
       },
-      update: {
-        status: completedByWatchRule ? "COMPLETED" : "IN_PROGRESS",
-        progressPercent: watchedPercent,
-        completedAt: completedByWatchRule ? now : null,
-        lastAccessedAt: now,
-        metadata: {
-          currentTimeSeconds: dto.currentTimeSeconds,
-          durationSeconds: dto.durationSeconds,
-          watchedPercent,
-          lastWatchedAt: now.toISOString(),
-          completedByWatchRule,
-        },
-      },
-      create: {
-        organizationId: organization.id,
-        userId,
-        courseId: activity.courseId,
-        lessonId: activity.lessonId,
-        activityId,
-        enrollmentId: enrollment.id,
-        status: completedByWatchRule ? "COMPLETED" : "IN_PROGRESS",
-        progressPercent: watchedPercent,
-        startedAt: now,
-        completedAt: completedByWatchRule ? now : null,
-        lastAccessedAt: now,
-        metadata: {
-          currentTimeSeconds: dto.currentTimeSeconds,
-          durationSeconds: dto.durationSeconds,
-          watchedPercent,
-          lastWatchedAt: now.toISOString(),
-          completedByWatchRule,
-        },
-      },
     });
+
+    let progress;
+    if (existingProgress) {
+      const isAlreadyCompleted = existingProgress.status === "COMPLETED";
+      const newStatus =
+        isAlreadyCompleted || completedByWatchRule
+          ? "COMPLETED"
+          : "IN_PROGRESS";
+
+      progress = await this.prisma.activityProgress.update({
+        where: { id: existingProgress.id },
+        data: {
+          status: newStatus,
+          progressPercent: Math.max(
+            watchedPercent,
+            existingProgress.progressPercent,
+          ),
+          completedAt: isAlreadyCompleted
+            ? existingProgress.completedAt
+            : completedByWatchRule
+              ? now
+              : null,
+          lastAccessedAt: now,
+          metadata: {
+            ...((existingProgress.metadata as object) || {}),
+            currentTimeSeconds: dto.currentTimeSeconds,
+            durationSeconds: dto.durationSeconds,
+            watchedPercent: Math.max(
+              watchedPercent,
+              existingProgress.metadata
+                ? (existingProgress.metadata as any).watchedPercent || 0
+                : 0,
+            ),
+            lastWatchedAt: now.toISOString(),
+            completedByWatchRule: isAlreadyCompleted || completedByWatchRule,
+          },
+        },
+      });
+    } else {
+      progress = await this.prisma.activityProgress.create({
+        data: {
+          organizationId: organization.id,
+          userId,
+          courseId: activity.courseId,
+          lessonId: activity.lessonId,
+          activityId,
+          enrollmentId: enrollment.id,
+          status: completedByWatchRule ? "COMPLETED" : "IN_PROGRESS",
+          progressPercent: watchedPercent,
+          startedAt: now,
+          completedAt: completedByWatchRule ? now : null,
+          lastAccessedAt: now,
+          metadata: {
+            currentTimeSeconds: dto.currentTimeSeconds,
+            durationSeconds: dto.durationSeconds,
+            watchedPercent,
+            lastWatchedAt: now.toISOString(),
+            completedByWatchRule,
+          },
+        },
+      });
+    }
     return progress;
   }
 

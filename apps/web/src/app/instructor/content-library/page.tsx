@@ -33,7 +33,8 @@ export default function InstructorContentLibraryPage() {
 
   async function createItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const tags = String(form.get("tags") ?? "")
       .split(",")
       .map((tag) => tag.trim())
@@ -51,7 +52,7 @@ export default function InstructorContentLibraryPage() {
           textContent: String(form.get("textContent") ?? "") || undefined,
         },
       });
-      event.currentTarget.reset();
+      formElement.reset();
       setMessage("Library item created.");
       await libraryQuery.reload();
     } catch (error) {

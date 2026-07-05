@@ -30,6 +30,9 @@ function createService() {
       findFirst: vi.fn(),
     },
     activityProgress: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockImplementation(({ data }) => Promise.resolve(data)),
+      update: vi.fn().mockImplementation(({ data }) => Promise.resolve(data)),
       upsert: vi.fn().mockImplementation(({ create }) => create),
     },
     activityContent: {
@@ -61,6 +64,7 @@ function createService() {
     }),
     isEnabledForOrganization: vi.fn().mockResolvedValue(true),
   };
+  const aiIndexing = { indexActivity: vi.fn().mockResolvedValue({}) };
 
   return {
     service: new ActivityContentService(
@@ -69,6 +73,7 @@ function createService() {
       filesService as never,
       contentProcessing as never,
       pluginRegistry as never,
+      aiIndexing as never,
     ),
     prisma,
     pluginRegistry,

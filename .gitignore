@@ -9,3 +9,11 @@ coverage
 *.log
 *.tsbuildinfo
 tmp
+
+# Models
+models/
+*.pt
+*.bin
+*.onnx
+*.safetensors
+*.gguf

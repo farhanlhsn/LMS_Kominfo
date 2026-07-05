@@ -3,13 +3,28 @@
 import type {
   ActivityContentResponse,
   ActivityProgress,
+  AiStatus,
+  AiTutorResponse,
+  Assignment,
+  AssignmentSubmission,
   AuthSession,
+  Certificate,
+  CertificateTemplate,
+  CertificateVerification,
   ContentLibraryItem,
   Course,
+  CalendarEvent,
+  DiscussionThread,
+  DiscussionReport,
   Enrollment,
   FileAsset,
   LearningCourseResponse,
   LearnerBookmark,
+  LearnerAssignmentResponse,
+  LearningGoal,
+  LiveClass,
+  InAppNotification,
+  NotificationPreference,
   LearnerNote,
   Lesson,
   LessonWorkspaceState,
@@ -25,6 +40,7 @@ import type {
   QuizAttempt,
   LearnerQuizResponse,
   QuizResult,
+  Rubric,
   TranscriptSegment,
   WorkspaceContext,
 } from "./lms-types";
@@ -63,7 +79,7 @@ export interface ListResponse<T> {
   meta?: Record<string, unknown>;
 }
 
-function apiBaseUrl() {
+export function apiBaseUrl() {
   return process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
 }
 
@@ -93,8 +109,7 @@ function mergeSession(session: AuthSession, patch: Partial<AuthSession>) {
     ...session,
     ...patch,
     user: patch.user ?? session.user,
-    activeOrganization:
-      patch.activeOrganization ?? session.activeOrganization,
+    activeOrganization: patch.activeOrganization ?? session.activeOrganization,
   };
   setSession(next);
   return next;
@@ -168,9 +183,7 @@ async function requestOnce<T>(
   }
   const response = await fetch(`${apiBaseUrl()}${path}`, { ...init, headers });
   const body = (await response.json().catch(() => null)) as
-    | ApiSuccess<T>
-    | ApiFailure
-    | null;
+    ApiSuccess<T> | ApiFailure | null;
   return { response, body };
 }
 
@@ -225,9 +238,7 @@ async function listOnce<T>(path: string, session: AuthSession | null) {
     headers: authHeaders(session),
   });
   const body = (await response.json().catch(() => null)) as
-    | (ApiSuccess<T[]> & { meta?: Record<string, unknown> })
-    | ApiFailure
-    | null;
+    (ApiSuccess<T[]> & { meta?: Record<string, unknown> }) | ApiFailure | null;
   return { response, body };
 }
 
@@ -458,7 +469,9 @@ export const api = {
     if (query.courseId) params.set("courseId", query.courseId);
     if (query.lessonId) params.set("lessonId", query.lessonId);
     if (query.activityId) params.set("activityId", query.activityId);
-    return apiRequest<LearnerBookmark[]>(`/learn/bookmarks?${params.toString()}`);
+    return apiRequest<LearnerBookmark[]>(
+      `/learn/bookmarks?${params.toString()}`,
+    );
   },
   createLearnerBookmark: (input: Record<string, unknown>) =>
     apiRequest<LearnerBookmark>("/learn/bookmarks", {
@@ -549,10 +562,13 @@ export const api = {
       method: "DELETE",
     }),
   createActivity: (lessonId: string, input: Record<string, unknown>) =>
-    apiRequest(`/instructor/lessons/${encodeURIComponent(lessonId)}/activities`, {
-      method: "POST",
-      body: JSON.stringify(input),
-    }),
+    apiRequest(
+      `/instructor/lessons/${encodeURIComponent(lessonId)}/activities`,
+      {
+        method: "POST",
+        body: JSON.stringify(input),
+      },
+    ),
   updateActivity: (activityId: string, input: Record<string, unknown>) =>
     apiRequest(`/instructor/activities/${encodeURIComponent(activityId)}`, {
       method: "PATCH",
@@ -563,10 +579,13 @@ export const api = {
       method: "DELETE",
     }),
   updateActivityContent: (activityId: string, input: Record<string, unknown>) =>
-    apiRequest(`/instructor/activities/${encodeURIComponent(activityId)}/content`, {
-      method: "PATCH",
-      body: JSON.stringify(input),
-    }),
+    apiRequest(
+      `/instructor/activities/${encodeURIComponent(activityId)}/content`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      },
+    ),
   attachFileToActivity: (activityId: string, fileId: string) =>
     apiRequest(
       `/instructor/activities/${encodeURIComponent(activityId)}/attach-file`,
@@ -598,8 +617,7 @@ export const api = {
         body: JSON.stringify({ expiresInSeconds: 300 }),
       },
     ),
-  contentLibrary: () =>
-    apiRequest<ContentLibraryItem[]>("/content-library"),
+  contentLibrary: () => apiRequest<ContentLibraryItem[]>("/content-library"),
   createContentLibraryItem: (input: Record<string, unknown>) =>
     apiRequest<ContentLibraryItem>("/content-library", {
       method: "POST",
@@ -645,10 +663,13 @@ export const api = {
       body: JSON.stringify(input),
     }),
   updateQuestion: (questionId: string, input: Record<string, unknown>) =>
-    apiRequest<Question>(`/instructor/questions/${encodeURIComponent(questionId)}`, {
-      method: "PATCH",
-      body: JSON.stringify(input),
-    }),
+    apiRequest<Question>(
+      `/instructor/questions/${encodeURIComponent(questionId)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      },
+    ),
   instructorQuizzes: () => apiRequest<Quiz[]>("/instructor/quizzes"),
   createQuiz: (input: Record<string, unknown>) =>
     apiRequest<Quiz>("/instructor/quizzes", {
@@ -663,9 +684,12 @@ export const api = {
       body: JSON.stringify(input),
     }),
   publishQuiz: (quizId: string) =>
-    apiRequest<Quiz>(`/instructor/quizzes/${encodeURIComponent(quizId)}/publish`, {
-      method: "POST",
-    }),
+    apiRequest<Quiz>(
+      `/instructor/quizzes/${encodeURIComponent(quizId)}/publish`,
+      {
+        method: "POST",
+      },
+    ),
   addQuizQuestion: (quizId: string, input: Record<string, unknown>) =>
     apiRequest(`/instructor/quizzes/${encodeURIComponent(quizId)}/questions`, {
       method: "POST",
@@ -677,21 +701,29 @@ export const api = {
       { method: "DELETE" },
     ),
   attachQuizToActivity: (activityId: string, quizId: string) =>
-    apiRequest<Quiz>(`/instructor/activities/${encodeURIComponent(activityId)}/quiz`, {
-      method: "POST",
-      body: JSON.stringify({ quizId }),
-    }),
-  quizAttempts: (quizId: string) =>
-    apiRequest<QuizAttempt[]>(`/instructor/quizzes/${encodeURIComponent(quizId)}/attempts`),
-  quizAttemptDetail: (attemptId: string) =>
-    apiRequest<QuizAttempt & { answers: Array<QuizAnswer & { question: Question }> }>(
-      `/instructor/quiz-attempts/${encodeURIComponent(attemptId)}`,
+    apiRequest<Quiz>(
+      `/instructor/activities/${encodeURIComponent(activityId)}/quiz`,
+      {
+        method: "POST",
+        body: JSON.stringify({ quizId }),
+      },
     ),
+  quizAttempts: (quizId: string) =>
+    apiRequest<QuizAttempt[]>(
+      `/instructor/quizzes/${encodeURIComponent(quizId)}/attempts`,
+    ),
+  quizAttemptDetail: (attemptId: string) =>
+    apiRequest<
+      QuizAttempt & { answers: Array<QuizAnswer & { question: Question }> }
+    >(`/instructor/quiz-attempts/${encodeURIComponent(attemptId)}`),
   manualGradeAnswer: (answerId: string, input: Record<string, unknown>) =>
-    apiRequest<QuizAnswer>(`/instructor/quiz-answers/${encodeURIComponent(answerId)}/grade`, {
-      method: "PATCH",
-      body: JSON.stringify(input),
-    }),
+    apiRequest<QuizAnswer>(
+      `/instructor/quiz-answers/${encodeURIComponent(answerId)}/grade`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      },
+    ),
   learnerQuiz: (activityId: string) =>
     apiRequest<LearnerQuizResponse>(
       `/learn/activities/${encodeURIComponent(activityId)}/quiz`,
@@ -718,4 +750,196 @@ export const api = {
     apiRequest<QuizResult>(
       `/learn/quiz-attempts/${encodeURIComponent(attemptId)}/result`,
     ),
+  aiStatus: () => apiRequest<AiStatus>("/ai/status"),
+  askAiTutor: (input: {
+    courseId: string;
+    lessonId: string;
+    activityId: string;
+    question: string;
+    conversationId?: string;
+    selectedText?: string;
+    includeNoteIds?: string[];
+  }) =>
+    apiRequest<AiTutorResponse>("/learn/ai/tutor", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  assignments: (courseId: string) =>
+    apiRequest<Assignment[]>(
+      `/instructor/courses/${encodeURIComponent(courseId)}/assignments`,
+    ),
+  createAssignment: (courseId: string, input: Record<string, unknown>) =>
+    apiRequest<Assignment>(
+      `/instructor/courses/${encodeURIComponent(courseId)}/assignments`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  assignment: (assignmentId: string) =>
+    apiRequest<Assignment>(
+      `/instructor/assignments/${encodeURIComponent(assignmentId)}`,
+    ),
+  updateAssignment: (assignmentId: string, input: Record<string, unknown>) =>
+    apiRequest<Assignment>(
+      `/instructor/assignments/${encodeURIComponent(assignmentId)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      },
+    ),
+  publishAssignment: (assignmentId: string) =>
+    apiRequest<Assignment>(
+      `/instructor/assignments/${encodeURIComponent(assignmentId)}/publish`,
+      { method: "POST" },
+    ),
+  rubrics: () => apiRequest<Rubric[]>("/instructor/rubrics"),
+  rubric: (rubricId: string) =>
+    apiRequest<Rubric>(`/instructor/rubrics/${encodeURIComponent(rubricId)}`),
+  createRubric: (input: Record<string, unknown>) =>
+    apiRequest<Rubric>("/instructor/rubrics", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateRubric: (rubricId: string, input: Record<string, unknown>) =>
+    apiRequest<Rubric>(`/instructor/rubrics/${encodeURIComponent(rubricId)}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  assignmentSubmissions: (assignmentId: string) =>
+    apiRequest<AssignmentSubmission[]>(
+      `/instructor/assignments/${encodeURIComponent(assignmentId)}/submissions`,
+    ),
+  submission: (submissionId: string) =>
+    apiRequest<AssignmentSubmission>(
+      `/instructor/submissions/${encodeURIComponent(submissionId)}`,
+    ),
+  gradeSubmission: (submissionId: string, input: Record<string, unknown>) =>
+    apiRequest<AssignmentSubmission>(
+      `/instructor/submissions/${encodeURIComponent(submissionId)}/grade`,
+      { method: "PATCH", body: JSON.stringify(input) },
+    ),
+  returnSubmission: (submissionId: string, input: Record<string, unknown>) =>
+    apiRequest<AssignmentSubmission>(
+      `/instructor/submissions/${encodeURIComponent(submissionId)}/return`,
+      { method: "PATCH", body: JSON.stringify(input) },
+    ),
+  learnerAssignment: (assignmentId: string) =>
+    apiRequest<LearnerAssignmentResponse>(
+      `/learn/assignments/${encodeURIComponent(assignmentId)}`,
+    ),
+  createSubmission: (assignmentId: string, input: Record<string, unknown>) =>
+    apiRequest<AssignmentSubmission>(
+      `/learn/assignments/${encodeURIComponent(assignmentId)}/submissions`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  updateSubmission: (submissionId: string, input: Record<string, unknown>) =>
+    apiRequest<AssignmentSubmission>(
+      `/learn/submissions/${encodeURIComponent(submissionId)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      },
+    ),
+  submitSubmission: (submissionId: string) =>
+    apiRequest<AssignmentSubmission>(
+      `/learn/submissions/${encodeURIComponent(submissionId)}/submit`,
+      { method: "POST" },
+    ),
+  submissionResult: (submissionId: string) =>
+    apiRequest<AssignmentSubmission>(
+      `/learn/submissions/${encodeURIComponent(submissionId)}/result`,
+    ),
+  certificates: () => apiRequest<Certificate[]>("/learn/certificates"),
+  certificate: (certificateId: string) =>
+    apiRequest<Certificate>(
+      `/learn/certificates/${encodeURIComponent(certificateId)}`,
+    ),
+  downloadCertificate: (certificateId: string) =>
+    apiRequest<{ url: string; expiresInSeconds: number }>(
+      `/learn/certificates/${encodeURIComponent(certificateId)}/download`,
+    ),
+  verifyCertificate: (verificationCode: string) =>
+    apiRequest<CertificateVerification>(
+      `/certificates/verify/${encodeURIComponent(verificationCode)}`,
+    ),
+  certificateTemplates: () =>
+    apiRequest<CertificateTemplate[]>("/admin/certificate-templates"),
+  createCertificateTemplate: (input: Record<string, unknown>) =>
+    apiRequest<CertificateTemplate>("/admin/certificate-templates", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateCertificateTemplate: (
+    templateId: string,
+    input: Record<string, unknown>,
+  ) =>
+    apiRequest<CertificateTemplate>(
+      `/admin/certificate-templates/${encodeURIComponent(templateId)}`,
+      { method: "PATCH", body: JSON.stringify(input) },
+    ),
+  courseCertificates: (courseId: string) =>
+    apiRequest<Certificate[]>(
+      `/instructor/courses/${encodeURIComponent(courseId)}/certificates`,
+    ),
+  issueCertificate: (courseId: string, input: Record<string, unknown>) =>
+    apiRequest<Certificate>(
+      `/instructor/courses/${encodeURIComponent(courseId)}/certificates/issue`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  revokeCertificate: (certificateId: string, reason?: string) =>
+    apiRequest<Certificate>(
+      `/instructor/certificates/${encodeURIComponent(certificateId)}/revoke`,
+      { method: "POST", body: JSON.stringify({ reason }) },
+    ),
+  regenerateCertificatePdf: (certificateId: string) =>
+    apiRequest<Certificate>(
+      `/instructor/certificates/${encodeURIComponent(certificateId)}/generate-pdf`,
+      { method: "POST" },
+    ),
+  downloadManagedCertificate: (certificateId: string) =>
+    apiRequest<{ url: string; expiresInSeconds: number }>(
+      `/instructor/certificates/${encodeURIComponent(certificateId)}/download`,
+    ),
+  learningGoals: () => apiRequest<LearningGoal[]>("/learn/goals"),
+  createLearningGoal: (input: Record<string, unknown>) =>
+    apiRequest<LearningGoal>("/learn/goals", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateLearningGoal: (goalId: string, input: Record<string, unknown>) =>
+    apiRequest<LearningGoal>(`/learn/goals/${encodeURIComponent(goalId)}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  discussionThreads: (courseId: string, context?: { lessonId?: string; activityId?: string }) => {
+    const query = new URLSearchParams({ courseId });
+    if (context?.lessonId) query.set("lessonId", context.lessonId);
+    if (context?.activityId) query.set("activityId", context.activityId);
+    return apiRequest<DiscussionThread[]>(`/discussions?${query}`);
+  },
+  discussionThread: (id: string) => apiRequest<DiscussionThread>(`/discussions/${encodeURIComponent(id)}`),
+  createDiscussionThread: (input: Record<string, unknown>) => apiRequest<DiscussionThread>("/discussions", { method: "POST", body: JSON.stringify(input) }),
+  createDiscussionReply: (id: string, input: Record<string, unknown>) => apiRequest(`/discussions/${encodeURIComponent(id)}/replies`, { method: "POST", body: JSON.stringify(input) }),
+  moderateDiscussionThread: (id: string, input: Record<string, unknown>) => apiRequest<DiscussionThread>(`/discussions/${encodeURIComponent(id)}/moderation`, { method: "PATCH", body: JSON.stringify(input) }),
+  reportDiscussionThread: (id: string, input: Record<string, unknown>) => apiRequest(`/discussions/${encodeURIComponent(id)}/report`, { method: "POST", body: JSON.stringify(input) }),
+  discussionReports: (courseId?: string) => apiRequest<DiscussionReport[]>(`/discussions/moderation/reports${courseId ? `?courseId=${encodeURIComponent(courseId)}` : ""}`),
+  resolveDiscussionReport: (id: string, input: Record<string, unknown>) => apiRequest(`/discussions/moderation/reports/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(input) }),
+  liveClasses: (courseId?: string) => apiRequest<LiveClass[]>(`/live-classes${courseId ? `?courseId=${encodeURIComponent(courseId)}` : ""}`),
+  createLiveClass: (input: Record<string, unknown>) => apiRequest<LiveClass>("/live-classes", { method: "POST", body: JSON.stringify(input) }),
+  updateLiveClass: (id: string, input: Record<string, unknown>) => apiRequest<LiveClass>(`/live-classes/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(input) }),
+  cancelLiveClass: (id: string) => apiRequest<LiveClass>(`/live-classes/${encodeURIComponent(id)}/cancel`, { method: "POST" }),
+  joinLiveClass: (id: string) => apiRequest<{ meetingUrl: string }>(`/live-classes/${encodeURIComponent(id)}/join`, { method: "POST" }),
+  notifications: () => apiRequest<InAppNotification[]>("/notifications"),
+  unreadNotificationCount: () => apiRequest<{ count: number }>("/notifications/unread-count"),
+  markNotificationRead: (id: string) => apiRequest(`/notifications/${encodeURIComponent(id)}/read`, { method: "PATCH" }),
+  markAllNotificationsRead: () => apiRequest<{ updated: number }>("/notifications/read-all", { method: "POST" }),
+  notificationPreferences: () => apiRequest<NotificationPreference>("/notifications/preferences"),
+  updateNotificationPreferences: (input: Record<string, unknown>) => apiRequest<NotificationPreference>("/notifications/preferences", { method: "PATCH", body: JSON.stringify(input) }),
+  calendarEvents: (input: { from: string; to: string; courseId?: string; type?: string }) => {
+    const query = new URLSearchParams({ from: input.from, to: input.to });
+    if (input.courseId) query.set("courseId", input.courseId);
+    if (input.type) query.set("type", input.type);
+    return apiRequest<CalendarEvent[]>(`/calendar/events?${query}`);
+  },
+  createCalendarEvent: (input: Record<string, unknown>) => apiRequest<CalendarEvent>("/calendar/events", { method: "POST", body: JSON.stringify(input) }),
+  updateCalendarEvent: (id: string, input: Record<string, unknown>) => apiRequest<CalendarEvent>(`/calendar/events/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(input) }),
+  deleteCalendarEvent: (id: string) => apiRequest(`/calendar/events/${encodeURIComponent(id)}`, { method: "DELETE" }),
 };

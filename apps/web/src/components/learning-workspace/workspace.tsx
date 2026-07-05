@@ -2,14 +2,14 @@
 
 import {
   Bot,
+  BookOpen,
   Bookmark,
+  Copy,
   CheckCircle2,
   ChevronDown,
   ChevronLeft,
-  Columns3,
   ExternalLink,
   FileText,
-  Info,
   ListChecks,
   PlayCircle,
   Maximize2,
@@ -17,17 +17,28 @@ import {
   MonitorUp,
   PanelRight,
   Search,
+  Send,
+  ShieldAlert,
   Sparkles,
   StickyNote,
   Subtitles,
+  ThumbsDown,
+  ThumbsUp,
+  X,
+  CalendarDays,
 } from "lucide-react";
-import type { ReactNode } from "react";
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { PluginActivityRenderer } from "../plugins/plugin-activity";
-import { StatusBadge } from "../ui/core";
+import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import {
+  isPracticeLabActivity,
+  PluginActivityRenderer,
+} from "../plugins/plugin-activity";
 import { ApiErrorState, EmptyState, LoadingState } from "../ui/states";
 import {
   useActivityContent,
+  useAiStatus,
+  useAskAiTutor,
   useCreateLearnerBookmark,
   useCreateLearnerNote,
   useDeleteLearnerBookmark,
@@ -42,8 +53,11 @@ import {
   useWorkspaceContext,
   useWorkspacePreferences,
 } from "../../lib/api-hooks";
+import { getSession, apiBaseUrl } from "../../lib/api-client";
+import { WorkspaceDiscussionPanel, WorkspaceUpcomingPanel } from "../engagement/engagement";
 import type {
   Activity,
+  AiTutorResponse,
   Course,
   LearnerBookmark,
   LearnerNote,
@@ -79,10 +93,38 @@ const panelTabs: Array<{
   { value: "resources", label: "Resources", icon: FileText },
   { value: "ai", label: "AI Tutor", icon: Bot },
   { value: "bookmarks", label: "Bookmarks", icon: Bookmark },
-  { value: "activity_info", label: "Info", icon: Info },
+  { value: "discussion", label: "Discussion", icon: MessageSquare },
+  { value: "upcoming", label: "Upcoming", icon: CalendarDays },
 ];
 
-function panelForLayout(layout: WorkspaceLayoutMode): WorkspacePanelMode | null {
+const RIGHT_PANEL_STORAGE_KEY = "lms.workspace.rightPanelWidth";
+const RIGHT_PANEL_DEFAULT_WIDTH = 560;
+const RIGHT_PANEL_MIN_WIDTH = 360;
+const RIGHT_PANEL_MAX_WIDTH = 920;
+const MAIN_PANEL_MIN_WIDTH = 520;
+const CURRICULUM_SIDEBAR_WIDTH = 280;
+
+export function clampRightPanelWidth(input: {
+  width: number;
+  viewportWidth: number;
+  sidebarCollapsed: boolean;
+  compact: boolean;
+}) {
+  if (input.compact) return input.width;
+  const sidebarWidth = input.sidebarCollapsed ? 0 : CURRICULUM_SIDEBAR_WIDTH;
+  const availableWidth = Math.max(input.viewportWidth - sidebarWidth, 0);
+  const maxByViewport = Math.max(280, availableWidth - MAIN_PANEL_MIN_WIDTH);
+  const minimum = Math.min(RIGHT_PANEL_MIN_WIDTH, maxByViewport);
+  const maximum = Math.max(
+    minimum,
+    Math.min(RIGHT_PANEL_MAX_WIDTH, maxByViewport),
+  );
+  return Math.round(Math.min(Math.max(input.width, minimum), maximum));
+}
+
+function panelForLayout(
+  layout: WorkspaceLayoutMode,
+): WorkspacePanelMode | null {
   if (layout === "split_video_transcript") return "transcript";
   if (layout === "split_content_notes") return "notes";
   if (layout === "split_content_ai") return "ai";
@@ -113,7 +155,16 @@ function activityKind(activity: Activity) {
   return "Activity";
 }
 
-function visiblePanelsForActivity(
+const panelsByActivityType: Record<string, WorkspacePanelMode[]> = {
+  "core.video": ["notes", "transcript", "resources", "ai", "bookmarks", "discussion", "upcoming"],
+  "core.text": ["notes", "resources", "ai", "discussion", "upcoming"],
+  "core.file": ["notes", "resources", "ai", "discussion", "upcoming"],
+  "core.link": ["notes", "resources", "ai", "discussion", "upcoming"],
+  "core.assignment": ["resources", "discussion", "upcoming"],
+  "core.quiz": ["upcoming"],
+};
+
+export function visiblePanelsForActivity(
   activity: Activity | null,
   availablePanels: Set<WorkspacePanelMode>,
   policy?: {
@@ -122,9 +173,16 @@ function visiblePanelsForActivity(
     allowTranscript?: boolean;
   },
 ) {
+  const supportedPanels = new Set(
+    activity
+      ? (panelsByActivityType[activity.activityTypeKey] ?? ["resources"])
+      : [],
+  );
   const base = panelTabs
     .map((panel) => panel.value)
-    .filter((panel) => availablePanels.has(panel));
+    .filter(
+      (panel) => availablePanels.has(panel) && supportedPanels.has(panel),
+    );
 
   return new Set(
     base.filter((panel) => {
@@ -193,6 +251,19 @@ export function LearningWorkspace({
   >({});
   const [localMessage, setLocalMessage] = useState<string | null>(null);
   const [isCompactViewport, setIsCompactViewport] = useState(false);
+  const [mobileSheetState, setMobileSheetState] = useState<"half" | "full">(
+    "half",
+  );
+  const [mobileSheetDragOffset, setMobileSheetDragOffset] = useState(0);
+  const [rightPanelWidth, setRightPanelWidth] = useState(() => {
+    if (typeof window === "undefined") return RIGHT_PANEL_DEFAULT_WIDTH;
+    const stored = Number(window.localStorage.getItem(RIGHT_PANEL_STORAGE_KEY));
+    return Number.isFinite(stored) ? stored : RIGHT_PANEL_DEFAULT_WIDTH;
+  });
+  const resizeStartRef = useRef<{ x: number; width: number } | null>(null);
+  const mobileSheetDragStartRef = useRef<number | null>(null);
+  const mobileSheetDidDragRef = useRef(false);
+  const mobileSheetDragOffsetRef = useRef(0);
   const updateVideoProgress = useUpdateVideoProgress();
 
   useEffect(() => {
@@ -202,6 +273,60 @@ export function LearningWorkspace({
     query.addEventListener("change", update);
     return () => query.removeEventListener("change", update);
   }, []);
+
+  useEffect(() => {
+    const clamp = () =>
+      setRightPanelWidth((current) =>
+        clampRightPanelWidth({
+          width: current,
+          viewportWidth: window.innerWidth,
+          sidebarCollapsed,
+          compact: isCompactViewport,
+        }),
+      );
+    clamp();
+    window.addEventListener("resize", clamp);
+    return () => window.removeEventListener("resize", clamp);
+  }, [isCompactViewport, sidebarCollapsed]);
+
+  useEffect(() => {
+    if (isCompactViewport) return;
+    window.localStorage.setItem(
+      RIGHT_PANEL_STORAGE_KEY,
+      String(rightPanelWidth),
+    );
+  }, [isCompactViewport, rightPanelWidth]);
+
+  useEffect(() => {
+    function onPointerMove(event: PointerEvent) {
+      if (!resizeStartRef.current) return;
+      const delta = event.clientX - resizeStartRef.current.x;
+      const nextWidth = resizeStartRef.current.width - delta;
+      setRightPanelWidth(
+        clampRightPanelWidth({
+          width: nextWidth,
+          viewportWidth: window.innerWidth,
+          sidebarCollapsed,
+          compact: isCompactViewport,
+        }),
+      );
+    }
+
+    function onPointerUp() {
+      resizeStartRef.current = null;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    }
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
+    };
+  }, [isCompactViewport, sidebarCollapsed]);
 
   useEffect(() => {
     const preferred = preferences.data?.preferredLayout ?? "standard";
@@ -215,16 +340,15 @@ export function LearningWorkspace({
         preferences.data?.rightPanelMode ??
         "notes",
     );
-    setSidebarCollapsed(
-      workspaceState.data?.sidebarCollapsed ??
-        (isCompactViewport ? true : preferences.data?.sidebarCollapsed ?? false),
-    );
+    setSidebarCollapsed(isCompactViewport);
     const defaultRightCollapsed =
       nextLayout === "standard" || nextLayout === "focus";
     setRightCollapsed(
-      workspaceState.data?.rightPanelCollapsed ??
-        preferences.data?.rightPanelCollapsed ??
-        defaultRightCollapsed,
+      isCompactViewport
+        ? true
+        : (workspaceState.data?.rightPanelCollapsed ??
+          preferences.data?.rightPanelCollapsed ??
+          defaultRightCollapsed),
     );
     setVideoTime(workspaceState.data?.lastVideoTimeSeconds ?? 0);
   }, [
@@ -259,7 +383,6 @@ export function LearningWorkspace({
       activityId: selectedActivityId,
       layout,
       rightPanelMode: rightPanel,
-      sidebarCollapsed,
       rightPanelCollapsed: rightCollapsed,
       lastVideoTimeSeconds: videoTime,
       ...patch,
@@ -274,17 +397,28 @@ export function LearningWorkspace({
     [workspaceContext.data?.availablePanels],
   );
   const availablePanels = useMemo(
-    () => visiblePanelsForActivity(selectedActivity, rawAvailablePanels, policy),
+    () =>
+      visiblePanelsForActivity(selectedActivity, rawAvailablePanels, policy),
     [policy, rawAvailablePanels, selectedActivity],
+  );
+  const practiceLabActivity = activityContent.data
+    ? isPracticeLabActivity(activityContent.data)
+    : false;
+  const disabledPanels = useMemo(
+    () =>
+      practiceLabActivity
+        ? new Set<WorkspacePanelMode>(["ai"])
+        : new Set<WorkspacePanelMode>(),
+    [practiceLabActivity],
   );
 
   useEffect(() => {
-    if (availablePanels.has(rightPanel)) return;
-    const nextPanel = availablePanels.values().next().value as
-      | WorkspacePanelMode
-      | undefined;
+    if (availablePanels.has(rightPanel) && !disabledPanels.has(rightPanel)) return;
+    const nextPanel = Array.from(availablePanels).find(
+      (panel) => !disabledPanels.has(panel),
+    );
     if (nextPanel) setRightPanel(nextPanel);
-  }, [availablePanels, rightPanel]);
+  }, [availablePanels, disabledPanels, rightPanel]);
 
   async function changeLayout(next: WorkspaceLayoutMode) {
     const policyLayout = policy?.requireFocusMode ? "focus" : next;
@@ -315,15 +449,63 @@ export function LearningWorkspace({
   }
 
   async function changePanel(next: WorkspacePanelMode) {
+    if (disabledPanels.has(next)) return;
     setRightPanel(next);
     setRightCollapsed(false);
+    if (isCompactViewport) {
+      setMobileSheetState("half");
+      setMobileSheetDragOffset(0);
+      mobileSheetDragOffsetRef.current = 0;
+      return;
+    }
     await updatePreferences({ rightPanelMode: next }).catch(() => undefined);
     await persistState({ rightPanelMode: next, rightPanelCollapsed: false });
   }
 
+  function closeMobilePanel() {
+    setRightCollapsed(true);
+    setMobileSheetState("half");
+    setMobileSheetDragOffset(0);
+    mobileSheetDragOffsetRef.current = 0;
+  }
+
+  function startMobileSheetDrag(event: ReactPointerEvent<HTMLButtonElement>) {
+    mobileSheetDragStartRef.current = event.clientY;
+    mobileSheetDidDragRef.current = false;
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function moveMobileSheetDrag(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (mobileSheetDragStartRef.current === null) return;
+    const delta = event.clientY - mobileSheetDragStartRef.current;
+    if (Math.abs(delta) > 5) mobileSheetDidDragRef.current = true;
+    const nextOffset = Math.max(-360, Math.min(360, delta));
+    mobileSheetDragOffsetRef.current = nextOffset;
+    setMobileSheetDragOffset(nextOffset);
+  }
+
+  function finishMobileSheetDrag() {
+    const delta = mobileSheetDragOffsetRef.current;
+    mobileSheetDragStartRef.current = null;
+    mobileSheetDragOffsetRef.current = 0;
+    setMobileSheetDragOffset(0);
+
+    if (delta < -56) {
+      setMobileSheetState("full");
+      return;
+    }
+    if (delta > 96 && mobileSheetState === "half") {
+      closeMobilePanel();
+      return;
+    }
+    if (delta > 56) setMobileSheetState("half");
+  }
+
   async function completeCurrentActivity() {
     if (selectedActivityId) {
-      setLocallyCompletedIds((current) => new Set(current).add(selectedActivityId));
+      setLocallyCompletedIds((current) =>
+        new Set(current).add(selectedActivityId),
+      );
     }
     await onCompleteActivity();
   }
@@ -383,40 +565,34 @@ export function LearningWorkspace({
     }
     return ids;
   }, [locallyCompletedIds, progressByActivityId]);
-  const orderedActivities = useMemo(() => flattenCourseActivities(course), [course]);
+  const orderedActivities = useMemo(
+    () => flattenCourseActivities(course),
+    [course],
+  );
   const selectedActivityIndex = orderedActivities.findIndex(
     (item) => item.activity.id === selectedActivityId,
   );
   const nextActivity =
     selectedActivityIndex >= 0
-      ? orderedActivities[selectedActivityIndex + 1]?.activity ?? null
+      ? (orderedActivities[selectedActivityIndex + 1]?.activity ?? null)
       : null;
   const selectedCompleted = selectedActivityId
     ? completedActivityIds.has(selectedActivityId)
     : false;
-  const isTheatre = layout === "theatre" || layout === "picture_in_picture_video";
+  const isTheatre =
+    layout === "theatre" || layout === "picture_in_picture_video";
   const isFocus = layout === "focus";
-  const showRightPanel = !rightCollapsed && !isFocus;
+  const showRightPanel =
+    !rightCollapsed && !isFocus && availablePanels.size > 0;
   const shellClass = [
-    "min-h-[calc(100vh-8rem)] min-h-0 overflow-hidden rounded-lg border border-border bg-background shadow-subtle",
+    "flex flex-col h-[calc(100dvh-8rem)] lg:h-[calc(100vh-8rem)] overflow-hidden rounded-lg border border-border bg-background shadow-subtle",
     isTheatre ? "bg-foreground text-background" : "",
   ].join(" ");
-  const gridClass = isFocus
-    ? "grid min-h-0 flex-1 grid-cols-1"
-    : sidebarCollapsed
-      ? showRightPanel
-        ? "grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px]"
-        : "grid min-h-0 flex-1 grid-cols-1"
-      : showRightPanel
-        ? "grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[280px_minmax(0,1fr)_340px]"
-        : "grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[280px_minmax(0,1fr)]";
-
   return (
     <section className={shellClass}>
       <LearningTopbar
         activity={selectedActivity}
-        layout={layout}
-        onLayoutChange={changeLayout}
+        hasPanels={availablePanels.size > 0}
         onToggleRight={() => {
           const next = !rightCollapsed;
           setRightCollapsed(next);
@@ -426,48 +602,154 @@ export function LearningWorkspace({
         onToggleSidebar={() => {
           const next = !sidebarCollapsed;
           setSidebarCollapsed(next);
-          void updatePreferences({ sidebarCollapsed: next });
-          void persistState({ sidebarCollapsed: next });
         }}
-        policy={policy}
       />
-      <div className={[gridClass, "min-h-0"].join(" ")}>
+      <div className={`min-h-0 flex-1 overflow-hidden bg-muted/30 ${isCompactViewport ? "flex flex-col" : "flex flex-row"}`}>
         {!sidebarCollapsed && !isFocus ? (
-          <CurriculumSidebar
-            course={course}
-            completedActivityIds={completedActivityIds}
-            selectedActivityId={selectedActivityId}
-            onSelectActivity={onSelectActivity}
-          />
+          <div
+            className="flex flex-col shrink-0 border-r border-border bg-card"
+            style={{ width: CURRICULUM_SIDEBAR_WIDTH }}
+          >
+            <CurriculumSidebar
+              course={course}
+              completedActivityIds={completedActivityIds}
+              selectedActivityId={selectedActivityId}
+              onSelectActivity={onSelectActivity}
+            />
+          </div>
         ) : null}
-        <ActivityMainPanel
-          actionMessage={actionMessage}
-          activity={selectedActivity}
-          contentState={activityContent}
-          isCompleted={selectedCompleted}
-          localMessage={localMessage}
-          nextActivity={nextActivity}
-          onRequestPictureInPicture={requestPictureInPicture}
-          onCompleteActivity={completeCurrentActivity}
-          onNextActivity={() => {
-            if (!nextActivity) return;
-            setLocalMessage(null);
-            onSelectActivity(nextActivity.id);
-          }}
-          onVideoProgress={onVideoProgress}
-        />
-        {showRightPanel ? (
-          <LearningRightPanel
-            activity={selectedActivity}
-            course={course}
-            lesson={lesson}
-            panel={rightPanel}
-            availablePanels={availablePanels}
-            onPanelChange={changePanel}
-            policy={policy}
-            videoTime={videoTime}
-          />
-        ) : null}
+        <div className="relative flex-1 min-w-0 min-h-0 overflow-hidden bg-muted/30">
+          <div
+            className={`flex h-full w-full min-w-0 min-h-0 ${isCompactViewport ? "flex-col" : "flex-row"}`}
+          >
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+              <ActivityMainPanel
+                actionMessage={actionMessage}
+                activity={selectedActivity}
+                contentState={activityContent}
+                isCompleted={selectedCompleted}
+                localMessage={localMessage}
+                nextActivity={nextActivity}
+                onRequestPictureInPicture={requestPictureInPicture}
+                onCompleteActivity={completeCurrentActivity}
+                onNextActivity={() => {
+                  if (!nextActivity) return;
+                  setLocalMessage(null);
+                  onSelectActivity(nextActivity.id);
+                }}
+                onVideoProgress={onVideoProgress}
+              />
+            </div>
+            {showRightPanel && !isCompactViewport ? (
+              <>
+                <button
+                  aria-label="Resize learning panel"
+                  className={[
+                    "shrink-0 bg-border transition-colors hover:bg-primary/50 focus:outline-none focus:ring-2 focus:ring-ring",
+                    "h-full w-1.5 cursor-col-resize",
+                  ].join(" ")}
+                  onPointerDown={(event) => {
+                    resizeStartRef.current = {
+                      x: event.clientX,
+                      width: rightPanelWidth,
+                    };
+                    document.body.style.cursor = "col-resize";
+                    document.body.style.userSelect = "none";
+                  }}
+                  title="Drag to resize learning panel"
+                  type="button"
+                />
+                <div
+                  className="flex min-h-0 min-w-0 shrink-0 flex-col overflow-hidden"
+                  style={
+                    { width: rightPanelWidth }
+                  }
+                >
+                  <LearningRightPanel
+                    activity={selectedActivity}
+                    disabledPanels={disabledPanels}
+                    course={course}
+                    lesson={lesson}
+                    panel={rightPanel}
+                    availablePanels={availablePanels}
+                    onPanelChange={changePanel}
+                    policy={policy}
+                    videoTime={videoTime}
+                  />
+                </div>
+              </>
+            ) : null}
+          </div>
+          {isCompactViewport && !isFocus ? (
+            <>
+              {showRightPanel ? (
+                <div
+                  className={[
+                    "fixed inset-x-0 z-[70] flex min-h-0 flex-col overflow-hidden border border-border bg-card shadow-xl transition-[height] duration-200",
+                    mobileSheetState === "full"
+                      ? "bottom-0 rounded-none"
+                      : "bottom-0 rounded-t-lg",
+                  ].join(" ")}
+                  style={{
+                    height:
+                      mobileSheetState === "full"
+                        ? `calc(100dvh - ${mobileSheetDragOffset}px)`
+                        : `calc(48dvh - ${mobileSheetDragOffset}px)`,
+                  }}
+                >
+                  <button
+                    aria-label={mobileSheetState === "full" ? "Collapse panel" : "Expand panel"}
+                    className="flex h-7 w-full shrink-0 touch-none cursor-ns-resize items-center justify-center"
+                    onClick={() => {
+                      if (mobileSheetDidDragRef.current) {
+                        mobileSheetDidDragRef.current = false;
+                        return;
+                      }
+                      setMobileSheetState((current) =>
+                        current === "full" ? "half" : "full",
+                      );
+                    }}
+                    onPointerCancel={finishMobileSheetDrag}
+                    onPointerDown={startMobileSheetDrag}
+                    onPointerMove={moveMobileSheetDrag}
+                    onPointerUp={finishMobileSheetDrag}
+                    type="button"
+                  >
+                    <span className="h-1 w-10 rounded-full bg-border" />
+                  </button>
+                  <div className="absolute right-2 top-1 z-10">
+                    <button
+                      aria-label="Close learning panel"
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                      onClick={closeMobilePanel}
+                      type="button"
+                    >
+                      <X aria-hidden="true" className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <LearningRightPanel
+                    activity={selectedActivity}
+                    course={course}
+                    disabledPanels={disabledPanels}
+                    hideTabs
+                    lesson={lesson}
+                    panel={rightPanel}
+                    availablePanels={availablePanels}
+                    onPanelChange={changePanel}
+                    policy={policy}
+                    videoTime={videoTime}
+                  />
+                </div>
+              ) : null}
+              <MobileWorkspaceDock
+                availablePanels={availablePanels}
+                disabledPanels={disabledPanels}
+                onPanelChange={changePanel}
+                value={showRightPanel ? rightPanel : null}
+              />
+            </>
+          ) : null}
+        </div>
       </div>
     </section>
   );
@@ -475,16 +757,12 @@ export function LearningWorkspace({
 
 export function LearningTopbar({
   activity,
-  layout,
-  policy,
-  onLayoutChange,
+  hasPanels,
   onToggleSidebar,
   onToggleRight,
 }: {
   activity: Activity | null;
-  layout: WorkspaceLayoutMode;
-  policy?: { allowDualWindow: boolean; allowPopout: boolean };
-  onLayoutChange: (layout: WorkspaceLayoutMode) => void;
+  hasPanels: boolean;
   onToggleSidebar: () => void;
   onToggleRight: () => void;
 }) {
@@ -508,46 +786,19 @@ export function LearningTopbar({
           <ChevronLeft aria-hidden="true" className="h-4 w-4" />
           Curriculum
         </button>
-        <WorkspaceLayoutSwitcher value={layout} onChange={onLayoutChange} />
-        <button
-          className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-border bg-background px-3 text-xs font-semibold whitespace-nowrap hover:bg-muted"
-          onClick={onToggleRight}
-          title="Show or hide learning panel"
-          type="button"
-        >
-          <PanelRight aria-hidden="true" className="h-4 w-4" />
-          Right panel
-        </button>
-        {policy?.allowDualWindow !== false ? (
-          <DualWindowToggle layout={layout} onLayoutChange={onLayoutChange} />
+        {hasPanels ? (
+          <button
+            className="hidden h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-border bg-background px-3 text-xs font-semibold whitespace-nowrap hover:bg-muted md:inline-flex"
+            onClick={onToggleRight}
+            title="Show or hide learning panel"
+            type="button"
+          >
+            <PanelRight aria-hidden="true" className="h-4 w-4" />
+            Right panel
+          </button>
         ) : null}
       </div>
     </div>
-  );
-}
-
-export function WorkspaceLayoutSwitcher({
-  value,
-  onChange,
-}: {
-  value: WorkspaceLayoutMode;
-  onChange: (value: WorkspaceLayoutMode) => void;
-}) {
-  return (
-    <label className="inline-flex min-w-0 shrink-0 items-center gap-2 text-xs font-semibold whitespace-nowrap">
-      <Columns3 aria-hidden="true" className="h-4 w-4 text-muted-foreground" />
-      <select
-        className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-xs outline-none focus:ring-2 focus:ring-ring sm:w-44"
-        value={value}
-        onChange={(event) => onChange(event.target.value as WorkspaceLayoutMode)}
-      >
-        {workspaceLayouts.map((layout) => (
-          <option key={layout.value} value={layout.value}>
-            {layout.label}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }
 
@@ -585,25 +836,6 @@ export function TheatreModeToggle({
     >
       <MonitorUp aria-hidden="true" className="h-4 w-4" />
       {active ? "Exit theatre" : "Theatre"}
-    </button>
-  );
-}
-
-export function DualWindowToggle({
-  layout,
-  onLayoutChange,
-}: {
-  layout: WorkspaceLayoutMode;
-  onLayoutChange: (layout: WorkspaceLayoutMode) => void;
-}) {
-  return (
-    <button
-      className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md border border-border bg-background px-3 text-xs font-semibold whitespace-nowrap hover:bg-muted"
-      onClick={() => onLayoutChange(layout === "dual_window" ? "standard" : "dual_window")}
-      type="button"
-    >
-      <MonitorUp aria-hidden="true" className="h-4 w-4" />
-      Dual
     </button>
   );
 }
@@ -667,8 +899,8 @@ export function CurriculumSidebar({
   }
 
   return (
-    <aside className="flex min-h-0 flex-col border-r border-border bg-card/70 max-xl:max-h-[42vh] max-xl:border-b max-xl:border-r-0 xl:max-h-none">
-      <div className="border-b border-border p-4">
+    <aside className="flex h-full min-h-0 flex-col border-r border-border bg-card max-xl:max-h-[42vh] max-xl:border-b max-xl:border-r-0 xl:max-h-none">
+      <div className="shrink-0 border-b border-border bg-card p-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Curriculum
         </p>
@@ -676,7 +908,7 @@ export function CurriculumSidebar({
           {course.title}
         </h3>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className="min-h-0 flex-1 overflow-auto bg-card">
         {modules.map((entry, index) => {
           const { module, activities } = entry;
           const completedCount = activities.filter((activity) =>
@@ -779,7 +1011,9 @@ function CurriculumActivityRow({
             : "border-border bg-background text-transparent",
         ].join(" ")}
       >
-        <CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5" />
+        {isCompleted && (
+          <CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5" />
+        )}
       </span>
       <span className="min-w-0">
         <span className="block truncate text-sm font-medium">
@@ -817,9 +1051,17 @@ export function ActivityMainPanel({
   nextActivity: Activity | null;
 }) {
   const message = localMessage ?? actionMessage;
+  const [labLaunched, setLabLaunched] = useState(false);
+  const practiceLab = contentState.data
+    ? isPracticeLabActivity(contentState.data)
+    : false;
+
+  useEffect(() => {
+    setLabLaunched(false);
+  }, [activity?.id]);
 
   return (
-    <main className="min-w-0 min-h-0 overflow-auto bg-muted/30 p-3 sm:p-4 lg:p-8">
+    <main className="min-w-0 min-h-0 overflow-auto bg-muted/30 p-3 sm:p-4 lg:p-6">
       {!activity ? (
         <EmptyState
           title="No activity selected"
@@ -834,14 +1076,16 @@ export function ActivityMainPanel({
         />
       ) : (
         <>
-          <div className="mx-auto max-w-4xl">
+          <div className="w-full">
             <PluginActivityRenderer
+              onLabLaunchStateChange={setLabLaunched}
               onRequestPictureInPicture={onRequestPictureInPicture}
               onVideoProgress={onVideoProgress}
               response={contentState.data}
             />
           </div>
-          <div className="mx-auto mt-5 flex max-w-4xl flex-col gap-3 rounded-md border border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
+          {!practiceLab || labLaunched ? (
+          <div className="mt-5 flex w-full flex-col gap-3 rounded-md border border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <p className="text-sm font-semibold">
                 {isCompleted ? "Section complete" : "Ready when you are"}
@@ -881,6 +1125,7 @@ export function ActivityMainPanel({
               ) : null}
             </div>
           </div>
+          ) : null}
         </>
       )}
     </main>
@@ -896,6 +1141,8 @@ export function LearningRightPanel({
   policy,
   videoTime,
   onPanelChange,
+  hideTabs,
+  disabledPanels,
 }: {
   course: Course;
   lesson: Lesson;
@@ -905,16 +1152,21 @@ export function LearningRightPanel({
   policy?: { allowPopout: boolean };
   videoTime: number;
   onPanelChange: (panel: WorkspacePanelMode) => void;
+  hideTabs?: boolean;
+  disabledPanels?: Set<WorkspacePanelMode>;
 }) {
   return (
-    <aside className="border-l border-border bg-card/90 flex min-h-0 flex-col">
-      <div className="border-b border-border px-4 py-3">
-        <WorkspacePanelTabs
-          value={panel}
-          availablePanels={availablePanels}
-          onChange={onPanelChange}
-        />
-      </div>
+    <aside className="w-full h-full border-l border-border bg-card/90 flex flex-col overflow-hidden">
+      {!hideTabs ? (
+        <div className="border-b border-border px-4 py-3 shrink-0">
+          <WorkspacePanelTabs
+            value={panel}
+            availablePanels={availablePanels}
+            disabledPanels={disabledPanels}
+            onChange={onPanelChange}
+          />
+        </div>
+      ) : null}
       <WorkspacePanelContainer>
         {activity ? (
           <PluginWorkspacePanelRenderer
@@ -936,14 +1188,63 @@ export function LearningRightPanel({
   );
 }
 
+function MobileWorkspaceDock({
+  value,
+  availablePanels,
+  disabledPanels,
+  onPanelChange,
+}: {
+  value: WorkspacePanelMode | null;
+  availablePanels: Set<WorkspacePanelMode>;
+  disabledPanels: Set<WorkspacePanelMode>;
+  onPanelChange: (panel: WorkspacePanelMode) => void;
+}) {
+  return (
+    <nav
+      aria-label="Learning tools"
+      className="absolute inset-x-0 bottom-0 z-40 flex h-14 items-stretch overflow-x-auto border-t border-border bg-card"
+    >
+      {panelTabs
+        .filter((tab) => availablePanels.has(tab.value))
+        .map((tab) => {
+          const Icon = tab.icon;
+          const active = value === tab.value;
+          const disabled = disabledPanels.has(tab.value);
+          return (
+            <button
+              aria-pressed={active}
+              className={[
+                "flex min-w-24 flex-1 flex-col items-center justify-center gap-1 px-3 text-[11px] font-semibold",
+                disabled
+                  ? "cursor-not-allowed text-muted-foreground/40"
+                  : active
+                    ? "text-primary"
+                    : "text-muted-foreground",
+              ].join(" ")}
+              disabled={disabled}
+              key={tab.value}
+              onClick={() => onPanelChange(tab.value)}
+              type="button"
+            >
+              <Icon aria-hidden="true" className="h-4 w-4" />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
+    </nav>
+  );
+}
+
 export function WorkspacePanelTabs({
   value,
   availablePanels,
+  disabledPanels,
   compact,
   onChange,
 }: {
   value: WorkspacePanelMode;
   availablePanels?: Set<WorkspacePanelMode>;
+  disabledPanels?: Set<WorkspacePanelMode>;
   compact?: boolean;
   onChange: (panel: WorkspacePanelMode) => void;
 }) {
@@ -954,15 +1255,19 @@ export function WorkspacePanelTabs({
         .map((tab) => {
           const Icon = tab.icon;
           const active = value === tab.value;
+          const disabled = disabledPanels?.has(tab.value) ?? false;
           return (
             <button
               key={tab.value}
               className={[
                 "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2 text-xs font-semibold whitespace-nowrap transition",
-                active
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                disabled
+                  ? "cursor-not-allowed text-muted-foreground/35"
+                  : active
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
               ].join(" ")}
+              disabled={disabled}
               onClick={() => onChange(tab.value)}
               title={tab.label}
               type="button"
@@ -981,7 +1286,7 @@ export function WorkspacePanelTabs({
 }
 
 export function WorkspacePanelContainer({ children }: { children: ReactNode }) {
-  return <div className="min-h-0 flex-1 overflow-auto p-4">{children}</div>;
+  return <div className="min-h-0 flex-1 flex flex-col overflow-hidden">{children}</div>;
 }
 
 export const PluginWorkspacePanelRegistry = {
@@ -1007,10 +1312,10 @@ export function PluginWorkspacePanelRenderer(props: {
   if (props.panel === "notes") return <NotesPanel {...props} />;
   if (props.panel === "transcript") return <TranscriptPanel {...props} />;
   if (props.panel === "resources") return <ResourcesPanel {...props} />;
-  if (props.panel === "ai") return <AiTutorPanelPlaceholder {...props} />;
+  if (props.panel === "ai") return <AiTutorPanel {...props} />;
   if (props.panel === "bookmarks") return <BookmarksPanel {...props} />;
-  if (props.panel === "activity_info") return <ActivityInfoPanel {...props} />;
-  if (props.panel === "discussion") return <DiscussionPanelPlaceholder />;
+  if (props.panel === "discussion") return <DiscussionPanel course={props.course} lesson={props.lesson} activity={props.activity} />;
+  if (props.panel === "upcoming") return <WorkspaceUpcomingPanel courseId={props.course.id} />;
   if (props.panel === "flashcards") return <FlashcardPanelPlaceholder />;
   return <UnknownWorkspacePanelFallback panel={props.panel} />;
 }
@@ -1048,7 +1353,8 @@ export function NotesPanel({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const content = String(form.get("content") ?? "").trim();
     if (!content) return;
     setSaving(true);
@@ -1060,7 +1366,7 @@ export function NotesPanel({
         content,
         videoTimeSeconds: Math.round(videoTime),
       });
-      event.currentTarget.reset();
+      formElement.reset();
       await notes.reload();
     } finally {
       setSaving(false);
@@ -1223,7 +1529,10 @@ export function TranscriptPanel({
       title="Transcript"
     >
       <TranscriptSearch value={search} onChange={setSearch} />
-      <VideoTranscriptSync currentTime={videoTime} segments={transcript.data ?? []} />
+      <VideoTranscriptSync
+        currentTime={videoTime}
+        segments={transcript.data ?? []}
+      />
       {transcript.loading ? (
         <LoadingState title="Loading transcript" />
       ) : transcript.error ? (
@@ -1318,14 +1627,38 @@ export function ResourcesPanel({ activity }: { activity: Activity }) {
     >
       {resources.length ? (
         <div className="space-y-2">
-          {resources.map((resource, index) => (
-            <pre
-              key={index}
-              className="overflow-auto rounded-md border border-border bg-muted p-3 text-xs"
-            >
-              {JSON.stringify(resource, null, 2)}
-            </pre>
-          ))}
+          {resources.map((resource, index) => {
+            const item =
+              resource && typeof resource === "object" && !Array.isArray(resource)
+                ? (resource as Record<string, unknown>)
+                : {};
+            const url = typeof item.url === "string" ? item.url : null;
+            const label =
+              typeof item.label === "string"
+                ? item.label
+                : typeof item.title === "string"
+                  ? item.title
+                  : `Resource ${index + 1}`;
+            return url ? (
+              <a
+                className="flex min-h-11 items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2 text-sm font-semibold hover:border-primary/40 hover:bg-muted"
+                href={url}
+                key={`${url}-${index}`}
+                rel="noreferrer"
+                target="_blank"
+              >
+                <span className="truncate">{label}</span>
+                <ExternalLink aria-hidden="true" className="h-4 w-4 shrink-0 text-muted-foreground" />
+              </a>
+            ) : (
+              <div
+                className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm"
+                key={index}
+              >
+                {label}
+              </div>
+            );
+          })}
         </div>
       ) : (
         <EmptyState
@@ -1337,7 +1670,7 @@ export function ResourcesPanel({ activity }: { activity: Activity }) {
   );
 }
 
-export function AiTutorPanelPlaceholder({
+export function AiTutorPanel({
   course,
   lesson,
   activity,
@@ -1348,50 +1681,440 @@ export function AiTutorPanelPlaceholder({
   activity: Activity;
   videoTime: number;
 }) {
+  const status = useAiStatus();
+  const askTutor = useAskAiTutor();
+  const [conversationId, setConversationId] = useState<string | undefined>();
+  const [history, setHistory] = useState<
+    Array<{ question: string; response: AiTutorResponse }>
+  >([]);
+  const [question, setQuestion] = useState("");
+  const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setConversationId(undefined);
+    setHistory([]);
+    setQuestion("");
+    setPendingQuestion(null);
+    setError(null);
+  }, [activity.id]);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [history, sending]);
+
+  async function submitFeedback(messageId: string, feedback: "LIKE" | "DISLIKE") {
+    if (!messageId) return;
+    try {
+      const session = getSession();
+      await fetch(`${apiBaseUrl()}/learn/ai/messages/${messageId}/feedback`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.accessToken}`,
+        },
+        body: JSON.stringify({ feedback }),
+      });
+      // Optionally update local state to reflect feedback
+    } catch {
+      // Ignore errors for feedback
+    }
+  }
+
+  function handleCopy(text: string) {
+    navigator.clipboard.writeText(text).catch(() => undefined);
+  }
+
+  async function askTutorWithoutStream(trimmed: string) {
+    const result = await askTutor({
+      courseId: course.id,
+      lessonId: lesson.id,
+      activityId: activity.id,
+      question: trimmed,
+      conversationId,
+    });
+    setHistory((current) => [
+      ...current,
+      { question: trimmed, response: result },
+    ]);
+    setConversationId(result.conversationId);
+  }
+
+  async function fallbackToNonStreaming(trimmed: string, cause: unknown) {
+    try {
+      await askTutorWithoutStream(trimmed);
+    } catch {
+      const message =
+        cause instanceof Error && cause.message
+          ? cause.message
+          : "AI Tutor could not answer.";
+      throw new Error(message);
+    }
+  }
+
+  async function send(nextQuestion: string) {
+    const trimmed = nextQuestion.trim();
+    if (!trimmed || sending || status.data?.enabled === false) return;
+    setSending(true);
+    setPendingQuestion(trimmed);
+    setError(null);
+    setQuestion("");
+    let delivered = false;
+
+    try {
+      const session = getSession();
+      const response = await fetch(`${apiBaseUrl()}/learn/ai/tutor/stream`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.accessToken}`,
+        },
+        body: JSON.stringify({
+          courseId: course.id,
+          lessonId: lesson.id,
+          activityId: activity.id,
+          question: trimmed,
+          conversationId,
+        }),
+      });
+
+      if (!response.ok) {
+        let message = "AI Tutor request failed.";
+        try {
+          const body = await response.json();
+          message = body?.error?.message ?? body?.message ?? message;
+        } catch {
+          message =
+            response.status === 429
+              ? "AI Tutor is receiving too many requests. Please wait a moment."
+              : response.status >= 500
+                ? "AI Tutor provider is temporarily unavailable."
+                : message;
+        }
+        await fallbackToNonStreaming(trimmed, new Error(message));
+        return;
+      }
+      if (!response.body) {
+        await fallbackToNonStreaming(
+          trimmed,
+          new Error("AI Tutor stream is unavailable."),
+        );
+        return;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let streamBuffer = "";
+      let streamedAnswer = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) {
+          streamBuffer += decoder.decode();
+          break;
+        }
+
+        streamBuffer += decoder.decode(value, { stream: true });
+        const events = streamBuffer.split("\n\n");
+        streamBuffer = events.pop() ?? "";
+        
+        for (const event of events) {
+          const data = event
+            .split("\n")
+            .map((line) => line.trim())
+            .filter((line) => line.startsWith("data: "))
+            .map((line) => line.replace(/^data: /, ""))
+            .join("\n")
+            .trim();
+          if (!data) continue;
+          if (data === "[DONE]") break;
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.type === "chunk") {
+              streamedAnswer += parsed.text;
+            } else if (parsed.type === "done") {
+              const result = {
+                ...parsed.result,
+                answer: parsed.result.answer || streamedAnswer,
+              };
+              setHistory((current) => [
+                ...current,
+                { question: trimmed, response: result },
+              ]);
+              delivered = true;
+              setConversationId(parsed.result.conversationId);
+            } else if (parsed.type === "error") {
+              throw new Error(parsed.message);
+            }
+          } catch (e) {
+            throw new Error(
+              e instanceof Error ? e.message : "AI Tutor stream failed.",
+            );
+          }
+        }
+      }
+    } catch (caught) {
+      if (!delivered) {
+        try {
+          await fallbackToNonStreaming(trimmed, caught);
+          delivered = true;
+        } catch (fallbackError) {
+          setError(
+            fallbackError instanceof Error
+              ? fallbackError.message
+              : "AI Tutor could not answer. Please try again.",
+          );
+        }
+      }
+    } finally {
+      setSending(false);
+      setPendingQuestion(null);
+    }
+  }
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void send(question);
+  }
+
+  const latest = history.at(-1)?.response;
+
   return (
     <PanelFrame
       icon={<Sparkles aria-hidden="true" className="h-5 w-5 text-primary" />}
       title="AI Tutor"
+      scrollable={false}
     >
-      <div className="rounded-md border border-border bg-muted p-3 text-sm">
-        <p className="font-semibold">Context prepared</p>
-        <dl className="mt-3 space-y-2 text-muted-foreground">
-          <div>
-            <dt className="font-medium text-foreground">Course</dt>
-            <dd>{course.title}</dd>
+      {status.loading ? (
+        <LoadingState title="Checking AI Tutor" />
+      ) : status.error ? (
+        <ApiErrorState
+          error={status.error}
+          fallbackTitle="AI Tutor status unavailable"
+        />
+      ) : status.data?.enabled === false ? (
+        <EmptyState
+          title="AI Tutor is disabled"
+          description={
+            status.data.disabledReason ??
+            "Your organization has disabled AI assistance."
+          }
+        />
+      ) : (
+        <div className="flex min-h-0 flex-1 flex-col gap-4">
+          <div className="shrink-0 rounded-md border border-border bg-muted/60 p-3 text-xs text-muted-foreground">
+            <p className="font-semibold text-foreground">{course.title}</p>
+            <p className="mt-1 truncate">
+              {lesson.title} / {activity.title}
+            </p>
+            {videoTime > 0 ? (
+              <p className="mt-1">At {formatTimestamp(videoTime)}</p>
+            ) : null}
           </div>
-          <div>
-            <dt className="font-medium text-foreground">Lesson</dt>
-            <dd>{lesson.title}</dd>
+
+          <div aria-live="polite" className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-2">
+            {!history.length ? (
+              <EmptyState
+                title="Ask about this material"
+                description="Answers use accessible course material first, with clearly labeled general educational fallback."
+              />
+            ) : (
+              history.map((entry, index) => (
+                <div key={`${entry.question}-${index}`} className="space-y-2">
+                  <div className="ml-6 rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground">
+                    {entry.question}
+                  </div>
+                  <article className="rounded-md border border-border bg-background p-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {entry.response.sourceType === "COURSE_MATERIAL" ? (
+                        <BookOpen
+                          aria-hidden="true"
+                          className="h-4 w-4 text-primary"
+                        />
+                      ) : entry.response.sourceType === "BLOCKED" ||
+                        entry.response.sourceType === "OUT_OF_SCOPE" ? (
+                        <ShieldAlert
+                          aria-hidden="true"
+                          className="h-4 w-4 text-warning"
+                        />
+                      ) : (
+                        <Sparkles
+                          aria-hidden="true"
+                          className="h-4 w-4 text-primary"
+                        />
+                      )}
+                      <span className="text-xs font-semibold">
+                        {entry.response.sourceLabel}
+                      </span>
+                      {entry.response.cacheHit ? (
+                        <span className="text-xs text-muted-foreground">
+                          Cached
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="mt-3 text-sm leading-6">
+                      <ReactMarkdown
+                        components={{
+                          p: ({ node: _, ...props }) => <p className="mb-2 last:mb-0" {...props} />,
+                          strong: ({ node: _, ...props }) => <strong className="font-semibold text-foreground" {...props} />,
+                          ul: ({ node: _, ...props }) => <ul className="mb-3 list-inside list-disc space-y-1" {...props} />,
+                          ol: ({ node: _, ...props }) => <ol className="mb-3 list-inside list-decimal space-y-1" {...props} />,
+                          li: ({ node: _, ...props }) => <li {...props} />,
+                          h1: ({ node: _, ...props }) => <h1 className="mb-2 mt-4 font-bold text-foreground" {...props} />,
+                          h2: ({ node: _, ...props }) => <h2 className="mb-2 mt-3 font-semibold text-foreground" {...props} />,
+                          h3: ({ node: _, ...props }) => <h3 className="mb-2 mt-3 font-medium text-foreground" {...props} />,
+                          h4: ({ node: _, ...props }) => <h4 className="mb-2 mt-3 font-medium text-foreground" {...props} />,
+                          code: ({ node: _, className, ...props }) => {
+                            const isInline = !className?.includes('language-');
+                            return isInline ? (
+                              <code className="rounded bg-muted px-1.5 py-0.5 text-xs text-foreground" {...props} />
+                            ) : (
+                              <code className={className} {...props} />
+                            );
+                          },
+                          pre: ({ node: _, ...props }) => <pre className="mb-3 mt-2 overflow-x-auto rounded-md bg-muted p-3 text-xs text-foreground" {...props} />
+                        }}
+                      >
+                        {entry.response.answer}
+                      </ReactMarkdown>
+                    </div>
+                    {entry.response.citations.length ? (
+                      <div className="mt-4 border-t border-border pt-3">
+                        <p className="text-xs font-semibold text-muted-foreground">
+                          Sources
+                        </p>
+                        <div className="mt-2 space-y-2">
+                          {entry.response.citations.map((citation) => (
+                            <details
+                              key={citation.chunkId}
+                              className="rounded-md border border-border p-2"
+                            >
+                              <summary className="cursor-pointer text-xs font-semibold">
+                                {citation.id} {citation.title}
+                              </summary>
+                              <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                                {citation.excerpt}
+                              </p>
+                            </details>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                    <div className="mt-3 flex items-center justify-end gap-2 text-muted-foreground border-t border-border pt-2">
+                      <button 
+                        type="button" 
+                        title="Copy to clipboard"
+                        className="hover:text-foreground hover:bg-muted p-1 rounded transition-colors"
+                        onClick={() => handleCopy(entry.response.answer)}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </button>
+                      {(entry.response as any).messageId ? (
+                        <>
+                          <button 
+                            type="button" 
+                            title="Good response"
+                            className="hover:text-foreground hover:bg-muted p-1 rounded transition-colors"
+                            onClick={() => submitFeedback((entry.response as any).messageId, "LIKE")}
+                          >
+                            <ThumbsUp className="h-4 w-4" />
+                          </button>
+                          <button 
+                            type="button" 
+                            title="Bad response"
+                            className="hover:text-foreground hover:bg-muted p-1 rounded transition-colors"
+                            onClick={() => submitFeedback((entry.response as any).messageId, "DISLIKE")}
+                          >
+                            <ThumbsDown className="h-4 w-4" />
+                          </button>
+                        </>
+                      ) : null}
+                    </div>
+                  </article>
+                </div>
+              ))
+            )}
+            {sending ? (
+              <div className="space-y-2">
+                {pendingQuestion ? (
+                  <div className="ml-6 rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground">
+                    {pendingQuestion}
+                  </div>
+                ) : null}
+                <LoadingState title="AI Tutor is thinking" />
+              </div>
+            ) : null}
+            <div ref={scrollRef} />
           </div>
-          <div>
-            <dt className="font-medium text-foreground">Activity</dt>
-            <dd>{activity.title}</dd>
+
+          <div className="flex shrink-0 flex-col gap-4">
+            {latest?.suggestions.length ? (
+              <div className="flex flex-wrap gap-2">
+                {latest.suggestions.map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    className="rounded-md border border-border bg-background px-2.5 py-2 text-left text-xs font-medium hover:bg-muted disabled:opacity-50"
+                    disabled={sending}
+                    onClick={() => void send(suggestion)}
+                    type="button"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
+          {error ? (
+            <p className="text-sm text-destructive" role="alert">
+              {error}
+            </p>
+          ) : null}
+            <form
+              className="flex shrink-0 items-end gap-2 border-t border-border pt-3"
+              onSubmit={submit}
+            >
+              <label className="min-w-0 flex-1">
+                <span className="sr-only">Question for AI Tutor</span>
+                <textarea
+                  className="min-h-20 w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+                  disabled={sending}
+                  maxLength={2000}
+                  onChange={(event) => setQuestion(event.target.value)}
+                  placeholder="Ask about this lesson..."
+                  value={question}
+                />
+              </label>
+              <button
+                aria-label="Send question"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                disabled={sending || question.trim().length < 2}
+                title="Send question"
+                type="submit"
+              >
+                <Send aria-hidden="true" className="h-4 w-4" />
+              </button>
+            </form>
           </div>
-          <div>
-            <dt className="font-medium text-foreground">Timestamp</dt>
-            <dd>{formatTimestamp(videoTime)}</dd>
-          </div>
-        </dl>
-      </div>
-      <p className="mt-3 text-sm leading-6 text-muted-foreground">
-        AI Tutor is a safe placeholder. It does not call an AI provider or
-        generate answers yet.
-      </p>
+        </div>
+      )}
     </PanelFrame>
   );
 }
 
-export function DiscussionPanelPlaceholder() {
+export function DiscussionPanel({ course, lesson, activity }: { course: Course; lesson: Lesson; activity: Activity }) {
   return (
     <PanelFrame
-      icon={<MessageSquare aria-hidden="true" className="h-5 w-5 text-primary" />}
+      icon={
+        <MessageSquare aria-hidden="true" className="h-5 w-5 text-primary" />
+      }
       title="Discussion"
     >
-      <EmptyState
-        title="Discussion is not available yet"
-        description="Threaded lesson discussion can plug into this panel later."
-      />
+      <WorkspaceDiscussionPanel courseId={course.id} lessonId={lesson.id} activityId={activity.id} />
     </PanelFrame>
   );
 }
@@ -1406,25 +2129,6 @@ export function FlashcardPanelPlaceholder() {
         title="Flashcards are not available yet"
         description="AI or instructor-created flashcards can use this panel later."
       />
-    </PanelFrame>
-  );
-}
-
-export function ActivityInfoPanel({ activity }: { activity: Activity }) {
-  return (
-    <PanelFrame
-      icon={<Info aria-hidden="true" className="h-5 w-5 text-primary" />}
-      title="Activity info"
-    >
-      <div className="space-y-3 text-sm">
-        <StatusBadge value={activity.activityTypeKey} />
-        <p className="leading-6 text-muted-foreground">
-          {activity.description ?? "No activity description."}
-        </p>
-        <p className="text-muted-foreground">
-          Estimated time: {activity.estimatedMinutes ?? 0} minutes
-        </p>
-      </div>
     </PanelFrame>
   );
 }
@@ -1532,22 +2236,28 @@ function PanelFrame({
   title,
   action,
   children,
+  scrollable = true,
 }: {
   icon: ReactNode;
   title: string;
   action?: ReactNode;
   children: ReactNode;
+  scrollable?: boolean;
 }) {
   return (
-    <section>
-      <div className="flex items-center justify-between gap-3">
+    <section className="flex min-h-0 flex-1 flex-col p-4">
+      <div className="flex shrink-0 items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           {icon}
           <h3 className="text-base font-semibold">{title}</h3>
         </div>
         {action}
       </div>
-      <div className="mt-4">{children}</div>
+      <div
+        className={`mt-4 ${scrollable ? "min-h-0 flex-1 overflow-y-auto pr-2" : "flex min-h-0 flex-1 flex-col"}`}
+      >
+        {children}
+      </div>
     </section>
   );
 }
@@ -1581,8 +2291,8 @@ function PanelList<T>({
 export function TimestampNoteButton({ videoTime }: { videoTime: number }) {
   return (
     <p className="text-xs text-muted-foreground">
-      New notes include timestamp {formatTimestamp(videoTime)} when video time is
-      available.
+      New notes include timestamp {formatTimestamp(videoTime)} when video time
+      is available.
     </p>
   );
 }
@@ -1637,5 +2347,9 @@ function openPopoutPanel(input: {
   panel: WorkspacePanelMode;
 }) {
   const params = new URLSearchParams(input);
-  window.open(`/learn/popout?${params.toString()}`, "lms-popout", "width=460,height=760");
+  window.open(
+    `/learn/popout?${params.toString()}`,
+    "lms-popout",
+    "width=460,height=760",
+  );
 }

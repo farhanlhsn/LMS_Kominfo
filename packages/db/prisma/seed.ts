@@ -36,6 +36,11 @@ const permissions = [
   ["content:process", "Process activity content"],
   ["quiz:manage", "Manage question banks and quizzes"],
   ["quiz:grade", "Grade quiz attempts"],
+  ["assignments:manage", "Manage assignments and rubrics"],
+  ["assignments:grade", "Grade assignment submissions"],
+  ["certificates:manage", "Manage certificate templates"],
+  ["certificates:issue", "Issue and revoke certificates"],
+  ["goals:manage", "Manage learner goals"],
   ["plugins:configure", "Configure plugins"],
 ] as const;
 
@@ -207,6 +212,11 @@ async function main() {
     "content:process",
     "quiz:manage",
     "quiz:grade",
+    "assignments:manage",
+    "assignments:grade",
+    "certificates:manage",
+    "certificates:issue",
+    "goals:manage",
     "plugins:configure",
   ];
 
@@ -382,8 +392,7 @@ async function seedPluginFoundation(input: {
         author: manifest.author,
         manifest: manifest as unknown as Prisma.InputJsonObject,
         configSchema: manifest.configSchema as
-          | Prisma.InputJsonObject
-          | undefined,
+          Prisma.InputJsonObject | undefined,
         permissions: (manifest.permissions ?? []) as Prisma.InputJsonArray,
         capabilities: (manifest.capabilities ?? []) as Prisma.InputJsonArray,
       },
@@ -397,8 +406,7 @@ async function seedPluginFoundation(input: {
         author: manifest.author,
         manifest: manifest as unknown as Prisma.InputJsonObject,
         configSchema: manifest.configSchema as
-          | Prisma.InputJsonObject
-          | undefined,
+          Prisma.InputJsonObject | undefined,
         permissions: (manifest.permissions ?? []) as Prisma.InputJsonArray,
         capabilities: (manifest.capabilities ?? []) as Prisma.InputJsonArray,
       },
@@ -462,6 +470,11 @@ async function seedRolePermissions(
       "content:process",
       "quiz:manage",
       "quiz:grade",
+      "assignments:manage",
+      "assignments:grade",
+      "certificates:manage",
+      "certificates:issue",
+      "goals:manage",
     ],
     org_admin: permissions
       .map((permission) => permission.key)
@@ -477,6 +490,9 @@ async function seedRolePermissions(
       "content:process",
       "quiz:manage",
       "quiz:grade",
+      "assignments:manage",
+      "assignments:grade",
+      "certificates:issue",
     ],
     assistant_instructor: [
       "courses:read",
@@ -485,8 +501,15 @@ async function seedRolePermissions(
       "files:create",
       "content-library:manage",
       "quiz:manage",
+      "assignments:manage",
     ],
-    reviewer: ["courses:read", "courses:publish", "files:read", "quiz:grade"],
+    reviewer: [
+      "courses:read",
+      "courses:publish",
+      "files:read",
+      "quiz:grade",
+      "assignments:grade",
+    ],
     mentor: ["courses:read"],
     learner: ["courses:read"],
     support_admin: ["users:read", "audit:read", "files:read"],
@@ -679,9 +702,728 @@ async function seedLmsDemoData(input: {
     }
   }
 
+  await seedNetworkingSimulationCourse({
+    organizationId: input.organizationId,
+    categoryId: webCategory.id,
+    instructorId: instructor.id,
+    adminUserId: input.adminUserId,
+    learnerIds: [learnerOne.id, learnerTwo.id],
+  });
+
+  await seedGptPracticeLabCourse({
+    organizationId: input.organizationId,
+    categoryId: webCategory.id,
+    instructorId: instructor.id,
+    adminUserId: input.adminUserId,
+    learnerIds: [learnerOne.id, learnerTwo.id],
+  });
+
   await seedContentLibraryDemoData(input.organizationId, input.adminUserId);
   await seedWorkspaceDemoData(input.organizationId, learnerOne.id);
   await seedQuizDemoData(input.organizationId, instructor.id);
+  await seedPhase07DemoData(input.organizationId, instructor.id, learnerOne.id);
+  await seedPhase08AiDemoData(input.organizationId);
+}
+
+async function seedPhase08AiDemoData(organizationId: string) {
+  const activity = await prisma.activity.findFirst({
+    where: {
+      organizationId,
+      activityTypeKey: "core.text",
+      isPublished: true,
+      course: { status: "PUBLISHED", deletedAt: null },
+    },
+    include: { lesson: true, activityContent: true },
+    orderBy: { createdAt: "asc" },
+  });
+  if (!activity) return;
+  await prisma.aiDocument.deleteMany({
+    where: {
+      organizationId,
+      metadata: { path: ["seededPhase"], equals: "08" },
+    },
+  });
+  const rawText =
+    activity.activityContent?.textContent ??
+    "Modern learning platforms use a REST API to connect the learner interface with course data. Tenant isolation keeps courses, enrollments, and progress inside the active organization. Learners can use notes, transcripts, and progress tracking while studying.";
+  const document = await prisma.aiDocument.create({
+    data: {
+      organizationId,
+      courseId: activity.courseId,
+      lessonId: activity.lessonId,
+      activityId: activity.id,
+      title: activity.title,
+      sourceType: "ACTIVITY_CONTENT",
+      rawText,
+      contentHash: "seed-phase-08",
+      status: "READY",
+      indexedAt: new Date(),
+      metadata: { seededPhase: "08" },
+    },
+  });
+  const embedding = seedEmbedding(rawText, 384);
+  await prisma.aiDocumentChunk.create({
+    data: {
+      organizationId,
+      sourceDocumentId: document.id,
+      courseId: activity.courseId,
+      lessonId: activity.lessonId,
+      activityId: activity.id,
+      chunkIndex: 0,
+      content: rawText,
+      tokenCount: Math.ceil(rawText.length / 4),
+      embedding,
+      embeddingProvider: "mock",
+      embeddingModel: "mock-embedding",
+      embeddingDimensions: embedding.length,
+      status: "READY",
+      metadata: { seededPhase: "08" },
+    },
+  });
+}
+
+function seedEmbedding(text: string, dimensions: number) {
+  const vector = new Array<number>(dimensions).fill(0);
+  for (const word of text.toLowerCase().match(/[a-z0-9]+/g) ?? []) {
+    let hash = 2166136261;
+    for (const character of word) {
+      hash ^= character.charCodeAt(0);
+      hash = Math.imul(hash, 16777619);
+    }
+    const index = Math.abs(hash) % dimensions;
+    vector[index] = (vector[index] ?? 0) + ((hash & 1) === 0 ? 1 : -1);
+  }
+  const magnitude = Math.sqrt(
+    vector.reduce((sum, value) => sum + value * value, 0),
+  );
+  return magnitude ? vector.map((value) => value / magnitude) : vector;
+}
+
+async function seedNetworkingSimulationCourse(input: {
+  organizationId: string;
+  categoryId: string;
+  instructorId: string;
+  adminUserId: string;
+  learnerIds: string[];
+}) {
+  const slug = "dasar-jaringan-tcp-ip-untuk-pemula";
+  await prisma.course.deleteMany({
+    where: {
+      organizationId: input.organizationId,
+      slug,
+    },
+  });
+
+  const course = await prisma.course.create({
+    data: {
+      organizationId: input.organizationId,
+      categoryId: input.categoryId,
+      title: "Dasar Jaringan TCP/IP untuk Pemula",
+      slug,
+      subtitle:
+        "Pahami cara data bergerak di internet melalui TCP, UDP, DNS, HTTP, dan HTTPS.",
+      description:
+        "Course simulasi dengan materi nyata tentang konsep jaringan komputer sehari-hari. Materi ditulis untuk learner non-spesialis agar bisa bertanya ke AI Tutor dan mendapatkan jawaban berbasis course material.",
+      level: "BEGINNER",
+      language: "id",
+      durationMinutes: 95,
+      status: "PUBLISHED",
+      visibility: "ORGANIZATION_ONLY",
+      learningObjectives: [
+        "Menjelaskan peran IP address, port, dan protokol transport.",
+        "Membedakan TCP dan UDP berdasarkan reliability, ordering, dan latency.",
+        "Mengikuti alur sederhana saat browser membuka website HTTPS.",
+        "Menggunakan langkah dasar troubleshooting jaringan.",
+        "Mengenali risiko keamanan dasar seperti DNS spoofing dan koneksi tanpa TLS.",
+      ],
+      requirements: [
+        "Bisa menggunakan browser",
+        "Tidak perlu pengalaman jaringan sebelumnya",
+      ],
+      targetAudience: [
+        "Learner pemula",
+        "Helpdesk junior",
+        "Developer yang ingin memahami jaringan dasar",
+      ],
+      tags: ["networking", "tcp-ip", "dns", "http", "security"],
+      metadata: {
+        seededSimulation: true,
+        materialLanguage: "id",
+        references: [
+          "RFC 768 - User Datagram Protocol",
+          "RFC 9293 - Transmission Control Protocol",
+          "RFC 9110 - HTTP Semantics",
+          "RFC 8446 - TLS 1.3",
+        ],
+      },
+      publishedAt: new Date(),
+      instructors: {
+        create: [
+          {
+            organizationId: input.organizationId,
+            userId: input.instructorId,
+            role: "OWNER",
+          },
+          {
+            organizationId: input.organizationId,
+            userId: input.adminUserId,
+            role: "REVIEWER",
+          },
+        ],
+      },
+    },
+  });
+
+  const modules: Array<{
+    title: string;
+    description: string;
+    lessons: Array<{
+      title: string;
+      summary: string;
+      activities: Array<{
+        type: "core.text" | "core.link";
+        title: string;
+        minutes: number;
+        text: string;
+        url?: string;
+      }>;
+    }>;
+  }> = [
+    {
+      title: "Fondasi Internet",
+      description: "Konsep alamat, port, dan paket data.",
+      lessons: [
+        {
+          title: "Cara data bergerak di internet",
+          summary:
+            "Gambaran sederhana tentang perangkat, router, IP address, port, dan packet switching.",
+          activities: [
+            {
+              type: "core.text",
+              title: "Apa yang terjadi saat membuka website?",
+              minutes: 10,
+              text: [
+                "Saat learner mengetik alamat website, perangkat tidak langsung mengirim satu file besar. Data dipecah menjadi paket-paket kecil. Setiap paket membawa alamat tujuan, alamat sumber, dan informasi protokol agar perangkat lain tahu cara meneruskannya.",
+                "IP address berfungsi seperti alamat lokasi perangkat di jaringan. Port berfungsi seperti nomor pintu aplikasi di perangkat tersebut. Contohnya, browser biasanya mengakses HTTPS di port 443. Server yang sama bisa menjalankan beberapa layanan berbeda karena masing-masing layanan memakai port berbeda.",
+                "Router membaca alamat tujuan pada paket dan meneruskannya ke jalur berikutnya. Router tidak harus mengetahui seluruh isi komunikasi; tugas utamanya adalah memilih arah berikutnya sampai paket tiba di jaringan tujuan.",
+                "Karena jaringan bisa padat atau berubah, paket dapat menempuh jalur berbeda. Protokol di atas IP, seperti TCP atau UDP, menentukan apakah paket perlu dicek ulang, diurutkan, atau dikirim secepat mungkin.",
+              ].join("\n\n"),
+            },
+            {
+              type: "core.text",
+              title: "IP address, port, dan protokol",
+              minutes: 8,
+              text: [
+                "IP adalah lapisan alamat. IPv4 memakai format seperti 192.0.2.10, sedangkan IPv6 memakai format lebih panjang seperti 2001:db8::10. Di jaringan lokal, perangkat sering mendapat alamat dari DHCP agar pengguna tidak perlu mengatur alamat manual.",
+                "Port adalah angka 0 sampai 65535 yang membantu sistem operasi mengirim data ke aplikasi yang benar. Port 53 umum dipakai DNS, port 80 untuk HTTP, dan port 443 untuk HTTPS. Nomor port bukan jaminan keamanan; ia hanya menunjukkan endpoint layanan.",
+                "Protokol adalah kesepakatan format dan aturan komunikasi. Dua perangkat dapat saling memahami karena memakai protokol yang sama. Jika protokolnya berbeda, data mungkin sampai ke tujuan tetapi tidak dapat ditafsirkan dengan benar.",
+                "Dalam troubleshooting, tiga pertanyaan awal yang berguna adalah: apakah alamat tujuan benar, apakah port layanan terbuka, dan apakah protokol yang digunakan sesuai dengan layanan tujuan.",
+              ].join("\n\n"),
+            },
+          ],
+        },
+      ],
+    },
+    {
+      title: "TCP, UDP, DNS, dan Web",
+      description: "Protokol yang paling sering ditemui saat menggunakan web.",
+      lessons: [
+        {
+          title: "TCP dan UDP",
+          summary:
+            "Perbedaan reliability, ordering, retransmission, dan latency.",
+          activities: [
+            {
+              type: "core.text",
+              title: "Perbedaan TCP dan UDP",
+              minutes: 12,
+              text: [
+                "TCP atau Transmission Control Protocol dirancang untuk komunikasi yang andal. Sebelum data utama dikirim, client dan server membuat koneksi. TCP memberi nomor urut pada byte data, meminta pengiriman ulang jika ada data hilang, dan menyusun kembali data agar aplikasi menerima aliran yang rapi.",
+                "Keunggulan TCP adalah reliability dan ordering. Jika sebuah paket hilang, TCP berusaha mengirim ulang. Ini cocok untuk web, email, transfer file, login, dan transaksi yang membutuhkan data lengkap dan urut. Kekurangannya, mekanisme pengecekan dan pengiriman ulang dapat menambah latensi.",
+                "UDP atau User Datagram Protocol lebih sederhana. UDP mengirim datagram tanpa membuat koneksi dan tanpa jaminan paket sampai, urut, atau tidak duplikat. Karena overhead kecil, UDP cocok untuk kebutuhan yang lebih sensitif terhadap waktu seperti voice call, video call, game online, DNS query, dan streaming tertentu.",
+                "UDP bukan berarti selalu tidak andal. Aplikasi dapat menambahkan mekanisme sendiri di atas UDP jika dibutuhkan. Contoh modern adalah QUIC, protokol transport yang berjalan di atas UDP dan dipakai HTTP/3 untuk menggabungkan kecepatan koneksi dengan fitur reliability pada level aplikasi.",
+                "Cara mengingatnya: TCP seperti jasa pengiriman yang meminta tanda terima dan mengurutkan paket; UDP seperti mengirim kartu pos cepat tanpa meminta konfirmasi. Pilihan terbaik bergantung pada kebutuhan aplikasi: kelengkapan data atau respons cepat.",
+              ].join("\n\n"),
+            },
+            {
+              type: "core.link",
+              title: "Referensi resmi TCP",
+              minutes: 5,
+              url: "https://www.rfc-editor.org/rfc/rfc9293",
+              text: [
+                "Referensi lanjutan: RFC 9293 menjelaskan TCP sebagai protokol transport andal. Untuk simulasi belajar, cukup pahami bahwa TCP menangani koneksi, urutan, acknowledgement, dan retransmission.",
+                "Bandingkan dengan UDP pada RFC 768: UDP meminimalkan overhead dan menyerahkan reliability tambahan ke aplikasi jika diperlukan.",
+              ].join("\n\n"),
+            },
+          ],
+        },
+        {
+          title: "DNS, HTTP, dan HTTPS",
+          summary:
+            "Alur dari nama domain sampai browser menerima halaman aman.",
+          activities: [
+            {
+              type: "core.text",
+              title: "DNS mengubah nama menjadi alamat",
+              minutes: 10,
+              text: [
+                "DNS atau Domain Name System menerjemahkan nama seperti example.com menjadi alamat IP. Tanpa DNS, pengguna harus mengingat alamat IP server, bukan nama yang mudah dibaca.",
+                "Saat browser membutuhkan alamat, sistem mengecek cache lokal terlebih dahulu. Jika belum ada, pertanyaan dikirim ke resolver DNS. Resolver dapat bertanya ke root server, TLD server, lalu authoritative name server sampai menemukan record yang sesuai.",
+                "Record A mengarah ke alamat IPv4, AAAA ke IPv6, CNAME ke alias domain, MX ke server email, dan TXT sering dipakai untuk verifikasi domain atau kebijakan email. TTL menentukan berapa lama jawaban DNS boleh disimpan di cache.",
+                "DNS tradisional tidak mengenkripsi isi query. Karena itu, beberapa lingkungan memakai DNS over HTTPS atau DNS over TLS untuk meningkatkan privasi dan mengurangi risiko manipulasi di jaringan yang tidak tepercaya.",
+              ].join("\n\n"),
+            },
+            {
+              type: "core.text",
+              title: "HTTP, HTTPS, dan TLS",
+              minutes: 12,
+              text: [
+                "HTTP adalah protokol aplikasi untuk pertukaran request dan response. Browser mengirim request seperti GET /index.html, lalu server mengirim response berisi status code, header, dan body. Status 200 berarti berhasil, 301 atau 302 berarti redirect, 404 berarti tidak ditemukan, dan 500 berarti server error.",
+                "HTTPS adalah HTTP yang berjalan di atas TLS. TLS memberi tiga perlindungan utama: confidentiality agar isi data tidak mudah dibaca pihak lain, integrity agar perubahan data bisa terdeteksi, dan authentication agar browser dapat memverifikasi identitas server melalui sertifikat.",
+                "Saat membuka website HTTPS, browser melakukan DNS lookup, membuka koneksi transport, melakukan TLS handshake, memverifikasi sertifikat, lalu mengirim HTTP request di dalam koneksi terenkripsi. Setelah itu server mengirim response yang ditampilkan sebagai halaman.",
+                "Ikon gembok di browser bukan berarti website pasti aman dari penipuan. Gembok terutama berarti koneksi ke domain tersebut terenkripsi dan sertifikatnya valid. Pengguna tetap perlu memeriksa domain, konteks, dan data yang diminta website.",
+              ].join("\n\n"),
+            },
+          ],
+        },
+      ],
+    },
+    {
+      title: "Troubleshooting dan Keamanan Dasar",
+      description: "Langkah praktis mendiagnosis masalah koneksi.",
+      lessons: [
+        {
+          title: "Mendiagnosis masalah jaringan",
+          summary:
+            "Urutan berpikir saat website atau aplikasi tidak bisa diakses.",
+          activities: [
+            {
+              type: "core.text",
+              title: "Checklist troubleshooting jaringan",
+              minutes: 14,
+              text: [
+                "Troubleshooting jaringan sebaiknya dimulai dari gejala yang paling spesifik. Apakah hanya satu website yang gagal, semua website gagal, hanya Wi-Fi tertentu yang bermasalah, atau hanya satu aplikasi yang tidak bisa konek?",
+                "Langkah pertama adalah memeriksa konektivitas lokal: apakah perangkat mendapat IP address, gateway, dan DNS resolver. Jika perangkat tidak mendapat alamat, masalah mungkin ada pada Wi-Fi, kabel, DHCP, atau konfigurasi adapter.",
+                "Langkah kedua adalah memeriksa resolusi nama. Jika domain tidak berubah menjadi IP, masalah bisa ada pada DNS cache, resolver, salah ketik domain, atau record DNS yang belum menyebar. Mengganti resolver sementara dapat membantu isolasi masalah.",
+                "Langkah ketiga adalah memeriksa jalur dan port. Jika IP bisa dijangkau tetapi aplikasi gagal, port tujuan mungkin tertutup, firewall memblokir, service mati, atau TLS handshake gagal. Untuk aplikasi web, cek juga status code HTTP dan pesan error browser.",
+                "Catatan penting: ping yang gagal tidak selalu berarti server mati. Banyak server memblokir ICMP. Sebaliknya, ping yang berhasil tidak menjamin aplikasi berjalan, karena aplikasi mungkin memakai TCP port tertentu yang berbeda dari ICMP.",
+              ].join("\n\n"),
+            },
+            {
+              type: "core.text",
+              title: "Keamanan dasar saat memakai jaringan publik",
+              minutes: 10,
+              text: [
+                "Jaringan publik seperti Wi-Fi kafe atau bandara sebaiknya dianggap tidak sepenuhnya tepercaya. Pengguna lain di jaringan yang sama mungkin dapat mencoba mengamati traffic, membuat hotspot palsu, atau mengarahkan pengguna ke halaman login tiruan.",
+                "HTTPS membantu melindungi isi komunikasi, tetapi pengguna tetap perlu waspada terhadap domain palsu. Jangan memasukkan password jika domain terlihat aneh, sertifikat bermasalah, atau browser memberi peringatan keamanan.",
+                "Gunakan update sistem operasi dan browser, aktifkan MFA untuk akun penting, hindari mengirim data sensitif melalui website tanpa HTTPS, dan gunakan VPN tepercaya jika organisasi mengharuskannya untuk akses internal.",
+                "Di sisi organisasi, keamanan jaringan dasar mencakup segmentasi jaringan, firewall, logging, patch rutin, sertifikat TLS yang dikelola benar, dan pelatihan pengguna untuk mengenali phishing serta captive portal palsu.",
+              ].join("\n\n"),
+            },
+          ],
+        },
+      ],
+    },
+  ];
+
+  for (const [moduleIndex, moduleInput] of modules.entries()) {
+    const courseModule = await prisma.courseModule.create({
+      data: {
+        organizationId: input.organizationId,
+        courseId: course.id,
+        title: moduleInput.title,
+        description: moduleInput.description,
+        orderIndex: moduleIndex,
+        isPublished: true,
+      },
+    });
+
+    for (const [lessonIndex, lessonInput] of moduleInput.lessons.entries()) {
+      const lesson = await prisma.lesson.create({
+        data: {
+          organizationId: input.organizationId,
+          courseId: course.id,
+          moduleId: courseModule.id,
+          title: lessonInput.title,
+          slug: slugify(`${moduleInput.title}-${lessonInput.title}`),
+          summary: lessonInput.summary,
+          orderIndex: lessonIndex,
+          isPublished: true,
+          estimatedMinutes: lessonInput.activities.reduce(
+            (sum, activity) => sum + activity.minutes,
+            0,
+          ),
+        },
+      });
+
+      for (const [activityIndex, activityInput] of lessonInput.activities.entries()) {
+        const html = `<article>${activityInput.text
+          .split("\n\n")
+          .map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`)
+          .join("")}</article>`;
+        await prisma.activity.create({
+          data: {
+            organizationId: input.organizationId,
+            courseId: course.id,
+            lessonId: lesson.id,
+            title: activityInput.title,
+            activityTypeKey: activityInput.type,
+            orderIndex: activityIndex,
+            isRequired: true,
+            isPublished: true,
+            estimatedMinutes: activityInput.minutes,
+            config: { seededSimulation: true },
+            content: {
+              format: "rich_text_html",
+              html,
+              url: activityInput.url,
+            },
+            completionRule: { type: "manual" },
+            activityContent: {
+              create: {
+                organizationId: input.organizationId,
+                body: {
+                  format: "rich_text_html",
+                  html,
+                  url: activityInput.url,
+                },
+                content: {
+                  format: "rich_text_html",
+                  html,
+                  url: activityInput.url,
+                },
+                textContent: activityInput.text,
+                externalUrl: activityInput.url,
+                resources: activityInput.url
+                  ? [{ label: activityInput.title, url: activityInput.url }]
+                  : [],
+                metadata: {
+                  seededSimulation: true,
+                  sourceQuality: "authored-from-standard-networking-concepts",
+                },
+              },
+            },
+          },
+        });
+      }
+    }
+  }
+
+  for (const learnerId of input.learnerIds) {
+    await enrollDemoLearner(input.organizationId, course.id, learnerId);
+  }
+}
+
+async function seedGptPracticeLabCourse(input: {
+  organizationId: string;
+  categoryId: string;
+  instructorId: string;
+  adminUserId: string;
+  learnerIds: string[];
+}) {
+  const slug = "praktik-produktif-dengan-gpt";
+  const companionVideoUrl =
+    "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4";
+  await prisma.course.deleteMany({
+    where: {
+      organizationId: input.organizationId,
+      slug,
+    },
+  });
+
+  const course = await prisma.course.create({
+    data: {
+      organizationId: input.organizationId,
+      categoryId: input.categoryId,
+      title: "Praktik Produktif dengan GPT",
+      slug,
+      subtitle:
+        "Belajar menyusun prompt, menguji jawaban, dan memakai lab eksternal tanpa meninggalkan konteks lesson.",
+      description:
+        "Course simulasi lab dengan materi asli tentang penggunaan GPT untuk belajar dan bekerja. Learner dapat menonton panduan, membuka ChatGPT, dan memilih mode belajar sesuai perangkat.",
+      level: "BEGINNER",
+      language: "id",
+      durationMinutes: 50,
+      status: "PUBLISHED",
+      visibility: "ORGANIZATION_ONLY",
+      learningObjectives: [
+        "Membedakan prompt tujuan, konteks, batasan, dan format output.",
+        "Menggunakan GPT sebagai partner latihan tanpa menyalin jawaban mentah.",
+        "Memilih mode lab yang nyaman untuk single monitor, dual monitor, atau mobile.",
+      ],
+      requirements: ["Browser modern", "Akun pada lab eksternal jika diperlukan"],
+      targetAudience: [
+        "Learner pemula",
+        "Instruktur yang ingin membuat lab berbasis tool eksternal",
+      ],
+      tags: ["gpt", "prompting", "practice-lab", "productivity"],
+      metadata: {
+        seededSimulation: true,
+        materialLanguage: "id",
+        externalLab: "https://chatgpt.com/",
+      },
+      publishedAt: new Date(),
+      instructors: {
+        create: [
+          {
+            organizationId: input.organizationId,
+            userId: input.instructorId,
+            role: "OWNER",
+          },
+          {
+            organizationId: input.organizationId,
+            userId: input.adminUserId,
+            role: "REVIEWER",
+          },
+        ],
+      },
+    },
+  });
+
+  const module = await prisma.courseModule.create({
+    data: {
+      organizationId: input.organizationId,
+      courseId: course.id,
+      title: "Lab 1",
+      description: "Belajar prompt sambil membuka tool eksternal.",
+      orderIndex: 0,
+      isPublished: true,
+    },
+  });
+
+  const lesson = await prisma.lesson.create({
+    data: {
+      organizationId: input.organizationId,
+      courseId: course.id,
+      moduleId: module.id,
+      title: "Membuat prompt belajar dengan GPT",
+      slug: "membuat-prompt-belajar-dengan-gpt",
+      summary:
+        "Tonton panduan singkat, baca pola prompt, lalu praktik di ChatGPT dengan mode belajar pilihan.",
+      orderIndex: 0,
+      isPublished: true,
+      estimatedMinutes: 25,
+    },
+  });
+
+  await prisma.activity.create({
+    data: {
+      organizationId: input.organizationId,
+      courseId: course.id,
+      lessonId: lesson.id,
+      title: "Tonton panduan lab prompt",
+      description:
+        "Video pendamping untuk menguji pengalaman PiP dan alur praktik eksternal.",
+      activityTypeKey: "core.video",
+      orderIndex: 0,
+      isRequired: true,
+      isPublished: true,
+      estimatedMinutes: 5,
+      config: { seededSimulation: true },
+      content: {
+        videoUrl: companionVideoUrl,
+        provider: "external-url",
+        title: "Panduan lab prompt",
+      },
+      completionRule: { type: "manual" },
+      activityContent: {
+        create: {
+          organizationId: input.organizationId,
+          body: {
+            videoUrl: companionVideoUrl,
+            provider: "external-url",
+            title: "Panduan lab prompt",
+          },
+          content: {
+            videoUrl: companionVideoUrl,
+            provider: "external-url",
+            title: "Panduan lab prompt",
+          },
+          textContent:
+            "Video pendamping menunjukkan cara menjaga konteks lesson tetap terbuka saat praktik di lab eksternal.",
+          externalUrl: companionVideoUrl,
+          resources: [],
+          metadata: {
+            provider: "external-url",
+            durationSeconds: 12,
+            seededSimulation: true,
+          },
+        },
+      },
+    },
+  });
+
+  const promptGuideText = [
+    "Prompt yang baik biasanya punya empat bagian: tujuan, konteks, batasan, dan format output. Tujuan menjelaskan apa yang ingin dicapai. Konteks memberi latar belakang agar GPT tidak menebak terlalu jauh. Batasan menjelaskan gaya, panjang, bahasa, atau hal yang tidak boleh dilakukan. Format output membuat hasil mudah dipakai.",
+    "Contoh prompt belajar: Saya sedang belajar jaringan komputer dasar. Jelaskan perbedaan TCP dan UDP untuk pemula, gunakan analogi sederhana, lalu buat tiga pertanyaan latihan tanpa memberikan jawabannya dulu.",
+    "Saat memakai GPT untuk belajar, jangan langsung meminta jawaban akhir untuk tugas atau kuis. Gunakan sebagai partner berpikir: minta penjelasan bertahap, contoh tambahan, pengecekan miskonsepsi, atau latihan soal. Untuk materi yang punya sumber course, bandingkan jawaban GPT dengan materi resmi di lesson.",
+    "Jika jawaban terasa terlalu umum, tambahkan konteks. Jika jawaban terlalu panjang, minta ringkasan dengan struktur tertentu. Jika jawaban meragukan, minta GPT menyebutkan asumsi dan bagian yang perlu diverifikasi.",
+  ].join("\n\n");
+  const promptGuideHtml = `<article>${promptGuideText
+    .split("\n\n")
+    .map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`)
+    .join("")}</article>`;
+
+  await prisma.activity.create({
+    data: {
+      organizationId: input.organizationId,
+      courseId: course.id,
+      lessonId: lesson.id,
+      title: "Baca pola prompt yang aman",
+      activityTypeKey: "core.text",
+      orderIndex: 1,
+      isRequired: true,
+      isPublished: true,
+      estimatedMinutes: 8,
+      config: { seededSimulation: true },
+      content: {
+        format: "rich_text_html",
+        html: promptGuideHtml,
+      },
+      completionRule: { type: "manual" },
+      activityContent: {
+        create: {
+          organizationId: input.organizationId,
+          body: {
+            format: "rich_text_html",
+            html: promptGuideHtml,
+          },
+          content: {
+            format: "rich_text_html",
+            html: promptGuideHtml,
+          },
+          textContent: promptGuideText,
+          resources: [],
+          metadata: {
+            seededSimulation: true,
+            sourceQuality: "authored-prompting-guidance",
+          },
+        },
+      },
+    },
+  });
+
+  const labText = [
+    "Buka ChatGPT dan praktikkan prompt dari materi sebelumnya. Tujuan lab ini adalah mencoba iterasi prompt: mulai dari prompt sederhana, baca hasilnya, lalu perbaiki dengan konteks, batasan, dan format output.",
+    "Gunakan mode Side by side jika hanya punya satu layar desktop dan ingin lesson tetap terlihat. Gunakan New tab + PiP jika ingin video pendamping tetap mengambang saat lab dibuka. Gunakan Dual monitor jika punya layar kedua dan ingin memindahkan lab ke monitor lain.",
+    "Untuk mobile, buka lab di tab baru atau recent apps, lalu kembali ke lesson untuk mengecek instruksi. Jika browser mendukung PiP, aktifkan PiP dari video pendamping sebelum membuka lab.",
+  ].join("\n\n");
+
+  await prisma.activity.create({
+    data: {
+      organizationId: input.organizationId,
+      courseId: course.id,
+      lessonId: lesson.id,
+      title: "Lab: Praktik prompt di ChatGPT",
+      description:
+        "Pilih cara belajar yang paling nyaman sebelum membuka lab eksternal.",
+      activityTypeKey: "core.link",
+      orderIndex: 2,
+      isRequired: true,
+      isPublished: true,
+      estimatedMinutes: 12,
+      config: {
+        seededSimulation: true,
+        supportedWorkspaceLayouts: [
+          "side_by_side",
+          "dual_window",
+          "picture_in_picture_video",
+        ],
+      },
+      content: {
+        url: "https://chatgpt.com/",
+        title: "ChatGPT practice lab",
+        lab: {
+          enabled: true,
+          providerName: "ChatGPT",
+          url: "https://chatgpt.com/",
+          videoUrl: companionVideoUrl,
+          videoTitle: "Video pendamping lab prompt",
+          instructions: [
+            "Baca pola prompt di aktivitas sebelumnya.",
+            "Pilih mode belajar sesuai perangkat dan jumlah layar.",
+            "Coba satu prompt, evaluasi hasilnya, lalu revisi prompt dengan konteks tambahan.",
+          ],
+          sideBySideNote:
+            "Membuka lab di jendela kecil agar lesson tetap terlihat di layar yang sama.",
+          pipNote:
+            "Menyalakan PiP video jika tersedia, lalu membuka ChatGPT di tab baru.",
+          dualMonitorNote:
+            "Membuka lab di tab baru agar bisa dipindah ke monitor kedua.",
+        },
+      },
+      completionRule: { type: "manual" },
+      activityContent: {
+        create: {
+          organizationId: input.organizationId,
+          body: {
+            url: "https://chatgpt.com/",
+            title: "ChatGPT practice lab",
+          },
+          content: {
+            url: "https://chatgpt.com/",
+            title: "ChatGPT practice lab",
+            lab: {
+              enabled: true,
+              providerName: "ChatGPT",
+              url: "https://chatgpt.com/",
+              videoUrl: companionVideoUrl,
+              videoTitle: "Video pendamping lab prompt",
+              instructions: [
+                "Baca pola prompt di aktivitas sebelumnya.",
+                "Pilih mode belajar sesuai perangkat dan jumlah layar.",
+                "Coba satu prompt, evaluasi hasilnya, lalu revisi prompt dengan konteks tambahan.",
+              ],
+              sideBySideNote:
+                "Membuka lab di jendela kecil agar lesson tetap terlihat di layar yang sama.",
+              pipNote:
+                "Menyalakan PiP video jika tersedia, lalu membuka ChatGPT di tab baru.",
+              dualMonitorNote:
+                "Membuka lab di tab baru agar bisa dipindah ke monitor kedua.",
+            },
+          },
+          textContent: labText,
+          externalUrl: "https://chatgpt.com/",
+          resources: [{ label: "ChatGPT", url: "https://chatgpt.com/" }],
+          metadata: {
+            seededSimulation: true,
+            opensInNewTab: true,
+            lab: {
+              enabled: true,
+              providerName: "ChatGPT",
+              url: "https://chatgpt.com/",
+              videoUrl: companionVideoUrl,
+              videoTitle: "Video pendamping lab prompt",
+              instructions: [
+                "Baca pola prompt di aktivitas sebelumnya.",
+                "Pilih mode belajar sesuai perangkat dan jumlah layar.",
+                "Coba satu prompt, evaluasi hasilnya, lalu revisi prompt dengan konteks tambahan.",
+              ],
+              sideBySideNote:
+                "Membuka lab di jendela kecil agar lesson tetap terlihat di layar yang sama.",
+              pipNote:
+                "Menyalakan PiP video jika tersedia, lalu membuka ChatGPT di tab baru.",
+              dualMonitorNote:
+                "Membuka lab di tab baru agar bisa dipindah ke monitor kedua.",
+            },
+          },
+        },
+      },
+    },
+  });
+
+  for (const learnerId of input.learnerIds) {
+    await enrollDemoLearner(input.organizationId, course.id, learnerId);
+  }
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 async function upsertDemoUser(email: string, name: string, roleKey: string) {
@@ -962,7 +1704,8 @@ async function seedContentLibraryDemoData(
       organizationId,
       ownerId: createdById,
       folderId: folder.id,
-      bucket: process.env.S3_BUCKET ?? process.env.STORAGE_BUCKET ?? "lms-local",
+      bucket:
+        process.env.S3_BUCKET ?? process.env.STORAGE_BUCKET ?? "lms-local",
       key: `organizations/${organizationId}/seed/starter-worksheet.pdf`,
       filename: "starter-worksheet.pdf",
       originalFilename: "starter-worksheet.pdf",
@@ -1052,7 +1795,10 @@ async function seedContentLibraryDemoData(
   });
 }
 
-async function seedWorkspaceDemoData(organizationId: string, learnerId: string) {
+async function seedWorkspaceDemoData(
+  organizationId: string,
+  learnerId: string,
+) {
   const enrollments = await prisma.enrollment.findMany({
     where: {
       organizationId,
@@ -1316,10 +2062,16 @@ async function seedQuizDemoData(organizationId: string, instructorId: string) {
   if (!lesson) return;
 
   await prisma.quiz.deleteMany({
-    where: { organizationId, metadata: { path: ["seededPhase"], equals: "06" } },
+    where: {
+      organizationId,
+      metadata: { path: ["seededPhase"], equals: "06" },
+    },
   });
   await prisma.questionBank.deleteMany({
-    where: { organizationId, metadata: { path: ["seededPhase"], equals: "06" } },
+    where: {
+      organizationId,
+      metadata: { path: ["seededPhase"], equals: "06" },
+    },
   });
   await prisma.activity.deleteMany({
     where: {
@@ -1402,7 +2154,8 @@ async function seedQuizDemoData(organizationId: string, instructorId: string) {
     },
     {
       type: "TRUE_FALSE",
-      prompt: "A failed required quiz should automatically complete the activity.",
+      prompt:
+        "A failed required quiz should automatically complete the activity.",
       options: [
         { text: "True", isCorrect: false },
         { text: "False", isCorrect: true },
@@ -1531,6 +2284,358 @@ async function seedQuizDemoData(organizationId: string, instructorId: string) {
     data: {
       completionRule: { type: "quiz", quizId: quiz.id, passingRequired: true },
       gradingRule: { type: "quiz", quizId: quiz.id, passingScorePercent: 70 },
+    },
+  });
+}
+
+async function seedPhase07DemoData(
+  organizationId: string,
+  instructorId: string,
+  learnerId: string,
+) {
+  const course = await prisma.course.findFirst({
+    where: {
+      organizationId,
+      slug: "foundations-modern-web-apps",
+      deletedAt: null,
+    },
+    include: {
+      modules: {
+        orderBy: { orderIndex: "asc" },
+        include: {
+          lessons: {
+            orderBy: { orderIndex: "asc" },
+            include: { activities: true },
+          },
+        },
+      },
+    },
+  });
+  if (!course) return;
+  const lesson = course.modules[0]?.lessons[0];
+  if (!lesson) return;
+
+  await prisma.certificate.deleteMany({
+    where: {
+      organizationId,
+      metadata: { path: ["seededPhase"], equals: "07" },
+    },
+  });
+  await prisma.certificateTemplate.deleteMany({
+    where: {
+      organizationId,
+      metadata: { path: ["seededPhase"], equals: "07" },
+    },
+  });
+  await prisma.assignment.deleteMany({
+    where: {
+      organizationId,
+      metadata: { path: ["seededPhase"], equals: "07" },
+    },
+  });
+  await prisma.rubric.deleteMany({
+    where: {
+      organizationId,
+      metadata: { path: ["seededPhase"], equals: "07" },
+    },
+  });
+  await prisma.learningGoal.deleteMany({
+    where: {
+      organizationId,
+      metadata: { path: ["seededPhase"], equals: "07" },
+    },
+  });
+  await prisma.activity.deleteMany({
+    where: {
+      organizationId,
+      lessonId: lesson.id,
+      activityTypeKey: "core.assignment",
+      metadata: { path: ["seededPhase"], equals: "07" },
+    },
+  });
+
+  const rubric = await prisma.rubric.create({
+    data: {
+      organizationId,
+      courseId: course.id,
+      createdById: instructorId,
+      title: "Project Submission Rubric",
+      description: "Seeded rubric for assignment grading.",
+      totalPoints: 100,
+      status: "ACTIVE",
+      metadata: { seededPhase: "07" },
+      criteria: {
+        create: [
+          {
+            title: "Completeness",
+            maxPoints: 50,
+            orderIndex: 0,
+            levels: {
+              create: [
+                { title: "Complete", points: 50, orderIndex: 0 },
+                { title: "Partial", points: 25, orderIndex: 1 },
+              ],
+            },
+          },
+          {
+            title: "Reflection quality",
+            maxPoints: 50,
+            orderIndex: 1,
+            levels: {
+              create: [
+                { title: "Insightful", points: 50, orderIndex: 0 },
+                { title: "Needs more detail", points: 20, orderIndex: 1 },
+              ],
+            },
+          },
+        ],
+      },
+    },
+    include: { criteria: { include: { levels: true } } },
+  });
+
+  const activity = await prisma.activity.create({
+    data: {
+      organizationId,
+      courseId: course.id,
+      lessonId: lesson.id,
+      title: "Submit your learning reflection",
+      description: "Seeded assignment activity for Phase 07.",
+      activityTypeKey: "core.assignment",
+      pluginKey: "core.assignment",
+      pluginVersion: "1.0.0",
+      orderIndex: lesson.activities.length,
+      isRequired: true,
+      isPublished: true,
+      estimatedMinutes: 20,
+      completionRule: {
+        type: "assignment",
+        completeWhen: "graded",
+        passingScorePercent: 70,
+      },
+      gradingRule: { type: "assignment", rubricId: rubric.id },
+      assessmentDisplayPolicy: {
+        allowPopout: false,
+        allowDualWindow: false,
+        allowAIAssistant: false,
+        allowNotes: true,
+        allowTranscript: false,
+        requireFocusMode: false,
+        detectTabSwitch: false,
+      },
+      metadata: { seededPhase: "07" },
+      activityContent: {
+        create: {
+          organizationId,
+          body: { assignment: true },
+          content: { assignment: true },
+          textContent:
+            "Submit a short reflection and optional supporting link.",
+          resources: [],
+          metadata: { seededPhase: "07" },
+        },
+      },
+    },
+  });
+
+  const assignment = await prisma.assignment.create({
+    data: {
+      organizationId,
+      courseId: course.id,
+      activityId: activity.id,
+      createdById: instructorId,
+      rubricId: rubric.id,
+      title: "Learning Reflection Project",
+      description:
+        "Write a short reflection about how the lesson applies to your work.",
+      instructions:
+        "Submit 2-3 paragraphs and optionally include a link to supporting material.",
+      submissionType: "TEXT_AND_FILE",
+      allowLateSubmission: true,
+      latePenaltyPercent: 10,
+      maxAttempts: 2,
+      allowResubmission: true,
+      status: "PUBLISHED",
+      metadata: { seededPhase: "07" },
+    },
+  });
+
+  await prisma.activity.update({
+    where: { id: activity.id },
+    data: {
+      completionRule: {
+        type: "assignment",
+        assignmentId: assignment.id,
+        completeWhen: "graded",
+        passingScorePercent: 70,
+      },
+      gradingRule: {
+        type: "assignment",
+        assignmentId: assignment.id,
+        rubricId: rubric.id,
+      },
+      activityContent: {
+        update: {
+          content: { assignmentId: assignment.id },
+          body: { assignmentId: assignment.id },
+        },
+      },
+    },
+  });
+
+  const draftSubmission = await prisma.assignmentSubmission.create({
+    data: {
+      organizationId,
+      assignmentId: assignment.id,
+      courseId: course.id,
+      activityId: activity.id,
+      userId: learnerId,
+      attemptNumber: 1,
+      status: "SUBMITTED",
+      textAnswer:
+        "This reflection connects the lesson to practical course design.",
+      submittedAt: new Date(),
+      metadata: { seededPhase: "07", kind: "submitted" },
+    },
+  });
+
+  const criterionOne = rubric.criteria[0];
+  const criterionTwo = rubric.criteria[1];
+  if (!criterionOne || !criterionTwo) {
+    throw new Error("Phase 07 seeded rubric criteria were not created.");
+  }
+  await prisma.assignmentSubmission.update({
+    where: { id: draftSubmission.id },
+    data: {
+      status: "GRADED",
+      gradedAt: new Date(),
+      gradedById: instructorId,
+      score: 90,
+      maxScore: 100,
+      feedback: "Strong reflection with clear practical application.",
+      rubricScores: {
+        create: [
+          {
+            criterionId: criterionOne.id,
+            levelId: criterionOne.levels[0]?.id,
+            points: 45,
+            feedback: "Complete and well scoped.",
+          },
+          {
+            criterionId: criterionTwo.id,
+            levelId: criterionTwo.levels[0]?.id,
+            points: 45,
+            feedback: "Insightful examples.",
+          },
+        ],
+      },
+    },
+  });
+
+  await prisma.activityProgress.upsert({
+    where: {
+      organizationId_userId_activityId: {
+        organizationId,
+        userId: learnerId,
+        activityId: activity.id,
+      },
+    },
+    update: {
+      status: "COMPLETED",
+      progressPercent: 100,
+      completedAt: new Date(),
+    },
+    create: {
+      organizationId,
+      courseId: course.id,
+      lessonId: lesson.id,
+      activityId: activity.id,
+      userId: learnerId,
+      status: "COMPLETED",
+      progressPercent: 100,
+      startedAt: new Date(),
+      completedAt: new Date(),
+    },
+  });
+
+  const requiredActivities = await prisma.activity.count({
+    where: {
+      organizationId,
+      courseId: course.id,
+      isRequired: true,
+      isPublished: true,
+    },
+  });
+  const completedActivities = await prisma.activityProgress.count({
+    where: {
+      organizationId,
+      courseId: course.id,
+      userId: learnerId,
+      status: "COMPLETED",
+    },
+  });
+  const progressPercent = requiredActivities
+    ? Math.round((completedActivities / requiredActivities) * 100)
+    : 100;
+  await prisma.enrollment.update({
+    where: {
+      organizationId_courseId_userId: {
+        organizationId,
+        courseId: course.id,
+        userId: learnerId,
+      },
+    },
+    data: {
+      progressPercent,
+      completedAt: progressPercent >= 100 ? new Date() : null,
+    },
+  });
+
+  const template = await prisma.certificateTemplate.create({
+    data: {
+      organizationId,
+      createdById: instructorId,
+      name: "Default Course Completion Certificate",
+      description: "Seeded certificate template for completed courses.",
+      status: "ACTIVE",
+      design: {
+        layout: "classic",
+        title: "Certificate of Completion",
+        accent: "primary",
+      },
+      metadata: { seededPhase: "07" },
+    },
+  });
+
+  await prisma.certificate.create({
+    data: {
+      organizationId,
+      courseId: course.id,
+      userId: learnerId,
+      templateId: template.id,
+      certificateNumber: `CERT-SEEDED-${learnerId.slice(-6).toUpperCase()}`,
+      verificationCode: `VERIFY${learnerId.slice(-8).toUpperCase()}`,
+      metadata: {
+        seededPhase: "07",
+        pdfGeneration:
+          "TODO: generate PDF when certificate PDF utility is implemented",
+      },
+    },
+  });
+
+  await prisma.learningGoal.create({
+    data: {
+      organizationId,
+      userId: learnerId,
+      courseId: course.id,
+      title: "Complete the modern web app foundations course",
+      description: "Seeded learner goal for Phase 07 progress tracking.",
+      targetType: "COURSE_COMPLETION",
+      targetValue: { percent: 100 },
+      progressValue: { percent: progressPercent },
+      status: progressPercent >= 100 ? "COMPLETED" : "ACTIVE",
+      completedAt: progressPercent >= 100 ? new Date() : null,
+      metadata: { seededPhase: "07" },
     },
   });
 }

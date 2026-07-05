@@ -9,7 +9,8 @@ export type NavigationKey =
   | "quizzes"
   | "files"
   | "library"
-  | "plugins";
+  | "plugins"
+  | "moderation";
 
 export function hasPermission(
   session: AuthSession | null,
@@ -66,6 +67,7 @@ export function visibleNavigationKeys(session: AuthSession | null) {
   if (canUseFileWorkspace(session)) keys.push("files");
   if (canUseContentLibrary(session)) keys.push("library");
   if (canConfigurePlugins(session)) keys.push("plugins");
+  if (session?.activeOrganization.isPlatformAdmin || session?.activeOrganization.roleKeys?.includes("org_admin")) keys.push("moderation");
 
   return keys;
 }

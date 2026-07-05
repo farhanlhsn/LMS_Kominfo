@@ -9,6 +9,7 @@ function createProvider(): StorageProvider {
     getSignedUrl: vi.fn().mockResolvedValue("https://signed.example/file"),
     getPublicUrl: vi.fn().mockReturnValue("https://public.example/file"),
     getMetadata: vi.fn().mockResolvedValue({ size: 10 }),
+    getFile: vi.fn().mockResolvedValue(Buffer.from("file")),
     copyFile: vi.fn().mockResolvedValue(undefined),
     moveFile: vi.fn().mockResolvedValue(undefined),
   };

@@ -10,12 +10,21 @@ import {
 } from "./api-client";
 import type {
   ActivityContentResponse,
+  AiStatus,
+  AiTutorResponse,
+  Assignment,
+  AssignmentSubmission,
   AuthSession,
+  Certificate,
+  CertificateTemplate,
+  CertificateVerification,
   ContentLibraryItem,
   Course,
   Enrollment,
   FileAsset,
   LearnerBookmark,
+  LearnerAssignmentResponse,
+  LearningGoal,
   LearnerNote,
   LearningCourseResponse,
   LearningWorkspacePreference,
@@ -31,6 +40,7 @@ import type {
   LearnerQuizResponse,
   TranscriptSegment,
   WorkspaceContext,
+  Rubric,
 } from "./lms-types";
 
 export interface QueryState<T> {
@@ -38,6 +48,7 @@ export interface QueryState<T> {
   loading: boolean;
   error: ApiClientError | Error | null;
   reload: () => Promise<void>;
+  refresh: () => Promise<void>;
 }
 
 function useApiQuery<T>(
@@ -60,11 +71,19 @@ function useApiQuery<T>(
     }
   }, deps);
 
+  const refresh = useCallback(async () => {
+    try {
+      setData(await loader());
+    } catch (caught) {
+      console.error("Background refresh failed", caught);
+    }
+  }, deps);
+
   useEffect(() => {
     void reload();
   }, [reload]);
 
-  return { data, loading, error, reload };
+  return { data, loading, error, reload, refresh };
 }
 
 export function useSession() {
@@ -127,23 +146,17 @@ export function useCourses() {
 }
 
 export function useCourseDetail(slugOrId: string | null) {
-  return useApiQuery<Course>(
-    async () => {
-      if (!slugOrId) throw new Error("Course id is required");
-      return api.courseDetail(slugOrId);
-    },
-    [slugOrId],
-  );
+  return useApiQuery<Course>(async () => {
+    if (!slugOrId) throw new Error("Course id is required");
+    return api.courseDetail(slugOrId);
+  }, [slugOrId]);
 }
 
 export function useCourseCurriculum(courseId: string | null) {
-  return useApiQuery<Course>(
-    async () => {
-      if (!courseId) throw new Error("Course id is required");
-      return api.courseCurriculum(courseId);
-    },
-    [courseId],
-  );
+  return useApiQuery<Course>(async () => {
+    if (!courseId) throw new Error("Course id is required");
+    return api.courseCurriculum(courseId);
+  }, [courseId]);
 }
 
 export function useEnrollCourse() {
@@ -155,33 +168,24 @@ export function useMyEnrollments() {
 }
 
 export function useLearningCourse(courseId: string | null) {
-  return useApiQuery<LearningCourseResponse>(
-    async () => {
-      if (!courseId) throw new Error("Course id is required");
-      return api.learningCourse(courseId);
-    },
-    [courseId],
-  );
+  return useApiQuery<LearningCourseResponse>(async () => {
+    if (!courseId) throw new Error("Course id is required");
+    return api.learningCourse(courseId);
+  }, [courseId]);
 }
 
 export function useLesson(lessonId: string | null) {
-  return useApiQuery<Lesson>(
-    async () => {
-      if (!lessonId) throw new Error("Lesson id is required");
-      return api.lesson(lessonId);
-    },
-    [lessonId],
-  );
+  return useApiQuery<Lesson>(async () => {
+    if (!lessonId) throw new Error("Lesson id is required");
+    return api.lesson(lessonId);
+  }, [lessonId]);
 }
 
 export function useActivityContent(activityId: string | null) {
-  return useApiQuery<ActivityContentResponse>(
-    async () => {
-      if (!activityId) throw new Error("Activity id is required");
-      return api.activityContent(activityId);
-    },
-    [activityId],
-  );
+  return useApiQuery<ActivityContentResponse>(async () => {
+    if (!activityId) throw new Error("Activity id is required");
+    return api.activityContent(activityId);
+  }, [activityId]);
 }
 
 export function useStartActivity() {
@@ -320,23 +324,17 @@ export function useDeleteLearnerBookmark() {
 }
 
 export function useTranscript(activityId: string | null) {
-  return useApiQuery<TranscriptSegment[]>(
-    async () => {
-      if (!activityId) throw new Error("Activity id is required");
-      return api.transcript(activityId);
-    },
-    [activityId],
-  );
+  return useApiQuery<TranscriptSegment[]>(async () => {
+    if (!activityId) throw new Error("Activity id is required");
+    return api.transcript(activityId);
+  }, [activityId]);
 }
 
 export function useWorkspaceContext(activityId: string | null) {
-  return useApiQuery<WorkspaceContext>(
-    async () => {
-      if (!activityId) throw new Error("Activity id is required");
-      return api.workspaceContext(activityId);
-    },
-    [activityId],
-  );
+  return useApiQuery<WorkspaceContext>(async () => {
+    if (!activityId) throw new Error("Activity id is required");
+    return api.workspaceContext(activityId);
+  }, [activityId]);
 }
 
 export function useInstructorCourses() {
@@ -344,13 +342,10 @@ export function useInstructorCourses() {
 }
 
 export function useInstructorCourse(courseId: string | null) {
-  return useApiQuery<Course>(
-    async () => {
-      if (!courseId) throw new Error("Course id is required");
-      return api.instructorCourse(courseId);
-    },
-    [courseId],
-  );
+  return useApiQuery<Course>(async () => {
+    if (!courseId) throw new Error("Course id is required");
+    return api.instructorCourse(courseId);
+  }, [courseId]);
 }
 
 export function useFiles() {
@@ -369,17 +364,14 @@ export function useSignedFileUrl() {
 }
 
 export function useContentLibrary() {
-  return useApiQuery<ContentLibraryItem[]>(
-    () => api.contentLibrary(),
-    [],
-  );
+  return useApiQuery<ContentLibraryItem[]>(() => api.contentLibrary(), []);
 }
 
 export function usePluginActivityTypes() {
-  return useApiQuery<{ organizationId: string; activityTypes: PluginActivityType[] }>(
-    () => api.pluginActivityTypes(),
-    [],
-  );
+  return useApiQuery<{
+    organizationId: string;
+    activityTypes: PluginActivityType[];
+  }>(() => api.pluginActivityTypes(), []);
 }
 
 export function useAdminPlugins() {
@@ -387,23 +379,17 @@ export function useAdminPlugins() {
 }
 
 export function useAdminPlugin(pluginKey: string | null) {
-  return useApiQuery<Plugin>(
-    async () => {
-      if (!pluginKey) throw new Error("Plugin key is required");
-      return api.adminPlugin(pluginKey);
-    },
-    [pluginKey],
-  );
+  return useApiQuery<Plugin>(async () => {
+    if (!pluginKey) throw new Error("Plugin key is required");
+    return api.adminPlugin(pluginKey);
+  }, [pluginKey]);
 }
 
 export function usePluginLogs(pluginKey: string | null) {
-  return useApiQuery<PluginExecutionLog[]>(
-    async () => {
-      if (!pluginKey) throw new Error("Plugin key is required");
-      return api.pluginLogs(pluginKey);
-    },
-    [pluginKey],
-  );
+  return useApiQuery<PluginExecutionLog[]>(async () => {
+    if (!pluginKey) throw new Error("Plugin key is required");
+    return api.pluginLogs(pluginKey);
+  }, [pluginKey]);
 }
 
 export function useQuestionBanks() {
@@ -433,33 +419,24 @@ export function useInstructorQuizzes() {
 }
 
 export function useInstructorQuiz(quizId: string | null) {
-  return useApiQuery<Quiz>(
-    async () => {
-      if (!quizId) throw new Error("Quiz id is required");
-      return api.instructorQuiz(quizId);
-    },
-    [quizId],
-  );
+  return useApiQuery<Quiz>(async () => {
+    if (!quizId) throw new Error("Quiz id is required");
+    return api.instructorQuiz(quizId);
+  }, [quizId]);
 }
 
 export function useLearnerQuiz(activityId: string | null) {
-  return useApiQuery<LearnerQuizResponse>(
-    async () => {
-      if (!activityId) throw new Error("Activity id is required");
-      return api.learnerQuiz(activityId);
-    },
-    [activityId],
-  );
+  return useApiQuery<LearnerQuizResponse>(async () => {
+    if (!activityId) throw new Error("Activity id is required");
+    return api.learnerQuiz(activityId);
+  }, [activityId]);
 }
 
 export function useQuizAttempts(quizId: string | null) {
-  return useApiQuery<QuizAttempt[]>(
-    async () => {
-      if (!quizId) throw new Error("Quiz id is required");
-      return api.quizAttempts(quizId);
-    },
-    [quizId],
-  );
+  return useApiQuery<QuizAttempt[]>(async () => {
+    if (!quizId) throw new Error("Quiz id is required");
+    return api.quizAttempts(quizId);
+  }, [quizId]);
 }
 
 export function useUpdateActivityContent() {
@@ -491,6 +468,204 @@ export function useAuthActions() {
     () => ({
       clearSession,
     }),
+    [],
+  );
+}
+
+export function useAiStatus() {
+  return useApiQuery<AiStatus>(() => api.aiStatus(), []);
+}
+
+export function useAskAiTutor() {
+  return useCallback(
+    (input: {
+      courseId: string;
+      lessonId: string;
+      activityId: string;
+      question: string;
+      conversationId?: string;
+    }): Promise<AiTutorResponse> => api.askAiTutor(input),
+    [],
+  );
+}
+
+export function useAssignments(courseId: string | null) {
+  return useApiQuery<Assignment[]>(async () => {
+    if (!courseId) throw new Error("Course id is required");
+    return api.assignments(courseId);
+  }, [courseId]);
+}
+
+export function useAssignment(assignmentId: string | null) {
+  return useApiQuery<Assignment>(async () => {
+    if (!assignmentId) throw new Error("Assignment id is required");
+    return api.assignment(assignmentId);
+  }, [assignmentId]);
+}
+
+export function useCreateAssignment() {
+  return useCallback(
+    (courseId: string, input: Record<string, unknown>) =>
+      api.createAssignment(courseId, input),
+    [],
+  );
+}
+
+export function useUpdateAssignment() {
+  return useCallback(
+    (assignmentId: string, input: Record<string, unknown>) =>
+      api.updateAssignment(assignmentId, input),
+    [],
+  );
+}
+
+export function usePublishAssignment() {
+  return useCallback(
+    (assignmentId: string) => api.publishAssignment(assignmentId),
+    [],
+  );
+}
+
+export function useLearnerAssignment(assignmentId: string | null) {
+  return useApiQuery<LearnerAssignmentResponse>(async () => {
+    if (!assignmentId) throw new Error("Assignment id is required");
+    return api.learnerAssignment(assignmentId);
+  }, [assignmentId]);
+}
+
+export function useCreateSubmission() {
+  return useCallback(
+    (assignmentId: string, input: Record<string, unknown>) =>
+      api.createSubmission(assignmentId, input),
+    [],
+  );
+}
+
+export function useUpdateSubmission() {
+  return useCallback(
+    (submissionId: string, input: Record<string, unknown>) =>
+      api.updateSubmission(submissionId, input),
+    [],
+  );
+}
+
+export function useSubmitSubmission() {
+  return useCallback(
+    (submissionId: string) => api.submitSubmission(submissionId),
+    [],
+  );
+}
+
+export function useSubmissionResult(submissionId: string | null) {
+  return useApiQuery<AssignmentSubmission>(async () => {
+    if (!submissionId) throw new Error("Submission id is required");
+    return api.submissionResult(submissionId);
+  }, [submissionId]);
+}
+
+export function useAssignmentSubmissions(assignmentId: string | null) {
+  return useApiQuery<AssignmentSubmission[]>(async () => {
+    if (!assignmentId) throw new Error("Assignment id is required");
+    return api.assignmentSubmissions(assignmentId);
+  }, [assignmentId]);
+}
+
+export function useGradeSubmission() {
+  return useCallback(
+    (submissionId: string, input: Record<string, unknown>) =>
+      api.gradeSubmission(submissionId, input),
+    [],
+  );
+}
+
+export function useRubrics() {
+  return useApiQuery<Rubric[]>(() => api.rubrics(), []);
+}
+
+export function useRubric(rubricId: string | null) {
+  return useApiQuery<Rubric>(async () => {
+    if (!rubricId) throw new Error("Rubric id is required");
+    return api.rubric(rubricId);
+  }, [rubricId]);
+}
+
+export function useCreateRubric() {
+  return useCallback(
+    (input: Record<string, unknown>) => api.createRubric(input),
+    [],
+  );
+}
+
+export function useUpdateRubric() {
+  return useCallback(
+    (rubricId: string, input: Record<string, unknown>) =>
+      api.updateRubric(rubricId, input),
+    [],
+  );
+}
+
+export function useCertificates() {
+  return useApiQuery<Certificate[]>(() => api.certificates(), []);
+}
+
+export function useCertificate(certificateId: string | null) {
+  return useApiQuery<Certificate>(async () => {
+    if (!certificateId) throw new Error("Certificate id is required");
+    return api.certificate(certificateId);
+  }, [certificateId]);
+}
+
+export function useVerifyCertificate(verificationCode: string | null) {
+  return useApiQuery<CertificateVerification>(async () => {
+    if (!verificationCode) throw new Error("Verification code is required");
+    return api.verifyCertificate(verificationCode);
+  }, [verificationCode]);
+}
+
+export function useCertificateTemplates() {
+  return useApiQuery<CertificateTemplate[]>(
+    () => api.certificateTemplates(),
+    [],
+  );
+}
+
+export function useCreateCertificateTemplate() {
+  return useCallback(
+    (input: Record<string, unknown>) => api.createCertificateTemplate(input),
+    [],
+  );
+}
+
+export function useUpdateCertificateTemplate() {
+  return useCallback(
+    (templateId: string, input: Record<string, unknown>) =>
+      api.updateCertificateTemplate(templateId, input),
+    [],
+  );
+}
+
+export function useCourseCertificates(courseId: string | null) {
+  return useApiQuery<Certificate[]>(async () => {
+    if (!courseId) throw new Error("Course id is required");
+    return api.courseCertificates(courseId);
+  }, [courseId]);
+}
+
+export function useLearningGoals() {
+  return useApiQuery<LearningGoal[]>(() => api.learningGoals(), []);
+}
+
+export function useCreateLearningGoal() {
+  return useCallback(
+    (input: Record<string, unknown>) => api.createLearningGoal(input),
+    [],
+  );
+}
+
+export function useUpdateLearningGoal() {
+  return useCallback(
+    (goalId: string, input: Record<string, unknown>) =>
+      api.updateLearningGoal(goalId, input),
     [],
   );
 }

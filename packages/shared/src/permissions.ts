@@ -30,6 +30,11 @@ export const PERMISSIONS = {
   contentProcess: "content:process",
   quizManage: "quiz:manage",
   quizGrade: "quiz:grade",
+  assignmentsManage: "assignments:manage",
+  assignmentsGrade: "assignments:grade",
+  certificatesManage: "certificates:manage",
+  certificatesIssue: "certificates:issue",
+  goalsManage: "goals:manage",
   pluginsConfigure: "plugins:configure",
 } as const;
 

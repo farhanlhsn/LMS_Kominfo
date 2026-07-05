@@ -41,7 +41,11 @@ test.describe("Browser smoke for main LMS surfaces", () => {
     request,
   }) => {
     const learner = await loginPageAs(page, request, "learner");
-    const enrollments = await apiGet<any[]>(request, learner, "/my/enrollments");
+    const enrollments = await apiGet<any[]>(
+      request,
+      learner,
+      "/my/enrollments",
+    );
     const course = enrollments[0].course;
     const learningCourse = await apiGet<any>(
       request,
@@ -58,12 +62,16 @@ test.describe("Browser smoke for main LMS surfaces", () => {
     await expect(page.getByText(course.title).first()).toBeVisible();
 
     await page.goto("/my-learning");
-    await expect(page.getByRole("heading", { name: "My Learning" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "My Learning" }),
+    ).toBeVisible();
     await expect(page.getByText(course.title).first()).toBeVisible();
 
     await page.goto(`/learn/lessons/${firstLesson.id}`);
     await expect(page.getByText("Learning workspace").first()).toBeVisible();
-    await expect(page.getByRole("button", { name: videoActivity.title })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: videoActivity.title }),
+    ).toBeVisible();
     await page.getByRole("button", { name: videoActivity.title }).click();
 
     await page.getByRole("button", { name: "Notes" }).last().click();
@@ -71,17 +79,27 @@ test.describe("Browser smoke for main LMS surfaces", () => {
       .getByPlaceholder("Write a private note...")
       .fill(`UI smoke note ${Date.now()}`);
     await page.getByRole("button", { name: "Save note" }).click();
-    await expect(page.getByPlaceholder("Write a private note...")).toBeVisible();
+    await expect(
+      page.getByPlaceholder("Write a private note..."),
+    ).toBeVisible();
 
     await page.getByRole("button", { name: "Bookmarks" }).last().click();
-    await page.getByRole("button", { name: /Bookmark/ }).last().click();
+    await page
+      .getByRole("button", { name: /Bookmark/ })
+      .last()
+      .click();
     await expect(page.getByText("Bookmark").first()).toBeVisible();
 
     await page.getByRole("button", { name: "Transcript" }).last().click();
     await expect(page.getByPlaceholder("Search transcript")).toBeVisible();
 
+    await page.getByTitle("AI Tutor").click();
+    await expect(page.getByText("AI Tutor is disabled")).toBeVisible();
+
     await page.getByRole("button", { name: "Mark complete" }).click();
-    await expect(page.getByText(/Completed|progress|required/i).first()).toBeVisible();
+    await expect(
+      page.getByText(/Completed|progress|required/i).first(),
+    ).toBeVisible();
   });
 
   test("instructor pages for course builder, content, files, and quizzes render", async ({
@@ -91,18 +109,28 @@ test.describe("Browser smoke for main LMS surfaces", () => {
     await loginPageAs(page, request, "instructor");
 
     await page.goto("/instructor/courses");
-    await expect(page.getByRole("heading", { name: "Course Builder" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Course Builder" }),
+    ).toBeVisible();
     await expect(page.getByRole("link", { name: "New course" })).toBeVisible();
 
     await page.goto("/instructor/files");
-    await expect(page.getByRole("heading", { name: "File Manager" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "File Manager" }),
+    ).toBeVisible();
 
     await page.goto("/instructor/content-library");
-    await expect(page.getByRole("heading", { name: "Content Library" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Create item" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Content Library" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Create item" }),
+    ).toBeVisible();
 
     await page.goto("/instructor/question-banks");
-    await expect(page.getByRole("heading", { name: "Question Banks" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Question Banks" }),
+    ).toBeVisible();
     await expect(page.getByRole("button", { name: "Save bank" })).toBeVisible();
 
     await page.goto("/instructor/quizzes");
@@ -115,10 +143,15 @@ test.describe("Browser smoke for main LMS surfaces", () => {
     request,
   }) => {
     const learner = await loginPageAs(page, request, "learner");
-    const enrollments = await apiGet<any[]>(request, learner, "/my/enrollments");
+    const enrollments = await apiGet<any[]>(
+      request,
+      learner,
+      "/my/enrollments",
+    );
     const seededEnrollment =
       enrollments.find(
-        (enrollment) => enrollment.course.slug === "foundations-modern-web-apps",
+        (enrollment) =>
+          enrollment.course.slug === "foundations-modern-web-apps",
       ) ?? enrollments[0];
     const learningCourse = await apiGet<any>(
       request,
@@ -132,7 +165,11 @@ test.describe("Browser smoke for main LMS surfaces", () => {
     );
     expect(quizActivity).toBeTruthy();
 
-    await apiPost(request, learner, `/courses/${seededEnrollment.course.id}/enroll`);
+    await apiPost(
+      request,
+      learner,
+      `/courses/${seededEnrollment.course.id}/enroll`,
+    );
     await apiPatch(request, learner, "/learn/workspace/preferences", {
       preferredLayout: "standard",
       rightPanelMode: "notes",
@@ -172,7 +209,9 @@ test.describe("Browser smoke for main LMS surfaces", () => {
     }
     await expect(page.getByText("Quiz").first()).toBeVisible();
     await startQuizButton.click();
-    await expect(page.getByRole("button", { name: "Save answer" }).first()).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Save answer" }).first(),
+    ).toBeVisible();
   });
 
   test("admin plugin management UI renders plugin status and detail", async ({

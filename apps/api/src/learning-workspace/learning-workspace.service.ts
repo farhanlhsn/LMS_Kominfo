@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 import { Prisma } from "@lms/db";
 import { PrismaService } from "../prisma/prisma.service";
+import { AiIndexingService } from "../ai/ai-indexing.service";
 import type { OrganizationContext } from "../auth/types/authenticated-request";
 import type {
   CreateLearnerBookmarkDto,
@@ -32,7 +33,10 @@ const defaultPolicy = {
 
 @Injectable()
 export class LearningWorkspaceService {
-  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+  constructor(
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(AiIndexingService) private readonly aiIndexing: AiIndexingService,
+  ) {}
 
   getPreferences(organizationId: string, userId: string) {
     return this.prisma.learningWorkspacePreference.upsert({
@@ -291,7 +295,11 @@ export class LearningWorkspaceService {
     return bookmark;
   }
 
-  async getTranscript(organizationId: string, userId: string, activityId: string) {
+  async getTranscript(
+    organizationId: string,
+    userId: string,
+    activityId: string,
+  ) {
     const activity = await this.getActivity(organizationId, activityId);
     await this.ensureEnrollment(organizationId, userId, activity.courseId);
     return this.prisma.transcriptSegment.findMany({
@@ -333,6 +341,8 @@ export class LearningWorkspaceService {
       "resources",
       assessmentDisplayPolicy.allowAIAssistant ? "ai" : null,
       "bookmarks",
+      "discussion",
+      "upcoming",
       "activity_info",
     ].filter(Boolean);
     return {
@@ -405,6 +415,9 @@ export class LearningWorkspaceService {
       "transcript.upserted",
       activityId,
     );
+    await this.aiIndexing
+      .indexActivity(organization.id, activityId)
+      .catch(() => undefined);
     return this.instructorTranscript(organization, userId, activityId);
   }
 
@@ -415,8 +428,12 @@ export class LearningWorkspaceService {
     dto: UpdateTranscriptSegmentDto,
   ) {
     const segment = await this.getTranscriptSegment(organization.id, segmentId);
-    await this.ensureCanManageActivity(organization, userId, segment.activityId);
-    return this.prisma.transcriptSegment.update({
+    await this.ensureCanManageActivity(
+      organization,
+      userId,
+      segment.activityId,
+    );
+    const updated = await this.prisma.transcriptSegment.update({
       where: { id: segmentId },
       data: {
         startSeconds: dto.startSeconds,
@@ -428,6 +445,10 @@ export class LearningWorkspaceService {
         metadata: dto.metadata as Prisma.InputJsonObject | undefined,
       },
     });
+    await this.aiIndexing
+      .indexActivity(organization.id, segment.activityId)
+      .catch(() => undefined);
+    return updated;
   }
 
   async deleteTranscriptSegment(
@@ -436,8 +457,18 @@ export class LearningWorkspaceService {
     segmentId: string,
   ) {
     const segment = await this.getTranscriptSegment(organization.id, segmentId);
-    await this.ensureCanManageActivity(organization, userId, segment.activityId);
-    return this.prisma.transcriptSegment.delete({ where: { id: segmentId } });
+    await this.ensureCanManageActivity(
+      organization,
+      userId,
+      segment.activityId,
+    );
+    const deleted = await this.prisma.transcriptSegment.delete({
+      where: { id: segmentId },
+    });
+    await this.aiIndexing
+      .indexActivity(organization.id, segment.activityId)
+      .catch(() => undefined);
+    return deleted;
   }
 
   private async resolveScope(
@@ -560,7 +591,10 @@ export class LearningWorkspaceService {
     return bookmark;
   }
 
-  private async getTranscriptSegment(organizationId: string, segmentId: string) {
+  private async getTranscriptSegment(
+    organizationId: string,
+    segmentId: string,
+  ) {
     const segment = await this.prisma.transcriptSegment.findFirst({
       where: { id: segmentId, organizationId },
     });

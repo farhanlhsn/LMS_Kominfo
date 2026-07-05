@@ -64,6 +64,14 @@ export class UpdateCourseDto {
   @IsOptional()
   @IsIn(["PUBLIC", "PRIVATE", "ORGANIZATION_ONLY", "INVITE_ONLY"])
   visibility?: "PUBLIC" | "PRIVATE" | "ORGANIZATION_ONLY" | "INVITE_ONLY";
+
+  @IsOptional()
+  @IsBoolean()
+  autoCertificate?: boolean;
+
+  @IsOptional()
+  @IsString()
+  autoCertificateTemplateId?: string | null;
 }
 
 export class CreateModuleDto {

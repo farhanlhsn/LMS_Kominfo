@@ -6,12 +6,16 @@ onlyBuiltDependencies:
   - "@prisma/client"
   - "@prisma/engines"
   - "esbuild"
+  - "onnxruntime-node"
+  - "protobufjs"
   - "prisma"
   - "sharp"
 allowBuilds:
-  '@prisma/client': true
-  '@prisma/engines': true
+  "@prisma/client": true
+  "@prisma/engines": true
   esbuild: true
   msgpackr-extract: true
+  onnxruntime-node: true
   prisma: true
+  protobufjs: true
   sharp: true

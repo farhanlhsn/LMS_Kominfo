@@ -24,6 +24,7 @@ export interface StorageProvider {
   ): Promise<string>;
   getPublicUrl(bucket: string, key: string): string;
   getMetadata(bucket: string, key: string): Promise<StorageObjectMetadata>;
+  getFile(bucket: string, key: string): Promise<Buffer>;
   copyFile(
     sourceBucket: string,
     sourceKey: string,
