@@ -3,7 +3,7 @@
 import type { FormEvent } from "react";
 import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { Save, Send } from "lucide-react";
+import { Save, Send, Sparkles, Trash2 } from "lucide-react";
 import { PERMISSIONS } from "@lms/shared";
 import { AuthGate } from "../../../../../components/auth/auth-gate";
 import { RichTextEditor } from "../../../../../components/content/content";
@@ -13,6 +13,8 @@ import {
   CourseBuilderShell,
 } from "../../../../../components/lms/courses";
 import { PluginActivityEditor } from "../../../../../components/plugins/plugin-activity";
+import { AiApprovalQueue } from "../../../../../components/advanced-assignment/ai-approval-queue";
+import { CaptionCueEditor } from "../../../../../components/advanced-assignment/caption-cue-editor";
 import {
   ButtonLink,
   ConfirmDialog,
@@ -25,11 +27,18 @@ import { CoursePhaseNavigation } from "../../../../../components/engagement/enga
 import { api } from "../../../../../lib/api-client";
 import {
   useContentLibrary,
+  useCreateInstructorCaptionTrack,
   useFiles,
+  useGenerateInstructorVideoQuiz,
+  useGenerateInstructorVideoSummary,
+  useInstructorAiGeneratedItems,
+  useInstructorCaptionTracks,
   useInstructorCourse,
   useInstructorQuizzes,
   usePluginActivityTypes,
   useSession,
+  useDeleteInstructorCaptionTrack,
+  useUpdateInstructorCaptionTrack,
 } from "../../../../../lib/api-hooks";
 import { hasPermission } from "../../../../../lib/authz";
 import type {
@@ -37,6 +46,7 @@ import type {
   Course,
   CourseModule,
   Lesson,
+  VideoCaptionTrack,
 } from "../../../../../lib/lms-types";
 
 export default function BuilderPage() {
@@ -1064,10 +1074,328 @@ function ActivityContentForm({
               }))}
               onAttach={onAttachLibraryItem}
             />
+            {activity.activityTypeKey === "core.video" ? (
+              <VideoEnhancementsPanel activity={activity} />
+            ) : null}
           </>
         ) : null}
       </PluginActivityEditor>
     </div>
+  );
+}
+
+function VideoEnhancementsPanel({ activity }: { activity: Activity }) {
+  const captionTracks = useInstructorCaptionTracks(activity.id);
+  const generatedItems = useInstructorAiGeneratedItems(activity.id);
+  const createCaptionTrack = useCreateInstructorCaptionTrack();
+  const updateCaptionTrack = useUpdateInstructorCaptionTrack();
+  const deleteCaptionTrack = useDeleteInstructorCaptionTrack();
+  const generateSummary = useGenerateInstructorVideoSummary();
+  const generateQuiz = useGenerateInstructorVideoQuiz();
+  const [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState<"caption" | "summary" | "quiz" | null>(null);
+  const [captionContent, setCaptionContent] = useState("");
+  const [captionLanguage, setCaptionLanguage] = useState("en");
+  const [captionLabel, setCaptionLabel] = useState("English captions");
+  const [captionDefault, setCaptionDefault] = useState(true);
+  const [syncTranscript, setSyncTranscript] = useState(true);
+  const [editingTrackId, setEditingTrackId] = useState<string | null>(null);
+
+  async function run(
+    mode: "caption" | "summary" | "quiz",
+    action: () => Promise<unknown>,
+    success: string,
+  ) {
+    setBusy(mode);
+    setMessage(null);
+    try {
+      await action();
+      setMessage(success);
+      await Promise.all([captionTracks.reload(), generatedItems.reload()]);
+    } catch (caught) {
+      setMessage(caught instanceof Error ? caught.message : String(caught));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function submitCaption(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await run(
+      "caption",
+      () =>
+        createCaptionTrack(activity.id, {
+          label: captionLabel,
+          language: captionLanguage,
+          rawContent: captionContent,
+          source: "UPLOAD",
+          isDefault: captionDefault,
+          syncTranscript,
+        }),
+      "Caption track saved.",
+    );
+    setCaptionContent("");
+  }
+
+  const defaultLanguage =
+    captionTracks.data?.find((track) => track.isDefault)?.language ??
+    captionTracks.data?.[0]?.language ??
+    captionLanguage;
+
+  return (
+    <div className="grid gap-4 rounded-lg border border-border bg-muted/30 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold">Advanced video learning</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Upload captions, sync transcript, and generate reviewable AI drafts from the video transcript.
+          </p>
+        </div>
+        {message ? (
+          <span className="rounded-md border border-border bg-card px-3 py-1 text-xs text-muted-foreground">
+            {message}
+          </span>
+        ) : null}
+      </div>
+
+      <form className="grid gap-3 rounded-md border border-border bg-card p-4" onSubmit={submitCaption}>
+        <div className="grid gap-3 md:grid-cols-2">
+          <label className="text-sm font-medium text-foreground">
+            Caption label
+            <input
+              className="mt-2 h-10 w-full rounded-md border border-input bg-card px-3 text-sm"
+              onChange={(event) => setCaptionLabel(event.target.value)}
+              value={captionLabel}
+            />
+          </label>
+          <label className="text-sm font-medium text-foreground">
+            Language
+            <input
+              className="mt-2 h-10 w-full rounded-md border border-input bg-card px-3 text-sm"
+              onChange={(event) => setCaptionLanguage(event.target.value)}
+              value={captionLanguage}
+            />
+          </label>
+        </div>
+        <label className="text-sm font-medium text-foreground">
+          VTT / SRT content
+          <textarea
+            className="mt-2 min-h-40 w-full rounded-md border border-input bg-card px-3 py-2 text-sm font-mono"
+            onChange={(event) => setCaptionContent(event.target.value)}
+            placeholder={`WEBVTT\n\n00:00:01.000 --> 00:00:04.000\nWelcome to the lesson.`}
+            value={captionContent}
+          />
+        </label>
+        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+          <label className="inline-flex items-center gap-2">
+            <input
+              checked={captionDefault}
+              onChange={(event) => setCaptionDefault(event.target.checked)}
+              type="checkbox"
+            />
+            Set as default track
+          </label>
+          <label className="inline-flex items-center gap-2">
+            <input
+              checked={syncTranscript}
+              onChange={(event) => setSyncTranscript(event.target.checked)}
+              type="checkbox"
+            />
+            Sync transcript from caption cues
+          </label>
+          <label className="inline-flex items-center gap-2">
+            <input
+              accept=".vtt,.srt,.txt,text/vtt"
+              className="max-w-52 text-xs"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (!file) return;
+                void file.text().then((text) => setCaptionContent(text));
+              }}
+              type="file"
+            />
+            Load file
+          </label>
+        </div>
+        <button
+          className="inline-flex w-fit items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+          disabled={!captionContent.trim() || busy !== null}
+          type="submit"
+        >
+          <Save aria-hidden="true" className="h-4 w-4" />
+          Save caption track
+        </button>
+      </form>
+
+      <div className="grid gap-3 rounded-md border border-border bg-card p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold">AI transcript drafts</h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Create draft-only summary and quiz items for instructor review.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-semibold disabled:opacity-50"
+              disabled={busy !== null}
+              onClick={() =>
+                void run(
+                  "summary",
+                  () =>
+                    generateSummary(activity.id, {
+                      language: defaultLanguage,
+                    }),
+                  "Summary draft generated.",
+                )
+              }
+              type="button"
+            >
+              <Sparkles aria-hidden="true" className="h-4 w-4" />
+              Generate summary
+            </button>
+            <button
+              className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-semibold disabled:opacity-50"
+              disabled={busy !== null}
+              onClick={() =>
+                void run(
+                  "quiz",
+                  () =>
+                    generateQuiz(activity.id, {
+                      language: defaultLanguage,
+                      questionCount: 5,
+                    }),
+                  "Quiz draft generated.",
+                )
+              }
+              type="button"
+            >
+              <Sparkles aria-hidden="true" className="h-4 w-4" />
+              Generate quiz
+            </button>
+          </div>
+        </div>
+        <div className="grid gap-3 lg:grid-cols-2">
+          <div className="grid gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Caption tracks
+            </p>
+            {captionTracks.loading ? (
+              <LoadingState title="Loading caption tracks" />
+            ) : captionTracks.error ? (
+              <ApiErrorState error={captionTracks.error} fallbackTitle="Could not load caption tracks" />
+            ) : captionTracks.data?.length ? (
+              captionTracks.data.map((track) => (
+                <CaptionTrackCard
+                  key={track.id}
+                  onDelete={() =>
+                    run(
+                      "caption",
+                      () => deleteCaptionTrack(track.id),
+                      "Caption track deleted.",
+                    )
+                  }
+                  onEditCues={() =>
+                    setEditingTrackId(
+                      editingTrackId === track.id ? null : track.id,
+                    )
+                  }
+                  isEditing={editingTrackId === track.id}
+                  onMakeDefault={() =>
+                    run(
+                      "caption",
+                      () => updateCaptionTrack(track.id, { isDefault: true }),
+                      "Default caption track updated.",
+                    )
+                  }
+                  track={track}
+                />
+              ))
+            ) : (
+              <EmptyState
+                title="No caption tracks"
+                description="Upload at least one VTT or SRT file to unlock multi-language captions."
+              />
+            )}
+          </div>
+          <div className="grid gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              AI generated drafts
+            </p>
+            {generatedItems.loading ? (
+              <LoadingState title="Loading AI drafts" />
+            ) : generatedItems.error ? (
+              <ApiErrorState error={generatedItems.error} fallbackTitle="Could not load AI drafts" />
+            ) : generatedItems.data?.length ? (
+              <AiApprovalQueue activityId={activity.id} />
+            ) : (
+              <EmptyState
+                title="No AI drafts"
+                description="Generate a summary or quiz draft after transcript data is available."
+              />
+            )}
+          </div>
+        </div>
+      </div>
+
+      {editingTrackId ? (
+        <CaptionCueEditor trackId={editingTrackId} />
+      ) : null}
+    </div>
+  );
+}
+
+function CaptionTrackCard({
+  track,
+  onMakeDefault,
+  onDelete,
+  onEditCues,
+  isEditing,
+}: {
+  track: VideoCaptionTrack;
+  onMakeDefault: () => Promise<unknown>;
+  onDelete: () => Promise<unknown>;
+  onEditCues: () => void;
+  isEditing: boolean;
+}) {
+  return (
+    <article className="rounded-md border border-border bg-background p-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold">{track.label}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {track.language.toUpperCase()} · {track.kind.toLowerCase()} · {track.cues.length} cues
+          </p>
+        </div>
+        {track.isDefault ? <StatusBadge tone="success" value="default" /> : null}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold"
+          onClick={onEditCues}
+          type="button"
+        >
+          {isEditing ? "Close cue editor" : "Edit cues"}
+        </button>
+        {!track.isDefault ? (
+          <button
+            className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold"
+            onClick={() => void onMakeDefault()}
+            type="button"
+          >
+            Set default
+          </button>
+        ) : null}
+        <button
+          className="inline-flex items-center gap-1 rounded-md border border-destructive/30 px-3 py-1.5 text-xs font-semibold text-destructive"
+          onClick={() => void onDelete()}
+          type="button"
+        >
+          <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
+          Delete
+        </button>
+      </div>
+    </article>
   );
 }
 

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Req, Res, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from "@nestjs/common";
 import type { Request, Response } from "express";
 import { PERMISSIONS } from "@lms/shared";
 import type { OrganizationContext } from "../auth/types/authenticated-request";
@@ -10,9 +10,16 @@ import { OrganizationContextGuard } from "../rbac/guards/organization-context.gu
 import { PermissionsGuard } from "../rbac/guards/permissions.guard";
 import type { AuthenticatedUser } from "../auth/types/authenticated-request";
 import { AiIndexingService } from "./ai-indexing.service";
+import { AiGeneratedItemService } from "./ai-generated-item.service";
 import { AiStatusService } from "./ai-status.service";
 import { AiTutorService } from "./ai-tutor.service";
 import { AskAiTutorDto } from "./dto/ai.dto";
+import {
+  GenerateVideoQuizDto,
+  GenerateVideoSummaryDto,
+  ListAiGeneratedItemsQueryDto,
+  UpdateAiGeneratedItemDto,
+} from "./dto/video-ai.dto";
 
 @Controller("ai")
 @UseGuards(JwtAuthGuard, OrganizationContextGuard)
@@ -87,7 +94,10 @@ export class LearnerAiController {
 @Controller("instructor/courses/:courseId/ai")
 @UseGuards(JwtAuthGuard, OrganizationContextGuard, PermissionsGuard)
 export class InstructorAiController {
-  constructor(private readonly indexingService: AiIndexingService) {}
+  constructor(
+    private readonly indexingService: AiIndexingService,
+    private readonly generatedItems: AiGeneratedItemService,
+  ) {}
 
   @Post("index")
   @Permissions(PERMISSIONS.coursesUpdate)
@@ -107,5 +117,119 @@ export class InstructorAiController {
     @Param("courseId") courseId: string,
   ) {
     return this.indexingService.courseStatus(organization, user.id, courseId);
+  }
+}
+
+@Controller("instructor/activities/:activityId/ai")
+@UseGuards(JwtAuthGuard, OrganizationContextGuard, PermissionsGuard)
+export class InstructorActivityAiController {
+  constructor(private readonly generatedItems: AiGeneratedItemService) {}
+
+  @Get("generated-items")
+  @Permissions(PERMISSIONS.coursesRead)
+  listGeneratedItems(
+    @ActiveOrganization() organization: OrganizationContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("activityId") activityId: string,
+  ) {
+    return this.generatedItems.listForActivity(organization, user.id, activityId);
+  }
+
+  @Post("video-summary")
+  @Permissions(PERMISSIONS.coursesUpdate)
+  generateVideoSummary(
+    @ActiveOrganization() organization: OrganizationContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("activityId") activityId: string,
+    @Body() dto: GenerateVideoSummaryDto,
+  ) {
+    return this.generatedItems.generateVideoSummary(
+      organization,
+      user.id,
+      activityId,
+      dto,
+    );
+  }
+
+  @Post("video-quiz")
+  @Permissions(PERMISSIONS.coursesUpdate)
+  generateVideoQuiz(
+    @ActiveOrganization() organization: OrganizationContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("activityId") activityId: string,
+    @Body() dto: GenerateVideoQuizDto,
+  ) {
+    return this.generatedItems.generateVideoQuiz(
+      organization,
+      user.id,
+      activityId,
+      dto,
+    );
+  }
+}
+
+@Controller("instructor/ai/items")
+@UseGuards(JwtAuthGuard, OrganizationContextGuard, PermissionsGuard)
+export class InstructorAiItemsController {
+  constructor(private readonly generatedItems: AiGeneratedItemService) {}
+
+  @Get()
+  @Permissions(PERMISSIONS.coursesRead)
+  list(
+    @ActiveOrganization() organization: OrganizationContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: ListAiGeneratedItemsQueryDto,
+  ) {
+    return this.generatedItems.listForOrganization(organization, user.id, query);
+  }
+
+  @Get(":itemId")
+  @Permissions(PERMISSIONS.coursesRead)
+  get(
+    @ActiveOrganization() organization: OrganizationContext,
+    @Param("itemId") itemId: string,
+  ) {
+    return this.generatedItems.getItem(organization.id, itemId);
+  }
+
+  @Patch(":itemId")
+  @Permissions(PERMISSIONS.coursesUpdate)
+  update(
+    @ActiveOrganization() organization: OrganizationContext,
+    @Param("itemId") itemId: string,
+    @Body() dto: UpdateAiGeneratedItemDto,
+  ) {
+    return this.generatedItems.updateItemContent(organization.id, itemId, dto);
+  }
+
+  @Patch(":itemId/approve")
+  @Permissions(PERMISSIONS.coursesUpdate)
+  approve(
+    @ActiveOrganization() organization: OrganizationContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("itemId") itemId: string,
+  ) {
+    return this.generatedItems.approveItem(organization, user.id, itemId);
+  }
+
+  @Patch(":itemId/reject")
+  @Permissions(PERMISSIONS.coursesUpdate)
+  reject(
+    @ActiveOrganization() organization: OrganizationContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("itemId") itemId: string,
+    @Body("reason") reason?: string,
+  ) {
+    return this.generatedItems.rejectItem(organization, user.id, itemId, reason);
+  }
+
+  @Post(":itemId/publish")
+  @Permissions(PERMISSIONS.coursesUpdate)
+  publish(
+    @ActiveOrganization() organization: OrganizationContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("itemId") itemId: string,
+  ) {
+    return this.generatedItems.publishItem(organization, user.id, itemId);
   }
 }

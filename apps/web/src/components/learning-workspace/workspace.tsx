@@ -39,14 +39,22 @@ import {
   useActivityContent,
   useAiStatus,
   useAskAiTutor,
+  useCaptionTracks,
   useCreateLearnerBookmark,
   useCreateLearnerNote,
   useDeleteLearnerBookmark,
   useDeleteLearnerNote,
+  useGenerateInstructorVideoQuiz,
+  useGenerateInstructorVideoSummary,
+  useInstructorAiGeneratedItems,
+  useInstructorCaptionTracks,
   useLearnerBookmarks,
   useLearnerNotes,
   useLessonWorkspaceState,
   useTranscript,
+  useCreateInstructorCaptionTrack,
+  useDeleteInstructorCaptionTrack,
+  useUpdateInstructorCaptionTrack,
   useUpdateLessonWorkspaceState,
   useUpdateVideoProgress,
   useUpdateWorkspacePreferences,
@@ -63,8 +71,10 @@ import type {
   LearnerNote,
   Lesson,
   TranscriptSegment,
+  VideoCaptionTrack,
   WorkspaceLayoutMode,
   WorkspacePanelMode,
+  AiGeneratedItem,
 } from "../../lib/lms-types";
 
 export const workspaceLayouts: Array<{
@@ -237,6 +247,9 @@ export function LearningWorkspace({
   const updateWorkspaceState = useUpdateLessonWorkspaceState();
   const activityContent = useActivityContent(selectedActivityId);
   const workspaceContext = useWorkspaceContext(selectedActivityId);
+  const captionTracks = useCaptionTracks(
+    selectedActivity?.activityTypeKey === "core.video" ? selectedActivityId : null,
+  );
   const policy = workspaceContext.data?.assessmentDisplayPolicy;
   const [layout, setLayout] = useState<WorkspaceLayoutMode>("standard");
   const [rightPanel, setRightPanel] = useState<WorkspacePanelMode>("notes");
@@ -638,6 +651,7 @@ export function LearningWorkspace({
                   onSelectActivity(nextActivity.id);
                 }}
                 onVideoProgress={onVideoProgress}
+                videoTracks={captionTracks.data ?? []}
               />
             </div>
             {showRightPanel && !isCompactViewport ? (
@@ -1030,6 +1044,7 @@ function CurriculumActivityRow({
 export function ActivityMainPanel({
   activity,
   contentState,
+  videoTracks,
   onVideoProgress,
   onCompleteActivity,
   onNextActivity,
@@ -1041,6 +1056,7 @@ export function ActivityMainPanel({
 }: {
   activity: Activity | null;
   contentState: ReturnType<typeof useActivityContent>;
+  videoTracks: VideoCaptionTrack[];
   onVideoProgress: (currentTime: number, duration: number) => void;
   onRequestPictureInPicture: () => void;
   onCompleteActivity: () => Promise<void>;
@@ -1082,6 +1098,7 @@ export function ActivityMainPanel({
               onRequestPictureInPicture={onRequestPictureInPicture}
               onVideoProgress={onVideoProgress}
               response={contentState.data}
+              videoTracks={videoTracks}
             />
           </div>
           {!practiceLab || labLaunched ? (
@@ -1518,8 +1535,36 @@ export function TranscriptPanel({
   activity: Activity;
   videoTime: number;
 }) {
-  const transcript = useTranscript(activity.id);
+  const captions = useCaptionTracks(activity.id);
+  const [language, setLanguage] = useState<string>("");
+  const transcript = useTranscript(activity.id, language || null);
   const [search, setSearch] = useState("");
+  const languages = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          (captions.data ?? [])
+            .map((track) => track.language)
+            .filter((value): value is string => Boolean(value)),
+        ),
+      ),
+    [captions.data],
+  );
+
+  useEffect(() => {
+    if (!languages.length) {
+      setLanguage("");
+      return;
+    }
+    if (!language || !languages.includes(language)) {
+      const defaultLanguage =
+        (captions.data ?? []).find((track) => track.isDefault)?.language ??
+        languages[0] ??
+        "";
+      setLanguage(defaultLanguage);
+    }
+  }, [captions.data, language, languages]);
+
   const filtered = (transcript.data ?? []).filter((segment) =>
     segment.text.toLowerCase().includes(search.toLowerCase()),
   );
@@ -1528,7 +1573,13 @@ export function TranscriptPanel({
       icon={<Subtitles aria-hidden="true" className="h-5 w-5 text-primary" />}
       title="Transcript"
     >
-      <TranscriptSearch value={search} onChange={setSearch} />
+      <TranscriptSearch
+        value={search}
+        onChange={setSearch}
+        language={language}
+        languages={languages}
+        onLanguageChange={setLanguage}
+      />
       <VideoTranscriptSync
         currentTime={videoTime}
         segments={transcript.data ?? []}
@@ -1555,20 +1606,44 @@ export function TranscriptPanel({
 export function TranscriptSearch({
   value,
   onChange,
+  language,
+  languages,
+  onLanguageChange,
 }: {
   value: string;
   onChange: (value: string) => void;
+  language: string;
+  languages: string[];
+  onLanguageChange: (value: string) => void;
 }) {
   return (
-    <label className="mb-3 flex h-10 items-center gap-2 rounded-md border border-input px-3 text-sm">
-      <Search aria-hidden="true" className="h-4 w-4 text-muted-foreground" />
-      <input
-        className="min-w-0 flex-1 bg-transparent outline-none"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder="Search transcript"
-      />
-    </label>
+    <div className="mb-3 grid gap-2">
+      <label className="flex h-10 items-center gap-2 rounded-md border border-input px-3 text-sm">
+        <Search aria-hidden="true" className="h-4 w-4 text-muted-foreground" />
+        <input
+          className="min-w-0 flex-1 bg-transparent outline-none"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder="Search transcript"
+        />
+      </label>
+      {languages.length > 1 ? (
+        <label className="grid gap-1 text-xs font-medium text-muted-foreground">
+          Caption language
+          <select
+            className="h-10 rounded-md border border-input bg-card px-3 text-sm text-foreground"
+            onChange={(event) => onLanguageChange(event.target.value)}
+            value={language}
+          >
+            {languages.map((item) => (
+              <option key={item} value={item}>
+                {item.toUpperCase()}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+    </div>
   );
 }
 

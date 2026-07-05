@@ -206,6 +206,35 @@ enum LearnerNoteVisibility {
   SHARED
 }
 
+enum VideoCaptionTrackKind {
+  CAPTION
+  SUBTITLE
+}
+
+enum VideoCaptionTrackSource {
+  MANUAL
+  UPLOAD
+  TRANSCRIPT
+}
+
+enum AiGeneratedItemType {
+  QUESTION
+  QUIZ
+  SUMMARY
+  FLASHCARD
+  ASSIGNMENT
+  RUBRIC
+  COURSE_OUTLINE
+  LESSON_CONTENT
+}
+
+enum AiGeneratedItemStatus {
+  DRAFT
+  APPROVED
+  REJECTED
+  PUBLISHED
+}
+
 enum QuestionType {
   MULTIPLE_CHOICE
   MULTIPLE_ANSWER
@@ -264,6 +293,27 @@ enum RubricStatus {
   DRAFT
   ACTIVE
   ARCHIVED
+}
+
+enum AssignmentCollaborationMode {
+  INDIVIDUAL
+  GROUP
+}
+
+enum PeerReviewStatus {
+  PENDING
+  IN_PROGRESS
+  SUBMITTED
+  EXPIRED
+  DECLINED
+}
+
+enum PlagiarismCheckStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
 }
 
 enum CertificateTemplateStatus {
@@ -393,6 +443,7 @@ model User {
   learnerDailyActivities      LearnerDailyActivity[]
   aiConversations             AiConversation[]
   aiUsageLogs                 AiUsageLog[]
+  aiGeneratedItems            AiGeneratedItem[]            @relation("AiGeneratedItemCreator")
   discussionThreads           DiscussionThread[]           @relation("DiscussionThreadAuthor")
   discussionReplies           DiscussionReply[]            @relation("DiscussionReplyAuthor")
   liveClassesCreated          LiveClass[]                   @relation("LiveClassCreator")
@@ -418,6 +469,14 @@ model User {
   pollVotes                   PollVote[]                   @relation("PollVoteUser")
   courseFeedbackSubmissions   CourseFeedback[]             @relation("CourseFeedbackUser")
   pushSubscriptions           PushSubscription[]            @relation("PushSubscriptionUser")
+  assignmentGroupMemberships  AssignmentGroupMember[]
+  peerReviewAssignments       PeerReviewMatch[]            @relation("PeerReviewReviewer")
+  peerReviewsAuthored         PeerReview[]                 @relation("PeerReviewAuthor")
+  submissionAnnotations       SubmissionAnnotation[]       @relation("AnnotationAuthor")
+  annotationsResolved         SubmissionAnnotation[]       @relation("AnnotationResolver")
+  portfolios                  Portfolio[]                  @relation("PortfolioOwner")
+  projectShowcasesCreated     ProjectShowcase[]            @relation("ProjectShowcaseCreator")
+  plagiarismChecks            PlagiarismCheck[]            @relation("PlagiarismRequester")
 
   @@index([status])
   @@index([createdAt])
@@ -460,6 +519,7 @@ model Organization {
   learnerNotes               LearnerNote[]
   learnerBookmarks           LearnerBookmark[]
   transcriptSegments         TranscriptSegment[]
+  videoCaptionTracks         VideoCaptionTrack[]
   questionBanks              QuestionBank[]
   questions                  Question[]
   quizzes                    Quiz[]
@@ -486,6 +546,7 @@ model Organization {
   aiAnswerCaches             AiAnswerCache[]
   aiConversations            AiConversation[]
   aiUsageLogs                AiUsageLog[]
+  aiGeneratedItems           AiGeneratedItem[]
   discussionThreads          DiscussionThread[]
   discussionReplies          DiscussionReply[]
   liveClasses                LiveClass[]
@@ -516,6 +577,17 @@ model Organization {
   pollVotes                    PollVote[]
   courseFeedback               CourseFeedback[]
   pushSubscriptions            PushSubscription[]
+  assignmentGroups             AssignmentGroup[]
+  assignmentGroupMembers      AssignmentGroupMember[]
+  peerReviewConfigs            PeerReviewConfig[]
+  peerReviewMatches            PeerReviewMatch[]
+  peerReviews                  PeerReview[]
+  peerReviewRubricScores       PeerReviewRubricScore[]
+  plagiarismChecks             PlagiarismCheck[]
+  submissionAnnotations        SubmissionAnnotation[]
+  projectShowcases             ProjectShowcase[]
+  portfolios                   Portfolio[]
+  portfolioEntries             PortfolioEntry[]
 
   @@index([status])
   @@index([createdAt])
@@ -757,6 +829,8 @@ model Course {
   learnerNotes          LearnerNote[]
   learnerBookmarks      LearnerBookmark[]
   transcriptSegments    TranscriptSegment[]
+  videoCaptionTracks    VideoCaptionTrack[]
+  aiGeneratedItems      AiGeneratedItem[]
   questionBanks         QuestionBank[]
   quizzes               Quiz[]
   quizAttempts          QuizAttempt[]
@@ -782,6 +856,8 @@ model Course {
   surveys               Survey[]            @relation("SurveyCourse")
   polls                 Poll[]              @relation("PollCourse")
   courseFeedback        CourseFeedback[]    @relation("CourseFeedbackCourse")
+  assignmentGroups      AssignmentGroup[]
+  projectShowcases      ProjectShowcase[]
 
   @@unique([organizationId, slug])
   @@index([organizationId, status])
@@ -847,6 +923,8 @@ model Lesson {
   learnerNotes          LearnerNote[]
   learnerBookmarks      LearnerBookmark[]
   transcriptSegments    TranscriptSegment[]
+  videoCaptionTracks    VideoCaptionTrack[]
+  aiGeneratedItems      AiGeneratedItem[]
   discussionThreads     DiscussionThread[]
   calendarEvents        CalendarEvent[]
 
@@ -886,6 +964,8 @@ model Activity {
   learnerNotes            LearnerNote[]
   learnerBookmarks        LearnerBookmark[]
   transcriptSegments      TranscriptSegment[]
+  videoCaptionTracks      VideoCaptionTrack[]
+  aiGeneratedItems        AiGeneratedItem[]
   scormPackages           ScormPackage[]   @relation("ScormPackageActivity")
   h5pContents             H5PContent[]     @relation("H5PContentActivity")
   surveys                 Survey[]         @relation("SurveyActivity")
@@ -1221,6 +1301,31 @@ model TranscriptSegment {
   @@index([activityId, startSeconds])
 }
 
+model VideoCaptionTrack {
+  id             String                  @id @default(cuid())
+  organizationId String
+  courseId       String
+  lessonId       String?
+  activityId     String
+  label          String
+  language       String
+  kind           VideoCaptionTrackKind   @default(CAPTION)
+  source         VideoCaptionTrackSource @default(MANUAL)
+  isDefault      Boolean                 @default(false)
+  cues           Json                    @default("[]")
+  rawContent     String?
+  metadata       Json                    @default("{}")
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  course         Course                  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lesson         Lesson?                 @relation(fields: [lessonId], references: [id], onDelete: SetNull)
+  activity       Activity                @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, activityId, language])
+  @@index([organizationId, activityId, isDefault])
+}
+
 model QuestionBank {
   id             String       @id @default(cuid())
   organizationId String
@@ -1532,6 +1637,31 @@ model AiMessage {
   @@index([conversationId, createdAt])
 }
 
+model AiGeneratedItem {
+  id             String                @id @default(cuid())
+  organizationId String
+  courseId       String?
+  lessonId       String?
+  activityId     String?
+  createdById    String
+  type           AiGeneratedItemType
+  title          String?
+  prompt         String
+  output         Json
+  status         AiGeneratedItemStatus @default(DRAFT)
+  metadata       Json                  @default("{}")
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  course         Course?               @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  lesson         Lesson?               @relation(fields: [lessonId], references: [id], onDelete: SetNull)
+  activity       Activity?             @relation(fields: [activityId], references: [id], onDelete: SetNull)
+  createdBy      User                  @relation("AiGeneratedItemCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, type, status])
+  @@index([organizationId, activityId, createdAt])
+}
+
 model AiAnswerCache {
   id                String             @id @default(cuid())
   organizationId    String
@@ -1581,34 +1711,40 @@ model AiUsageLog {
 }
 
 model Assignment {
-  id                  String                   @id @default(cuid())
-  organizationId      String
-  courseId            String
-  activityId          String?                  @unique
-  createdById         String
-  title               String
-  description         String?
-  instructions        String?
-  submissionType      AssignmentSubmissionType
-  dueAt               DateTime?
-  availableFrom       DateTime?
-  availableUntil      DateTime?
-  allowLateSubmission Boolean                  @default(false)
-  latePenaltyPercent  Float?
-  maxAttempts         Int?
-  allowResubmission   Boolean                  @default(false)
-  rubricId            String?
-  status              AssignmentStatus         @default(DRAFT)
-  metadata            Json                     @default("{}")
-  createdAt           DateTime                 @default(now())
-  updatedAt           DateTime                 @updatedAt
-  deletedAt           DateTime?
-  organization        Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  course              Course                   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  activity            Activity?                @relation(fields: [activityId], references: [id], onDelete: SetNull)
-  createdBy           User                     @relation("AssignmentCreator", fields: [createdById], references: [id], onDelete: Cascade)
-  rubric              Rubric?                  @relation(fields: [rubricId], references: [id], onDelete: SetNull)
-  submissions         AssignmentSubmission[]
+  id                     String                   @id @default(cuid())
+  organizationId         String
+  courseId               String
+  activityId             String?                  @unique
+  createdById            String
+  title                  String
+  description            String?
+  instructions           String?
+  submissionType         AssignmentSubmissionType
+  collaborationMode      AssignmentCollaborationMode @default(INDIVIDUAL)
+  groupMinMembers        Int                      @default(2)
+  groupMaxMembers        Int                      @default(5)
+  dueAt                  DateTime?
+  availableFrom          DateTime?
+  availableUntil         DateTime?
+  allowLateSubmission    Boolean                  @default(false)
+  latePenaltyPercent     Float?
+  maxAttempts            Int?
+  allowResubmission      Boolean                  @default(false)
+  maxResubmissions       Int?
+  rubricId               String?
+  status                 AssignmentStatus         @default(DRAFT)
+  metadata               Json                     @default("{}")
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+  deletedAt              DateTime?
+  organization           Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  course                 Course                   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  activity               Activity?                @relation(fields: [activityId], references: [id], onDelete: SetNull)
+  createdBy              User                     @relation("AssignmentCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  rubric                 Rubric?                  @relation(fields: [rubricId], references: [id], onDelete: SetNull)
+  submissions            AssignmentSubmission[]
+  groups                 AssignmentGroup[]
+  peerReviewConfig       PeerReviewConfig?
 
   @@index([organizationId, courseId])
   @@index([organizationId, status])
@@ -1616,41 +1752,49 @@ model Assignment {
 }
 
 model AssignmentSubmission {
-  id             String                     @id @default(cuid())
-  organizationId String
-  assignmentId   String
-  courseId       String
-  activityId     String?
-  userId         String
-  attemptNumber  Int
-  status         AssignmentSubmissionStatus @default(DRAFT)
-  textAnswer     String?
-  linkUrl        String?
-  fileIds        Json                       @default("[]")
-  submittedAt    DateTime?
-  gradedAt       DateTime?
-  gradedById     String?
-  score          Float?
-  maxScore       Float?
-  feedback       String?
+  id                   String                     @id @default(cuid())
+  organizationId       String
+  assignmentId         String
+  courseId             String
+  activityId           String?
+  userId               String
+  groupId              String?
+  attemptNumber        Int
+  status               AssignmentSubmissionStatus @default(DRAFT)
+  textAnswer           String?
+  linkUrl              String?
+  fileIds              Json                       @default("[]")
+  submittedAt          DateTime?
+  gradedAt             DateTime?
+  gradedById           String?
+  score                Float?
+  maxScore             Float?
+  feedback             String?
   @@index([assignmentId])
   @@index([userId])
-  metadata       Json                       @default("{}")
-  createdAt      DateTime                   @default(now())
-  updatedAt      DateTime                   @updatedAt
-  organization   Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  assignment     Assignment                 @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
-  course         Course                     @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  activity       Activity?                  @relation(fields: [activityId], references: [id], onDelete: SetNull)
-  user           User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  gradedBy       User?                      @relation("AssignmentSubmissionGrader", fields: [gradedById], references: [id], onDelete: SetNull)
-  rubricScores   RubricScore[]
+  metadata             Json                       @default("{}")
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
+  organization         Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignment           Assignment                 @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  course               Course                     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  activity             Activity?                  @relation(fields: [activityId], references: [id], onDelete: SetNull)
+  user                 User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gradedBy             User?                      @relation("AssignmentSubmissionGrader", fields: [gradedById], references: [id], onDelete: SetNull)
+  group                AssignmentGroup?           @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  rubricScores         RubricScore[]
+  peerReviewMatches    PeerReviewMatch[]
+  plagiarismChecks     PlagiarismCheck[]
+  annotations          SubmissionAnnotation[]
+  showcase             ProjectShowcase?
+  portfolioEntries     PortfolioEntry[]
 
   @@unique([assignmentId, userId, attemptNumber])
   @@index([organizationId, assignmentId])
   @@index([organizationId, userId, courseId])
   @@index([organizationId, activityId])
   @@index([organizationId, status])
+  @@index([organizationId, groupId])
 }
 
 model Rubric {
@@ -1671,6 +1815,8 @@ model Rubric {
   createdBy      User              @relation("RubricCreator", fields: [createdById], references: [id], onDelete: Cascade)
   assignments    Assignment[]
   criteria       RubricCriterion[]
+  peerReviewConfigs PeerReviewConfig[]
+  peerReviewScores PeerReviewRubricScore[]
 
   @@index([organizationId, status])
   @@index([organizationId, courseId])
@@ -1688,6 +1834,7 @@ model RubricCriterion {
   rubric      Rubric        @relation(fields: [rubricId], references: [id], onDelete: Cascade)
   levels      RubricLevel[]
   scores      RubricScore[]
+  peerReviewScores PeerReviewRubricScore[]
 
   @@index([rubricId, orderIndex])
 }
@@ -1701,6 +1848,7 @@ model RubricLevel {
   orderIndex  Int             @default(0)
   criterion   RubricCriterion @relation(fields: [criterionId], references: [id], onDelete: Cascade)
   scores      RubricScore[]
+  peerReviewScores PeerReviewRubricScore[]
 
   @@index([criterionId, orderIndex])
 }
@@ -2925,4 +3073,230 @@ model PushSubscription {
   @@unique([userId, endpoint])
   @@index([organizationId, userId])
   @@index([expiresAt])
+}
+
+// Phase 18: Advanced assignment (group, peer review, plagiarism, portfolio, showcase)
+
+model AssignmentGroup {
+  id             String                   @id @default(cuid())
+  organizationId String
+  assignmentId   String
+  courseId       String
+  name           String
+  maxMembers     Int                      @default(5)
+  status         String                   @default("ACTIVE")
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  organization   Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignment     Assignment               @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  course         Course                   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  members        AssignmentGroupMember[]
+  submissions    AssignmentSubmission[]
+
+  @@index([organizationId, assignmentId])
+  @@index([organizationId, courseId])
+}
+
+model AssignmentGroupMember {
+  id             String                @id @default(cuid())
+  organizationId String
+  groupId        String
+  userId         String
+  role           String                @default("member")
+  joinedAt       DateTime              @default(now())
+  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  group          AssignmentGroup       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([organizationId, userId])
+}
+
+model PeerReviewConfig {
+  id                String              @id @default(cuid())
+  organizationId    String
+  assignmentId      String              @unique
+  reviewsRequired   Int                 @default(2)
+  reviewsToReceive  Int                 @default(2)
+  openFrom          DateTime?
+  dueAt             DateTime?
+  rubricId          String?
+  anonymize         Boolean             @default(true)
+  allowSelfReview   Boolean             @default(false)
+  status            String              @default("DRAFT")
+  metadata          Json                @default("{}")
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  organization      Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignment        Assignment          @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  rubric            Rubric?             @relation(fields: [rubricId], references: [id], onDelete: SetNull)
+  matches           PeerReviewMatch[]
+
+  @@index([organizationId, status])
+}
+
+model PeerReviewMatch {
+  id                    String                  @id @default(cuid())
+  organizationId        String
+  configId              String
+  submissionId          String
+  reviewerUserId        String
+  status                PeerReviewStatus        @default(PENDING)
+  dueAt                 DateTime?
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  organization          Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  config                PeerReviewConfig        @relation(fields: [configId], references: [id], onDelete: Cascade)
+  submission            AssignmentSubmission    @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  reviewer              User                    @relation("PeerReviewReviewer", fields: [reviewerUserId], references: [id], onDelete: Cascade)
+  review                PeerReview?
+
+  @@unique([configId, submissionId, reviewerUserId])
+  @@index([organizationId, reviewerUserId])
+  @@index([organizationId, status])
+}
+
+model PeerReview {
+  id              String                  @id @default(cuid())
+  organizationId  String
+  matchId         String                  @unique
+  authorId        String?
+  overallScore    Float?
+  feedback        String?
+  submittedAt     DateTime?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  organization    Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  match           PeerReviewMatch         @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  author          User?                   @relation("PeerReviewAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  rubricScores    PeerReviewRubricScore[]
+
+  @@index([organizationId, submittedAt])
+}
+
+model PeerReviewRubricScore {
+  id              String            @id @default(cuid())
+  organizationId  String
+  reviewId        String
+  rubricId        String
+  criterionId     String
+  levelId         String?
+  points          Float
+  feedback        String?
+  createdAt       DateTime          @default(now())
+  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  review          PeerReview        @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  rubric          Rubric            @relation(fields: [rubricId], references: [id], onDelete: Cascade)
+  criterion       RubricCriterion   @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+  level           RubricLevel?      @relation(fields: [levelId], references: [id], onDelete: SetNull)
+
+  @@unique([reviewId, criterionId])
+  @@index([organizationId])
+}
+
+model PlagiarismCheck {
+  id              String                    @id @default(cuid())
+  organizationId  String
+  submissionId    String
+  requesterId     String?
+  provider        String                    @default("mock")
+  status          PlagiarismCheckStatus     @default(PENDING)
+  similarityScore Float?
+  matchedSources  Json                      @default("[]")
+  reportUrl       String?
+  details         Json                      @default("{}")
+  errorMessage    String?
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+  completedAt     DateTime?
+  organization    Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  submission      AssignmentSubmission      @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  requester       User?                     @relation("PlagiarismRequester", fields: [requesterId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, submissionId])
+  @@index([organizationId, status])
+}
+
+model SubmissionAnnotation {
+  id              String                 @id @default(cuid())
+  organizationId  String
+  submissionId    String
+  authorId        String
+  startOffset     Int
+  endOffset       Int
+  selectedText    String
+  comment         String
+  resolved        Boolean                @default(false)
+  resolvedById    String?
+  resolvedAt      DateTime?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  organization    Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  submission      AssignmentSubmission   @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  author          User                   @relation("AnnotationAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  resolvedBy      User?                  @relation("AnnotationResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, submissionId])
+}
+
+model ProjectShowcase {
+  id              String                 @id @default(cuid())
+  organizationId  String
+  courseId        String
+  submissionId    String                 @unique
+  createdById     String
+  title           String
+  summary         String?
+  thumbnailUrl    String?
+  externalUrl     String?
+  publishedAt     DateTime?
+  featured        Boolean                @default(false)
+  viewCount       Int                    @default(0)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  organization    Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  course          Course                 @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  submission      AssignmentSubmission   @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  createdBy       User                   @relation("ProjectShowcaseCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  portfolioEntries PortfolioEntry[]
+
+  @@index([organizationId, courseId])
+  @@index([organizationId, publishedAt])
+}
+
+model Portfolio {
+  id              String           @id @default(cuid())
+  organizationId  String
+  userId          String
+  title           String
+  description     String?
+  isPublic        Boolean          @default(false)
+  shareToken      String?          @unique
+  metadata        Json             @default("{}")
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user            User             @relation("PortfolioOwner", fields: [userId], references: [id], onDelete: Cascade)
+  entries         PortfolioEntry[]
+
+  @@index([organizationId, userId])
+}
+
+model PortfolioEntry {
+  id              String                 @id @default(cuid())
+  organizationId  String
+  portfolioId     String
+  submissionId    String?
+  showcaseId      String?
+  title           String
+  description     String?
+  orderIndex      Int                    @default(0)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  organization    Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  portfolio       Portfolio              @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  submission      AssignmentSubmission?  @relation(fields: [submissionId], references: [id], onDelete: SetNull)
+  showcase        ProjectShowcase?       @relation(fields: [showcaseId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, portfolioId])
 }

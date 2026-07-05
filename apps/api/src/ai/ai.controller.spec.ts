@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { Observable } from "rxjs";
 import {
   AiController,
+  InstructorActivityAiController,
   InstructorAiController,
   LearnerAiController,
 } from "./ai.controller";
@@ -109,7 +110,10 @@ describe("InstructorAiController", () => {
       courseStatus: vi.fn().mockResolvedValue({ courseId: "c-1", documents: 5, chunks: 12, statuses: { READY: 5 } }),
       ...overrides,
     };
-    return { controller: new InstructorAiController(indexingService as any), indexingService };
+    return {
+      controller: new InstructorAiController(indexingService as any, {} as any),
+      indexingService,
+    };
   }
 
   it("triggers indexing for a course", async () => {
@@ -124,5 +128,47 @@ describe("InstructorAiController", () => {
     const response = await controller.status(org, user, "c-1");
     expect(indexingService.courseStatus).toHaveBeenCalledWith(org, "u-1", "c-1");
     expect(response).toEqual({ courseId: "c-1", documents: 5, chunks: 12, statuses: { READY: 5 } });
+  });
+});
+
+describe("InstructorActivityAiController", () => {
+  function setup(overrides: Record<string, any> = {}) {
+    const generatedItems = {
+      listForActivity: vi.fn().mockResolvedValue([{ id: "item-1" }]),
+      generateVideoSummary: vi.fn().mockResolvedValue({ id: "item-1", type: "SUMMARY" }),
+      generateVideoQuiz: vi.fn().mockResolvedValue({ id: "item-2", type: "QUIZ" }),
+      ...overrides,
+    };
+    return {
+      controller: new InstructorActivityAiController(generatedItems as any),
+      generatedItems,
+    };
+  }
+
+  it("lists generated items for an activity", async () => {
+    const { controller, generatedItems } = setup();
+    const response = await controller.listGeneratedItems(org, user, "activity-1");
+    expect(generatedItems.listForActivity).toHaveBeenCalledWith(org, "u-1", "activity-1");
+    expect(response).toEqual([{ id: "item-1" }]);
+  });
+
+  it("generates video summary and quiz drafts", async () => {
+    const { controller, generatedItems } = setup();
+
+    await controller.generateVideoSummary(org, user, "activity-1", { language: "en" } as any);
+    expect(generatedItems.generateVideoSummary).toHaveBeenCalledWith(
+      org,
+      "u-1",
+      "activity-1",
+      expect.objectContaining({ language: "en" }),
+    );
+
+    await controller.generateVideoQuiz(org, user, "activity-1", { questionCount: 5 } as any);
+    expect(generatedItems.generateVideoQuiz).toHaveBeenCalledWith(
+      org,
+      "u-1",
+      "activity-1",
+      expect.objectContaining({ questionCount: 5 }),
+    );
   });
 });

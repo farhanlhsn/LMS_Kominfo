@@ -12,6 +12,7 @@ import type {
   ActivityContentResponse,
   AdminOverview,
   Achievement,
+  AiGeneratedItem,
   AiStatus,
   AiTutorResponse,
   ApiKey,
@@ -58,6 +59,7 @@ import type {
   RecentlyViewedCourse,
   LearnerQuizResponse,
   TranscriptSegment,
+  VideoCaptionTrack,
   WorkspaceContext,
   Rubric,
   Skill,
@@ -363,10 +365,20 @@ export function useDeleteLearnerBookmark() {
   );
 }
 
-export function useTranscript(activityId: string | null) {
+export function useTranscript(
+  activityId: string | null,
+  language?: string | null,
+) {
   return useApiQuery<TranscriptSegment[]>(async () => {
     if (!activityId) throw new Error("Activity id is required");
-    return api.transcript(activityId);
+    return api.transcript(activityId, { language });
+  }, [activityId, language]);
+}
+
+export function useCaptionTracks(activityId: string | null) {
+  return useApiQuery<VideoCaptionTrack[]>(async () => {
+    if (!activityId) throw new Error("Activity id is required");
+    return api.captionTracks(activityId);
   }, [activityId]);
 }
 
@@ -386,6 +398,343 @@ export function useInstructorCourse(courseId: string | null) {
     if (!courseId) throw new Error("Course id is required");
     return api.instructorCourse(courseId);
   }, [courseId]);
+}
+
+export function useInstructorCaptionTracks(activityId: string | null) {
+  return useApiQuery<VideoCaptionTrack[]>(async () => {
+    if (!activityId) throw new Error("Activity id is required");
+    return api.instructorCaptionTracks(activityId);
+  }, [activityId]);
+}
+
+export function useCreateInstructorCaptionTrack() {
+  return useCallback(
+    (activityId: string, input: Record<string, unknown>) =>
+      api.createInstructorCaptionTrack(activityId, input),
+    [],
+  );
+}
+
+export function useUpdateInstructorCaptionTrack() {
+  return useCallback(
+    (trackId: string, input: Record<string, unknown>) =>
+      api.updateInstructorCaptionTrack(trackId, input),
+    [],
+  );
+}
+
+export function useDeleteInstructorCaptionTrack() {
+  return useCallback(
+    (trackId: string) => api.deleteInstructorCaptionTrack(trackId),
+    [],
+  );
+}
+
+export function useInstructorAiGeneratedItems(activityId: string | null) {
+  return useApiQuery<AiGeneratedItem[]>(async () => {
+    if (!activityId) throw new Error("Activity id is required");
+    return api.instructorAiGeneratedItems(activityId);
+  }, [activityId]);
+}
+
+export function useGenerateInstructorVideoSummary() {
+  return useCallback(
+    (activityId: string, input: Record<string, unknown>) =>
+      api.generateInstructorVideoSummary(activityId, input),
+    [],
+  );
+}
+
+export function useGenerateInstructorVideoQuiz() {
+  return useCallback(
+    (activityId: string, input: Record<string, unknown>) =>
+      api.generateInstructorVideoQuiz(activityId, input),
+    [],
+  );
+}
+
+export function useListInstructorAiItems(query: Record<string, string | undefined> = {}) {
+  return useApiQuery<AiGeneratedItem[]>(
+    () => api.listInstructorAiItems(query),
+    [JSON.stringify(query)],
+  );
+}
+
+export function useApproveAiItem() {
+  return useCallback((itemId: string) => api.approveInstructorAiItem(itemId), []);
+}
+
+export function useRejectAiItem() {
+  return useCallback((itemId: string, reason?: string) =>
+    api.rejectInstructorAiItem(itemId, reason), []);
+}
+
+export function usePublishAiItem() {
+  return useCallback((itemId: string) => api.publishInstructorAiItem(itemId), []);
+}
+
+export function useUpdateAiItem() {
+  return useCallback((itemId: string, input: Record<string, unknown>) =>
+    api.updateInstructorAiItem(itemId, input), []);
+}
+
+// Phase 17 caption cue editor hooks
+export function useListCaptionCues(trackId: string | null) {
+  return useApiQuery<unknown[]>(async () => {
+    if (!trackId) throw new Error("Track id is required");
+    return api.listInstructorCaptionCues(trackId);
+  }, [trackId]);
+}
+
+export function useCreateCaptionCue() {
+  return useCallback(
+    (trackId: string, input: { startSeconds: number; endSeconds: number; text: string }) =>
+      api.createInstructorCaptionCue(trackId, input),
+    [],
+  );
+}
+
+export function useUpdateCaptionCue() {
+  return useCallback(
+    (trackId: string, cueIndex: number, input: { startSeconds?: number; endSeconds?: number; text?: string }) =>
+      api.updateInstructorCaptionCue(trackId, cueIndex, input),
+    [],
+  );
+}
+
+export function useDeleteCaptionCue() {
+  return useCallback((trackId: string, cueIndex: number) =>
+    api.deleteInstructorCaptionCue(trackId, cueIndex), []);
+}
+
+export function useReorderCaptionCues() {
+  return useCallback((trackId: string, orderedIndices: number[]) =>
+    api.reorderInstructorCaptionCues(trackId, orderedIndices), []);
+}
+
+// Phase 18: Advanced assignment hooks
+export function useAssignmentGroups(assignmentId: string | null) {
+  return useApiQuery(async () => {
+    if (!assignmentId) throw new Error("Assignment id is required");
+    return api.listAssignmentGroups(assignmentId);
+  }, [assignmentId]);
+}
+
+export function useCreateAssignmentGroup() {
+  return useCallback(
+    (assignmentId: string, input: { name: string; maxMembers?: number; memberIds?: string[] }) =>
+      api.createAssignmentGroup(assignmentId, input),
+    [],
+  );
+}
+
+export function useUpdateAssignmentGroup() {
+  return useCallback(
+    (
+      assignmentId: string,
+      groupId: string,
+      input: { name?: string; maxMembers?: number; status?: "ACTIVE" | "ARCHIVED" },
+    ) => api.updateAssignmentGroup(assignmentId, groupId, input),
+    [],
+  );
+}
+
+export function useDeleteAssignmentGroup() {
+  return useCallback((assignmentId: string, groupId: string) =>
+    api.deleteAssignmentGroup(assignmentId, groupId), []);
+}
+
+export function useAddAssignmentGroupMember() {
+  return useCallback(
+    (assignmentId: string, groupId: string, userId: string, role: "member" | "leader" = "member") =>
+      api.addAssignmentGroupMember(assignmentId, groupId, userId, role),
+    [],
+  );
+}
+
+export function useRemoveAssignmentGroupMember() {
+  return useCallback((assignmentId: string, groupId: string, userId: string) =>
+    api.removeAssignmentGroupMember(assignmentId, groupId, userId), []);
+}
+
+export function useUpdateAssignmentCollaboration() {
+  return useCallback(
+    (
+      assignmentId: string,
+      input: {
+        collaborationMode?: "INDIVIDUAL" | "GROUP";
+        groupMinMembers?: number;
+        groupMaxMembers?: number;
+        maxResubmissions?: number;
+      },
+    ) => api.updateAssignmentCollaboration(assignmentId, input),
+    [],
+  );
+}
+
+export function usePeerReviewConfig(assignmentId: string | null) {
+  return useApiQuery(async () => {
+    if (!assignmentId) throw new Error("Assignment id is required");
+    return api.getPeerReviewConfig(assignmentId);
+  }, [assignmentId]);
+}
+
+export function useUpsertPeerReviewConfig() {
+  return useCallback(
+    (
+      assignmentId: string,
+      input: Record<string, unknown>,
+      method: "POST" | "PATCH" = "POST",
+    ) => api.upsertPeerReviewConfig(assignmentId, input, method),
+    [],
+  );
+}
+
+export function useGeneratePeerReviewMatches() {
+  return useCallback((assignmentId: string) =>
+    api.generatePeerReviewMatches(assignmentId), []);
+}
+
+export function usePeerReviewMatches(assignmentId: string | null) {
+  return useApiQuery(async () => {
+    if (!assignmentId) throw new Error("Assignment id is required");
+    return api.listPeerReviewMatches(assignmentId);
+  }, [assignmentId]);
+}
+
+export function useSubmissionAnnotations(submissionId: string | null) {
+  return useApiQuery(async () => {
+    if (!submissionId) throw new Error("Submission id is required");
+    return api.listSubmissionAnnotations(submissionId);
+  }, [submissionId]);
+}
+
+export function useCreateSubmissionAnnotation() {
+  return useCallback(
+    (
+      submissionId: string,
+      input: { startOffset: number; endOffset: number; selectedText: string; comment: string },
+    ) => api.createSubmissionAnnotation(submissionId, input),
+    [],
+  );
+}
+
+export function useUpdateSubmissionAnnotation() {
+  return useCallback(
+    (submissionId: string, annotationId: string, input: { comment?: string; resolved?: boolean }) =>
+      api.updateSubmissionAnnotation(submissionId, annotationId, input),
+    [],
+  );
+}
+
+export function useDeleteSubmissionAnnotation() {
+  return useCallback((submissionId: string, annotationId: string) =>
+    api.deleteSubmissionAnnotation(submissionId, annotationId), []);
+}
+
+export function usePlagiarismChecks(submissionId: string | null) {
+  return useApiQuery(async () => {
+    if (!submissionId) throw new Error("Submission id is required");
+    return api.listPlagiarismChecks(submissionId);
+  }, [submissionId]);
+}
+
+export function useRunPlagiarismCheck() {
+  return useCallback((submissionId: string, input: { provider?: string } = {}) =>
+    api.runPlagiarismCheck(submissionId, input), []);
+}
+
+export function useCourseShowcases(courseId: string | null) {
+  return useApiQuery(async () => {
+    if (!courseId) throw new Error("Course id is required");
+    return api.listCourseShowcases(courseId);
+  }, [courseId]);
+}
+
+export function useCreateCourseShowcase() {
+  return useCallback(
+    (
+      courseId: string,
+      input: {
+        submissionId: string;
+        title: string;
+        summary?: string;
+        thumbnailUrl?: string;
+        externalUrl?: string;
+        publish?: boolean;
+      },
+    ) => api.createCourseShowcase(courseId, input),
+    [],
+  );
+}
+
+export function useUpdateCourseShowcase() {
+  return useCallback((showcaseId: string, input: Record<string, unknown>) =>
+    api.updateCourseShowcase(showcaseId, input), []);
+}
+
+export function useDeleteCourseShowcase() {
+  return useCallback((showcaseId: string) =>
+    api.deleteCourseShowcase(showcaseId), []);
+}
+
+// Learner hooks
+export function useMyPortfolio() {
+  return useApiQuery(() => api.getMyPortfolio(), []);
+}
+
+export function useUpdateMyPortfolio() {
+  return useCallback(
+    (input: { title?: string; description?: string; isPublic?: boolean }) =>
+      api.updateMyPortfolio(input),
+    [],
+  );
+}
+
+export function useAddPortfolioEntry() {
+  return useCallback(
+    (input: {
+      title: string;
+      description?: string;
+      submissionId?: string;
+      showcaseId?: string;
+      orderIndex?: number;
+    }) => api.addPortfolioEntry(input),
+    [],
+  );
+}
+
+export function useUpdatePortfolioEntry() {
+  return useCallback(
+    (entryId: string, input: { title?: string; description?: string; orderIndex?: number }) =>
+      api.updatePortfolioEntry(entryId, input),
+    [],
+  );
+}
+
+export function useRemovePortfolioEntry() {
+  return useCallback((entryId: string) => api.removePortfolioEntry(entryId), []);
+}
+
+export function useLearnerPeerReviews() {
+  return useApiQuery(() => api.listLearnerPeerReviews(), []);
+}
+
+export function useSubmitLearnerPeerReview() {
+  return useCallback(
+    (
+      matchId: string,
+      input: { overallScore?: number; feedback?: string; rubricScores?: { criterionId: string; levelId?: string; points: number; feedback?: string }[] },
+    ) => api.submitLearnerPeerReview(matchId, input),
+    [],
+  );
+}
+
+export function usePublicPortfolio(shareToken: string | null) {
+  return useApiQuery(async () => {
+    if (!shareToken) throw new Error("Share token is required");
+    return api.getPublicPortfolio(shareToken);
+  }, [shareToken]);
 }
 
 export function useFiles() {

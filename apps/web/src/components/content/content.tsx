@@ -15,12 +15,13 @@ import {
   Upload,
   Video,
 } from "lucide-react";
-import { FormEvent, ReactNode, useRef } from "react";
+import { FormEvent, ReactNode, useEffect, useMemo, useRef } from "react";
 import { sanitizeRichTextHtml } from "@lms/shared";
 import type {
   ActivityContentResponse,
   ContentLibraryItem,
   FileAsset,
+  VideoCaptionTrack,
 } from "../../lib/lms-types";
 import { ButtonLink, DataTable, StatusBadge } from "../ui/core";
 import { EmptyState } from "../ui/states";
@@ -407,17 +408,61 @@ export function RichTextHtmlViewer({
   );
 }
 
+function toWebVttTimestamp(seconds: number) {
+  const safeSeconds = Math.max(0, seconds);
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const wholeSeconds = Math.floor(safeSeconds % 60);
+  const milliseconds = Math.round((safeSeconds - Math.floor(safeSeconds)) * 1000);
+  return [hours, minutes, wholeSeconds]
+    .map((part) => String(part).padStart(2, "0"))
+    .join(":")
+    .concat(`.${String(milliseconds).padStart(3, "0")}`);
+}
+
+function captionTrackToVtt(track: VideoCaptionTrack) {
+  const body = track.cues
+    .map(
+      (cue, index) =>
+        `${index + 1}\n${toWebVttTimestamp(cue.startSeconds)} --> ${toWebVttTimestamp(cue.endSeconds)}\n${cue.text.replace(/\r/g, "")}`,
+    )
+    .join("\n\n");
+  return `WEBVTT\n\n${body}`;
+}
+
 export function VideoPlayer({
   title,
   src,
+  tracks,
   onProgress,
   onRequestPictureInPicture,
 }: {
   title: string;
   src?: string | null;
+  tracks?: VideoCaptionTrack[];
   onProgress?: (currentTime: number, duration: number) => void;
   onRequestPictureInPicture?: () => void;
 }) {
+  const trackSources = useMemo(
+    () =>
+      (tracks ?? []).map((track) => ({
+        ...track,
+        src: URL.createObjectURL(
+          new Blob([captionTrackToVtt(track)], { type: "text/vtt" }),
+        ),
+      })),
+    [tracks],
+  );
+
+  useEffect(
+    () => () => {
+      for (const track of trackSources) {
+        URL.revokeObjectURL(track.src);
+      }
+    },
+    [trackSources],
+  );
+
   const canUsePictureInPicture =
     typeof document !== "undefined" &&
     "pictureInPictureEnabled" in document &&
@@ -439,7 +484,16 @@ export function VideoPlayer({
             }
             src={src}
           >
-            <track kind="captions" />
+            {trackSources.map((track) => (
+              <track
+                default={track.isDefault}
+                key={track.id}
+                kind={track.kind === "SUBTITLE" ? "subtitles" : "captions"}
+                label={track.label}
+                src={track.src}
+                srcLang={track.language}
+              />
+            ))}
           </video>
         ) : (
           <PlayCircle aria-hidden="true" className="h-14 w-14 text-primary" />

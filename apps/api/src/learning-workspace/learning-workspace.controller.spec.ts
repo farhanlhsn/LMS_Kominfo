@@ -22,11 +22,21 @@ function setup(overrides: Record<string, any> = {}) {
     updateBookmark: vi.fn().mockResolvedValue({ id: "bm-1", title: "updated" }),
     deleteBookmark: vi.fn().mockResolvedValue({ id: "bm-1", deletedAt: new Date() }),
     getTranscript: vi.fn().mockResolvedValue([{ id: "seg-1" }]),
+    getCaptionTracks: vi.fn().mockResolvedValue([{ id: "track-1" }]),
     getWorkspaceContext: vi.fn().mockResolvedValue({ id: "ctx-1", availablePanels: [] }),
     instructorTranscript: vi.fn().mockResolvedValue([{ id: "seg-1" }]),
+    instructorCaptionTracks: vi.fn().mockResolvedValue([{ id: "track-1" }]),
+    createCaptionTrack: vi.fn().mockResolvedValue({ id: "track-1" }),
+    listCaptionCues: vi.fn().mockResolvedValue([{ startSeconds: 0, endSeconds: 1, text: "Hi" }]),
+    createCaptionCue: vi.fn().mockResolvedValue({ id: "track-1" }),
+    updateCaptionCue: vi.fn().mockResolvedValue({ id: "track-1" }),
+    deleteCaptionCue: vi.fn().mockResolvedValue({ id: "track-1" }),
+    reorderCaptionCues: vi.fn().mockResolvedValue({ id: "track-1" }),
     upsertInstructorTranscript: vi.fn().mockResolvedValue([{ id: "seg-1" }]),
     updateTranscriptSegment: vi.fn().mockResolvedValue({ id: "seg-1", text: "updated" }),
     deleteTranscriptSegment: vi.fn().mockResolvedValue({ id: "seg-1" }),
+    updateCaptionTrack: vi.fn().mockResolvedValue({ id: "track-1", isDefault: true }),
+    deleteCaptionTrack: vi.fn().mockResolvedValue({ id: "track-1" }),
     ...overrides,
   };
   return { workspace };
@@ -93,8 +103,11 @@ describe("LearningWorkspaceController", () => {
     const { workspace } = setup();
     const controller = new LearningWorkspaceController(workspace as any);
 
-    await controller.transcript(org, user, "a-1");
-    expect(workspace.getTranscript).toHaveBeenCalledWith("org-a", "u-1", "a-1");
+    await controller.transcript(org, user, "a-1", { language: "en" } as any);
+    expect(workspace.getTranscript).toHaveBeenCalledWith("org-a", "u-1", "a-1", expect.objectContaining({ language: "en" }));
+
+    await controller.captions(org, user, "a-1");
+    expect(workspace.getCaptionTracks).toHaveBeenCalledWith("org-a", "u-1", "a-1");
 
     await controller.context(org, user, "a-1");
     expect(workspace.getWorkspaceContext).toHaveBeenCalledWith("org-a", "u-1", "a-1");
@@ -105,7 +118,9 @@ describe("LearningWorkspaceController", () => {
       getTranscript: vi.fn().mockRejectedValue(new NotFoundException("Activity not found")),
     });
     const controller = new LearningWorkspaceController(workspace as any);
-    await expect(controller.transcript(org, user, "missing")).rejects.toBeInstanceOf(NotFoundException);
+    await expect(
+      controller.transcript(org, user, "missing", {} as any),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 });
 
@@ -117,6 +132,12 @@ describe("InstructorTranscriptController", () => {
     await controller.transcript(instructorOrg, instructorUser, "a-1");
     expect(workspace.instructorTranscript).toHaveBeenCalledWith(instructorOrg, "u-1", "a-1");
 
+    await controller.captions(instructorOrg, instructorUser, "a-1");
+    expect(workspace.instructorCaptionTracks).toHaveBeenCalledWith(instructorOrg, "u-1", "a-1");
+
+    await controller.createCaptionTrack(instructorOrg, instructorUser, "a-1", { label: "English", language: "en", rawContent: "WEBVTT" } as any);
+    expect(workspace.createCaptionTrack).toHaveBeenCalledWith(instructorOrg, "u-1", "a-1", expect.objectContaining({ language: "en" }));
+
     await controller.upsertTranscript(instructorOrg, instructorUser, "a-1", { segments: [] } as any);
     expect(workspace.upsertInstructorTranscript).toHaveBeenCalledWith(instructorOrg, "u-1", "a-1", expect.objectContaining({ segments: [] }));
 
@@ -125,6 +146,27 @@ describe("InstructorTranscriptController", () => {
 
     await controller.deleteSegment(instructorOrg, instructorUser, "seg-1");
     expect(workspace.deleteTranscriptSegment).toHaveBeenCalledWith(instructorOrg, "u-1", "seg-1");
+
+    await controller.updateCaptionTrack(instructorOrg, instructorUser, "track-1", { isDefault: true } as any);
+    expect(workspace.updateCaptionTrack).toHaveBeenCalledWith(instructorOrg, "u-1", "track-1", expect.objectContaining({ isDefault: true }));
+
+    await controller.deleteCaptionTrack(instructorOrg, instructorUser, "track-1");
+    expect(workspace.deleteCaptionTrack).toHaveBeenCalledWith(instructorOrg, "u-1", "track-1");
+
+    await controller.listCues(instructorOrg, instructorUser, "track-1");
+    expect(workspace.listCaptionCues).toHaveBeenCalledWith(instructorOrg, "u-1", "track-1");
+
+    await controller.createCue(instructorOrg, instructorUser, "track-1", { startSeconds: 0, endSeconds: 1, text: "Hi" } as any);
+    expect(workspace.createCaptionCue).toHaveBeenCalledWith(instructorOrg, "u-1", "track-1", expect.objectContaining({ text: "Hi" }));
+
+    await controller.updateCue(instructorOrg, instructorUser, "track-1", "0", { text: "Hello" } as any);
+    expect(workspace.updateCaptionCue).toHaveBeenCalledWith(instructorOrg, "u-1", "track-1", 0, expect.objectContaining({ text: "Hello" }));
+
+    await controller.deleteCue(instructorOrg, instructorUser, "track-1", "0");
+    expect(workspace.deleteCaptionCue).toHaveBeenCalledWith(instructorOrg, "u-1", "track-1", 0);
+
+    await controller.reorderCues(instructorOrg, instructorUser, "track-1", { orderedIndices: [1, 0] } as any);
+    expect(workspace.reorderCaptionCues).toHaveBeenCalledWith(instructorOrg, "u-1", "track-1", expect.objectContaining({ orderedIndices: [1, 0] }));
   });
 
   it("propagates a forbidden exception when the user cannot manage the activity", async () => {

@@ -22,9 +22,14 @@ import type {
   OrganizationContext,
 } from "../auth/types/authenticated-request";
 import {
+  CreateCaptionTrackDto,
   CreateLearnerBookmarkDto,
   CreateLearnerNoteDto,
   ListWorkspaceItemsDto,
+  ReorderCaptionCuesDto,
+  TranscriptQueryDto,
+  UpdateCaptionCueDto,
+  UpdateCaptionTrackDto,
   UpdateLearnerBookmarkDto,
   UpdateLearnerNoteDto,
   UpdateTranscriptSegmentDto,
@@ -32,6 +37,7 @@ import {
   UpdateWorkspaceStateDto,
   UpsertTranscriptDto,
   WorkspaceStateQueryDto,
+  CreateCaptionCueDto,
 } from "./dto/learning-workspace.dto";
 import { LearningWorkspaceService } from "./learning-workspace.service";
 
@@ -166,8 +172,23 @@ export class LearningWorkspaceController {
     @ActiveOrganization() organization: OrganizationContext,
     @CurrentUser() user: AuthenticatedUser,
     @Param("activityId") activityId: string,
+    @Query() query: TranscriptQueryDto,
   ) {
-    return this.workspace.getTranscript(organization.id, user.id, activityId);
+    return this.workspace.getTranscript(
+      organization.id,
+      user.id,
+      activityId,
+      query,
+    );
+  }
+
+  @Get("learn/activities/:activityId/captions")
+  captions(
+    @ActiveOrganization() organization: OrganizationContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("activityId") activityId: string,
+  ) {
+    return this.workspace.getCaptionTracks(organization.id, user.id, activityId);
   }
 
   @Get("learn/activities/:activityId/workspace-context")
@@ -200,6 +221,36 @@ export class InstructorTranscriptController {
     @Param("activityId") activityId: string,
   ) {
     return this.workspace.instructorTranscript(organization, user.id, activityId);
+  }
+
+  @Get("activities/:activityId/captions")
+  @Permissions(PERMISSIONS.coursesRead)
+  captions(
+    @ActiveOrganization() organization: OrganizationContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("activityId") activityId: string,
+  ) {
+    return this.workspace.instructorCaptionTracks(
+      organization,
+      user.id,
+      activityId,
+    );
+  }
+
+  @Post("activities/:activityId/captions")
+  @Permissions(PERMISSIONS.coursesUpdate)
+  createCaptionTrack(
+    @ActiveOrganization() organization: OrganizationContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("activityId") activityId: string,
+    @Body() dto: CreateCaptionTrackDto,
+  ) {
+    return this.workspace.createCaptionTrack(
+      organization,
+      user.id,
+      activityId,
+      dto,
+    );
   }
 
   @Post("activities/:activityId/transcript")
@@ -246,5 +297,97 @@ export class InstructorTranscriptController {
       user.id,
       segmentId,
     );
+  }
+
+  @Patch("caption-tracks/:trackId")
+  @Permissions(PERMISSIONS.coursesUpdate)
+  updateCaptionTrack(
+    @ActiveOrganization() organization: OrganizationContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("trackId") trackId: string,
+    @Body() dto: UpdateCaptionTrackDto,
+  ) {
+    return this.workspace.updateCaptionTrack(
+      organization,
+      user.id,
+      trackId,
+      dto,
+    );
+  }
+
+  @Get("caption-tracks/:trackId/cues")
+  @Permissions(PERMISSIONS.coursesUpdate)
+  listCues(
+    @ActiveOrganization() organization: OrganizationContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("trackId") trackId: string,
+  ) {
+    return this.workspace.listCaptionCues(organization, user.id, trackId);
+  }
+
+  @Post("caption-tracks/:trackId/cues")
+  @Permissions(PERMISSIONS.coursesUpdate)
+  createCue(
+    @ActiveOrganization() organization: OrganizationContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("trackId") trackId: string,
+    @Body() dto: CreateCaptionCueDto,
+  ) {
+    return this.workspace.createCaptionCue(organization, user.id, trackId, dto);
+  }
+
+  @Patch("caption-tracks/:trackId/cues/:cueIndex")
+  @Permissions(PERMISSIONS.coursesUpdate)
+  updateCue(
+    @ActiveOrganization() organization: OrganizationContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("trackId") trackId: string,
+    @Param("cueIndex") cueIndex: string,
+    @Body() dto: UpdateCaptionCueDto,
+  ) {
+    return this.workspace.updateCaptionCue(
+      organization,
+      user.id,
+      trackId,
+      Number(cueIndex),
+      dto,
+    );
+  }
+
+  @Delete("caption-tracks/:trackId/cues/:cueIndex")
+  @Permissions(PERMISSIONS.coursesUpdate)
+  deleteCue(
+    @ActiveOrganization() organization: OrganizationContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("trackId") trackId: string,
+    @Param("cueIndex") cueIndex: string,
+  ) {
+    return this.workspace.deleteCaptionCue(
+      organization,
+      user.id,
+      trackId,
+      Number(cueIndex),
+    );
+  }
+
+  @Post("caption-tracks/:trackId/cues/reorder")
+  @Permissions(PERMISSIONS.coursesUpdate)
+  reorderCues(
+    @ActiveOrganization() organization: OrganizationContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("trackId") trackId: string,
+    @Body() dto: ReorderCaptionCuesDto,
+  ) {
+    return this.workspace.reorderCaptionCues(organization, user.id, trackId, dto);
+  }
+
+  @Delete("caption-tracks/:trackId")
+  @Permissions(PERMISSIONS.coursesUpdate)
+  deleteCaptionTrack(
+    @ActiveOrganization() organization: OrganizationContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("trackId") trackId: string,
+  ) {
+    return this.workspace.deleteCaptionTrack(organization, user.id, trackId);
   }
 }

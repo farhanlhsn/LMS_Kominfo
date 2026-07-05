@@ -70,6 +70,25 @@ export class CreateAssignmentDto {
   allowResubmission?: boolean;
 
   @IsOptional()
+  @IsInt()
+  @Min(0)
+  maxResubmissions?: number;
+
+  @IsOptional()
+  @IsIn(["INDIVIDUAL", "GROUP"])
+  collaborationMode?: "INDIVIDUAL" | "GROUP";
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  groupMinMembers?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  groupMaxMembers?: number;
+
+  @IsOptional()
   @IsString()
   rubricId?: string;
 

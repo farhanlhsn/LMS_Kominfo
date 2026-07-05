@@ -1,4 +1,5 @@
 import {
+  ArrayMinSize,
   IsArray,
   IsBoolean,
   IsIn,
@@ -8,7 +9,9 @@ import {
   IsString,
   Min,
   MinLength,
+  ValidateNested,
 } from "class-validator";
+import { Type } from "class-transformer";
 
 export const workspaceLayouts = [
   "standard",
@@ -125,6 +128,16 @@ export class UpdateWorkspaceStateDto {
 
 export class ListWorkspaceItemsDto extends WorkspaceStateQueryDto {}
 
+export class TranscriptQueryDto {
+  @IsOptional()
+  @IsString()
+  language?: string;
+
+  @IsOptional()
+  @IsString()
+  search?: string;
+}
+
 export class CreateLearnerNoteDto {
   @IsString()
   courseId!: string;
@@ -222,6 +235,9 @@ export class UpdateLearnerBookmarkDto {
 
 export class UpsertTranscriptDto {
   @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => TranscriptSegmentInputDto)
   segments!: TranscriptSegmentInputDto[];
 }
 
@@ -287,3 +303,137 @@ export class UpdateTranscriptSegmentDto {
   @IsOptional()
   metadata?: Record<string, unknown>;
 }
+
+export class CaptionCueInputDto {
+  @IsNumber()
+  @Min(0)
+  startSeconds!: number;
+
+  @IsNumber()
+  @Min(0)
+  endSeconds!: number;
+
+  @IsString()
+  @MinLength(1)
+  text!: string;
+}
+
+export class CreateCaptionTrackDto {
+  @IsString()
+  @MinLength(2)
+  label!: string;
+
+  @IsString()
+  @MinLength(2)
+  language!: string;
+
+  @IsOptional()
+  @IsIn(["CAPTION", "SUBTITLE"])
+  kind?: "CAPTION" | "SUBTITLE";
+
+  @IsOptional()
+  @IsIn(["MANUAL", "UPLOAD", "TRANSCRIPT"])
+  source?: "MANUAL" | "UPLOAD" | "TRANSCRIPT";
+
+  @IsOptional()
+  @IsBoolean()
+  isDefault?: boolean;
+
+  @IsOptional()
+  @IsString()
+  rawContent?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  syncTranscript?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CaptionCueInputDto)
+  cues?: CaptionCueInputDto[];
+
+  @IsOptional()
+  metadata?: Record<string, unknown>;
+}
+
+export class UpdateCaptionTrackDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  label?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  language?: string;
+
+  @IsOptional()
+  @IsIn(["CAPTION", "SUBTITLE"])
+  kind?: "CAPTION" | "SUBTITLE";
+
+  @IsOptional()
+  @IsIn(["MANUAL", "UPLOAD", "TRANSCRIPT"])
+  source?: "MANUAL" | "UPLOAD" | "TRANSCRIPT";
+
+  @IsOptional()
+  @IsBoolean()
+  isDefault?: boolean;
+
+  @IsOptional()
+  @IsString()
+  rawContent?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  syncTranscript?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CaptionCueInputDto)
+  cues?: CaptionCueInputDto[];
+
+  @IsOptional()
+  metadata?: Record<string, unknown>;
+}
+
+export class UpdateCaptionCueDto {
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  startSeconds?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  endSeconds?: number;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  text?: string;
+}
+
+export class CreateCaptionCueDto {
+  @IsNumber()
+  @Min(0)
+  startSeconds!: number;
+
+  @IsNumber()
+  @Min(0)
+  endSeconds!: number;
+
+  @IsString()
+  @MinLength(1)
+  text!: string;
+}
+
+export class ReorderCaptionCuesDto {
+  @IsArray()
+  @IsInt({ each: true })
+  @Min(0, { each: true })
+  @ArrayMinSize(1)
+  orderedIndices!: number[];
+}
+

@@ -84,7 +84,10 @@ export default function CourseAssignmentsPage({ params }: { params: Promise<{ co
               <StatusBadge key="status" value={assignment.status} />,
               <StatusBadge key="type" value={assignment.submissionType} />,
               <a key="subs" className="font-semibold text-primary" href={`/instructor/assignments/${assignment.id}/submissions`}>{assignment._count?.submissions ?? 0}</a>,
-              <button key="publish" className="text-sm font-semibold text-primary" onClick={() => void publishAssignment(assignment.id).then(assignments.reload)} type="button">Publish</button>,
+              <div key="actions" className="flex flex-wrap gap-2">
+                <a className="text-sm font-semibold text-primary" href={`/instructor/assignments/${assignment.id}`}>Advanced</a>
+                <button className="text-sm font-semibold text-primary" onClick={() => void publishAssignment(assignment.id).then(assignments.reload)} type="button">Publish</button>
+              </div>,
             ])}
           />
         ) : (

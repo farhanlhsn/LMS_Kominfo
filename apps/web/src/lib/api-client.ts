@@ -4,6 +4,7 @@ import type {
   ActivityContentResponse,
   ActivityProgress,
   AiStatus,
+  AiGeneratedItem,
   AiTutorResponse,
   Assignment,
   AssignmentSubmission,
@@ -42,6 +43,7 @@ import type {
   QuizResult,
   Rubric,
   TranscriptSegment,
+  VideoCaptionTrack,
   WorkspaceContext,
   LearnerDashboard,
   LearnerCourseProgress,
@@ -89,6 +91,16 @@ import type {
   CourseFeedbackEntry,
   CourseFeedbackListResponse,
   SurveyQuestion,
+  AssignmentGroup,
+  PeerReviewConfig,
+  PeerReviewMatch,
+  PeerReview,
+  PeerReviewRubricScore,
+  SubmissionAnnotation,
+  PlagiarismCheck,
+  ProjectShowcase,
+  Portfolio,
+  PortfolioEntry,
 } from "./lms-types";
 
 const SESSION_KEY = "lms.session.v1";
@@ -539,9 +551,16 @@ export const api = {
         method: "DELETE",
       },
     ),
-  transcript: (activityId: string) =>
-    apiRequest<TranscriptSegment[]>(
-      `/learn/activities/${encodeURIComponent(activityId)}/transcript`,
+  transcript: (activityId: string, query?: { language?: string | null }) => {
+    const params = new URLSearchParams();
+    if (query?.language) params.set("language", query.language);
+    return apiRequest<TranscriptSegment[]>(
+      `/learn/activities/${encodeURIComponent(activityId)}/transcript${params.size ? `?${params.toString()}` : ""}`,
+    );
+  },
+  captionTracks: (activityId: string) =>
+    apiRequest<VideoCaptionTrack[]>(
+      `/learn/activities/${encodeURIComponent(activityId)}/captions`,
     ),
   workspaceContext: (activityId: string) =>
     apiRequest<WorkspaceContext>(
@@ -550,6 +569,383 @@ export const api = {
   instructorCourses: () => apiRequest<Course[]>("/instructor/courses"),
   instructorCourse: (courseId: string) =>
     apiRequest<Course>(`/instructor/courses/${encodeURIComponent(courseId)}`),
+  instructorCaptionTracks: (activityId: string) =>
+    apiRequest<VideoCaptionTrack[]>(
+      `/instructor/activities/${encodeURIComponent(activityId)}/captions`,
+    ),
+  createInstructorCaptionTrack: (
+    activityId: string,
+    input: Record<string, unknown>,
+  ) =>
+    apiRequest<VideoCaptionTrack>(
+      `/instructor/activities/${encodeURIComponent(activityId)}/captions`,
+      {
+        method: "POST",
+        body: JSON.stringify(input),
+      },
+    ),
+  updateInstructorCaptionTrack: (
+    trackId: string,
+    input: Record<string, unknown>,
+  ) =>
+    apiRequest<VideoCaptionTrack>(
+      `/instructor/caption-tracks/${encodeURIComponent(trackId)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      },
+    ),
+  deleteInstructorCaptionTrack: (trackId: string) =>
+    apiRequest<VideoCaptionTrack>(
+      `/instructor/caption-tracks/${encodeURIComponent(trackId)}`,
+      {
+        method: "DELETE",
+      },
+    ),
+  instructorAiGeneratedItems: (activityId: string) =>
+    apiRequest<AiGeneratedItem[]>(
+      `/instructor/activities/${encodeURIComponent(activityId)}/ai/generated-items`,
+    ),
+  generateInstructorVideoSummary: (
+    activityId: string,
+    input: Record<string, unknown>,
+  ) =>
+    apiRequest<AiGeneratedItem>(
+      `/instructor/activities/${encodeURIComponent(activityId)}/ai/video-summary`,
+      {
+        method: "POST",
+        body: JSON.stringify(input),
+      },
+    ),
+  generateInstructorVideoQuiz: (
+    activityId: string,
+    input: Record<string, unknown>,
+  ) =>
+    apiRequest<AiGeneratedItem>(
+      `/instructor/activities/${encodeURIComponent(activityId)}/ai/video-quiz`,
+      {
+        method: "POST",
+        body: JSON.stringify(input),
+      },
+    ),
+  listInstructorAiItems: (query: Record<string, string | undefined> = {}) => {
+    const params = new URLSearchParams();
+    Object.entries(query).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== "") {
+        params.set(key, value);
+      }
+    });
+    return apiRequest<AiGeneratedItem[]>(
+      `/instructor/ai/items${params.size ? `?${params.toString()}` : ""}`,
+    );
+  },
+  getInstructorAiItem: (itemId: string) =>
+    apiRequest<AiGeneratedItem>(
+      `/instructor/ai/items/${encodeURIComponent(itemId)}`,
+    ),
+  updateInstructorAiItem: (itemId: string, input: Record<string, unknown>) =>
+    apiRequest<AiGeneratedItem>(
+      `/instructor/ai/items/${encodeURIComponent(itemId)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      },
+    ),
+  approveInstructorAiItem: (itemId: string) =>
+    apiRequest<AiGeneratedItem>(
+      `/instructor/ai/items/${encodeURIComponent(itemId)}/approve`,
+      { method: "PATCH" },
+    ),
+  rejectInstructorAiItem: (itemId: string, reason?: string) =>
+    apiRequest<AiGeneratedItem>(
+      `/instructor/ai/items/${encodeURIComponent(itemId)}/reject`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ reason }),
+      },
+    ),
+  publishInstructorAiItem: (itemId: string) =>
+    apiRequest<AiGeneratedItem>(
+      `/instructor/ai/items/${encodeURIComponent(itemId)}/publish`,
+      { method: "POST" },
+    ),
+  // Phase 17 caption cue editor
+  listInstructorCaptionCues: (trackId: string) =>
+    apiRequest<unknown[]>(
+      `/instructor/caption-tracks/${encodeURIComponent(trackId)}/cues`,
+    ),
+  createInstructorCaptionCue: (
+    trackId: string,
+    input: { startSeconds: number; endSeconds: number; text: string },
+  ) =>
+    apiRequest<VideoCaptionTrack>(
+      `/instructor/caption-tracks/${encodeURIComponent(trackId)}/cues`,
+      {
+        method: "POST",
+        body: JSON.stringify(input),
+      },
+    ),
+  updateInstructorCaptionCue: (
+    trackId: string,
+    cueIndex: number,
+    input: { startSeconds?: number; endSeconds?: number; text?: string },
+  ) =>
+    apiRequest<VideoCaptionTrack>(
+      `/instructor/caption-tracks/${encodeURIComponent(trackId)}/cues/${cueIndex}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      },
+    ),
+  deleteInstructorCaptionCue: (trackId: string, cueIndex: number) =>
+    apiRequest<VideoCaptionTrack>(
+      `/instructor/caption-tracks/${encodeURIComponent(trackId)}/cues/${cueIndex}`,
+      { method: "DELETE" },
+    ),
+  reorderInstructorCaptionCues: (trackId: string, orderedIndices: number[]) =>
+    apiRequest<VideoCaptionTrack>(
+      `/instructor/caption-tracks/${encodeURIComponent(trackId)}/cues/reorder`,
+      {
+        method: "POST",
+        body: JSON.stringify({ orderedIndices }),
+      },
+    ),
+  // Phase 18: Advanced assignment
+  listAssignmentGroups: (assignmentId: string) =>
+    apiRequest<AssignmentGroup[]>(
+      `/instructor/assignments/${encodeURIComponent(assignmentId)}/groups`,
+    ),
+  createAssignmentGroup: (
+    assignmentId: string,
+    input: { name: string; maxMembers?: number; memberIds?: string[] },
+  ) =>
+    apiRequest<AssignmentGroup>(
+      `/instructor/assignments/${encodeURIComponent(assignmentId)}/groups`,
+      {
+        method: "POST",
+        body: JSON.stringify(input),
+      },
+    ),
+  updateAssignmentGroup: (
+    assignmentId: string,
+    groupId: string,
+    input: { name?: string; maxMembers?: number; status?: "ACTIVE" | "ARCHIVED" },
+  ) =>
+    apiRequest<AssignmentGroup>(
+      `/instructor/assignments/${encodeURIComponent(assignmentId)}/groups/${groupId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      },
+    ),
+  deleteAssignmentGroup: (assignmentId: string, groupId: string) =>
+    apiRequest<{ id: string }>(
+      `/instructor/assignments/${encodeURIComponent(assignmentId)}/groups/${groupId}`,
+      { method: "DELETE" },
+    ),
+  addAssignmentGroupMember: (
+    assignmentId: string,
+    groupId: string,
+    userId: string,
+    role: "member" | "leader" = "member",
+  ) =>
+    apiRequest<{ id: string; userId: string }>(
+      `/instructor/assignments/${encodeURIComponent(assignmentId)}/groups/${groupId}/members`,
+      {
+        method: "POST",
+        body: JSON.stringify({ userId, role }),
+      },
+    ),
+  removeAssignmentGroupMember: (
+    assignmentId: string,
+    groupId: string,
+    userId: string,
+  ) =>
+    apiRequest<{ id: string }>(
+      `/instructor/assignments/${encodeURIComponent(assignmentId)}/groups/${groupId}/members/${userId}`,
+      { method: "DELETE" },
+    ),
+  updateAssignmentCollaboration: (
+    assignmentId: string,
+    input: {
+      collaborationMode?: "INDIVIDUAL" | "GROUP";
+      groupMinMembers?: number;
+      groupMaxMembers?: number;
+      maxResubmissions?: number;
+    },
+  ) =>
+    apiRequest<{ id: string }>(
+      `/instructor/assignments/${encodeURIComponent(assignmentId)}/collaboration`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      },
+    ),
+  getPeerReviewConfig: (assignmentId: string) =>
+    apiRequest<PeerReviewConfig | null>(
+      `/instructor/assignments/${encodeURIComponent(assignmentId)}/peer-review/config`,
+    ),
+  upsertPeerReviewConfig: (
+    assignmentId: string,
+    input: Record<string, unknown>,
+    method: "POST" | "PATCH" = "POST",
+  ) =>
+    apiRequest<PeerReviewConfig>(
+      `/instructor/assignments/${encodeURIComponent(assignmentId)}/peer-review/config`,
+      {
+        method,
+        body: JSON.stringify(input),
+      },
+    ),
+  generatePeerReviewMatches: (assignmentId: string) =>
+    apiRequest<{ configId: string; count: number; matches: Array<{ matchId: string; submissionId: string; reviewerUserId: string }> }>(
+      `/instructor/assignments/${encodeURIComponent(assignmentId)}/peer-review/generate-matches`,
+      { method: "POST" },
+    ),
+  listPeerReviewMatches: (assignmentId: string) =>
+    apiRequest<PeerReviewMatch[]>(
+      `/instructor/assignments/${encodeURIComponent(assignmentId)}/peer-review/matches`,
+    ),
+  listSubmissionAnnotations: (submissionId: string) =>
+    apiRequest<SubmissionAnnotation[]>(
+      `/instructor/submissions/${encodeURIComponent(submissionId)}/annotations`,
+    ),
+  createSubmissionAnnotation: (
+    submissionId: string,
+    input: {
+      startOffset: number;
+      endOffset: number;
+      selectedText: string;
+      comment: string;
+    },
+  ) =>
+    apiRequest<SubmissionAnnotation>(
+      `/instructor/submissions/${encodeURIComponent(submissionId)}/annotations`,
+      {
+        method: "POST",
+        body: JSON.stringify(input),
+      },
+    ),
+  updateSubmissionAnnotation: (
+    submissionId: string,
+    annotationId: string,
+    input: { comment?: string; resolved?: boolean },
+  ) =>
+    apiRequest<SubmissionAnnotation>(
+      `/instructor/submissions/${encodeURIComponent(submissionId)}/annotations/${annotationId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      },
+    ),
+  deleteSubmissionAnnotation: (submissionId: string, annotationId: string) =>
+    apiRequest<{ id: string }>(
+      `/instructor/submissions/${encodeURIComponent(submissionId)}/annotations/${annotationId}`,
+      { method: "DELETE" },
+    ),
+  listPlagiarismChecks: (submissionId: string) =>
+    apiRequest<PlagiarismCheck[]>(
+      `/instructor/submissions/${encodeURIComponent(submissionId)}/plagiarism-checks`,
+    ),
+  runPlagiarismCheck: (
+    submissionId: string,
+    input: { provider?: string } = {},
+  ) =>
+    apiRequest<PlagiarismCheck>(
+      `/instructor/submissions/${encodeURIComponent(submissionId)}/plagiarism-checks`,
+      {
+        method: "POST",
+        body: JSON.stringify(input),
+      },
+    ),
+  listCourseShowcases: (courseId: string) =>
+    apiRequest<ProjectShowcase[]>(
+      `/instructor/courses/${encodeURIComponent(courseId)}/showcases`,
+    ),
+  createCourseShowcase: (
+    courseId: string,
+    input: {
+      submissionId: string;
+      title: string;
+      summary?: string;
+      thumbnailUrl?: string;
+      externalUrl?: string;
+      publish?: boolean;
+    },
+  ) =>
+    apiRequest<ProjectShowcase>(
+      `/instructor/courses/${encodeURIComponent(courseId)}/showcases`,
+      {
+        method: "POST",
+        body: JSON.stringify(input),
+      },
+    ),
+  updateCourseShowcase: (
+    showcaseId: string,
+    input: Record<string, unknown>,
+  ) =>
+    apiRequest<ProjectShowcase>(
+      `/instructor/showcases/${encodeURIComponent(showcaseId)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      },
+    ),
+  deleteCourseShowcase: (showcaseId: string) =>
+    apiRequest<{ id: string }>(
+      `/instructor/showcases/${encodeURIComponent(showcaseId)}`,
+      { method: "DELETE" },
+    ),
+  // Learner
+  listLearnerPeerReviews: () => apiRequest<PeerReviewMatch[]>("/learn/peer-reviews"),
+  submitLearnerPeerReview: (
+    matchId: string,
+    input: { overallScore?: number; feedback?: string; rubricScores?: PeerReviewRubricScore[] },
+  ) =>
+    apiRequest<PeerReview>(
+      `/learn/peer-reviews/matches/${encodeURIComponent(matchId)}/submit`,
+      {
+        method: "POST",
+        body: JSON.stringify(input),
+      },
+    ),
+  getMyPortfolio: () => apiRequest<Portfolio>("/learn/portfolio"),
+  updateMyPortfolio: (input: { title?: string; description?: string; isPublic?: boolean }) =>
+    apiRequest<Portfolio>("/learn/portfolio", {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  addPortfolioEntry: (input: {
+    title: string;
+    description?: string;
+    submissionId?: string;
+    showcaseId?: string;
+    orderIndex?: number;
+  }) =>
+    apiRequest<PortfolioEntry>("/learn/portfolio/entries", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updatePortfolioEntry: (
+    entryId: string,
+    input: { title?: string; description?: string; orderIndex?: number },
+  ) =>
+    apiRequest<PortfolioEntry>(
+      `/learn/portfolio/entries/${encodeURIComponent(entryId)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      },
+    ),
+  removePortfolioEntry: (entryId: string) =>
+    apiRequest<{ id: string }>(
+      `/learn/portfolio/entries/${encodeURIComponent(entryId)}`,
+      { method: "DELETE" },
+    ),
+  getPublicPortfolio: (shareToken: string) =>
+    apiRequest<Portfolio>(
+      `/public/portfolios/${encodeURIComponent(shareToken)}`,
+    ),
   createCourse: (input: Record<string, unknown>) =>
     apiRequest<Course>("/instructor/courses", {
       method: "POST",

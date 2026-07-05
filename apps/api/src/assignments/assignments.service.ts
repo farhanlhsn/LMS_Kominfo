@@ -63,6 +63,10 @@ export class AssignmentsService {
         description: dto.description,
         instructions: dto.instructions,
         submissionType: dto.submissionType,
+        collaborationMode: dto.collaborationMode ?? "INDIVIDUAL",
+        groupMinMembers: dto.groupMinMembers ?? 2,
+        groupMaxMembers: dto.groupMaxMembers ?? 5,
+        maxResubmissions: dto.maxResubmissions ?? null,
         dueAt: this.date(dto.dueAt),
         availableFrom: this.date(dto.availableFrom),
         availableUntil: this.date(dto.availableUntil),
@@ -126,6 +130,10 @@ export class AssignmentsService {
         instructions: dto.instructions,
         activityId: dto.activityId,
         submissionType: dto.submissionType,
+        collaborationMode: dto.collaborationMode,
+        groupMinMembers: dto.groupMinMembers,
+        groupMaxMembers: dto.groupMaxMembers,
+        maxResubmissions: dto.maxResubmissions,
         dueAt: this.date(dto.dueAt),
         availableFrom: this.date(dto.availableFrom),
         availableUntil: this.date(dto.availableUntil),
@@ -443,6 +451,15 @@ export class AssignmentsService {
     const attemptNumber = (latest?.attemptNumber ?? 0) + 1;
     if (assignment.maxAttempts && attemptNumber > assignment.maxAttempts) {
       throw new ForbiddenException("Assignment attempt limit reached");
+    }
+    if (
+      latest &&
+      assignment.maxResubmissions != null &&
+      (attemptNumber - 1) > assignment.maxResubmissions
+    ) {
+      throw new ForbiddenException(
+        `Resubmission limit reached (max ${assignment.maxResubmissions})`,
+      );
     }
     return this.prisma.assignmentSubmission.create({
       data: {

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -9,9 +10,15 @@ import { PrismaService } from "../prisma/prisma.service";
 import { AiIndexingService } from "../ai/ai-indexing.service";
 import type { OrganizationContext } from "../auth/types/authenticated-request";
 import type {
+  CreateCaptionCueDto,
+  CreateCaptionTrackDto,
   CreateLearnerBookmarkDto,
   CreateLearnerNoteDto,
   ListWorkspaceItemsDto,
+  ReorderCaptionCuesDto,
+  TranscriptQueryDto,
+  UpdateCaptionCueDto,
+  UpdateCaptionTrackDto,
   UpdateLearnerBookmarkDto,
   UpdateLearnerNoteDto,
   UpdateTranscriptSegmentDto,
@@ -20,6 +27,11 @@ import type {
   UpsertTranscriptDto,
   WorkspaceStateQueryDto,
 } from "./dto/learning-workspace.dto";
+import {
+  cuesToTranscriptSegments,
+  normalizeCaptionCues,
+  parseCaptionContent,
+} from "./video-caption.util";
 
 const defaultPolicy = {
   allowPopout: true,
@@ -299,12 +311,37 @@ export class LearningWorkspaceService {
     organizationId: string,
     userId: string,
     activityId: string,
+    query: TranscriptQueryDto = {},
   ) {
     const activity = await this.getActivity(organizationId, activityId);
     await this.ensureEnrollment(organizationId, userId, activity.courseId);
     return this.prisma.transcriptSegment.findMany({
-      where: { organizationId, activityId },
+      where: {
+        organizationId,
+        activityId,
+        language: query.language,
+        text: query.search
+          ? {
+              contains: query.search,
+              mode: "insensitive",
+            }
+          : undefined,
+      },
       orderBy: [{ orderIndex: "asc" }, { startSeconds: "asc" }],
+    });
+  }
+
+  async getCaptionTracks(
+    organizationId: string,
+    userId: string,
+    activityId: string,
+  ) {
+    const activity = await this.getActivity(organizationId, activityId);
+    await this.ensureEnrollment(organizationId, userId, activity.courseId);
+    this.ensureVideoActivity(activity);
+    return this.prisma.videoCaptionTrack.findMany({
+      where: { organizationId, activityId },
+      orderBy: [{ isDefault: "desc" }, { language: "asc" }, { label: "asc" }],
     });
   }
 
@@ -320,6 +357,10 @@ export class LearningWorkspaceService {
         lesson: { select: { id: true, title: true, summary: true } },
         progress: { where: { organizationId, userId }, take: 1 },
         transcriptSegments: { select: { id: true }, take: 1 },
+        videoCaptionTracks: {
+          select: { language: true, isDefault: true },
+          take: 20,
+        },
       },
     });
     if (!activity) throw new NotFoundException("Activity not found");
@@ -335,6 +376,17 @@ export class LearningWorkspaceService {
     const assessmentDisplayPolicy = this.assessmentPolicy(
       activity.assessmentDisplayPolicy,
     );
+    const captionLanguages = Array.from(
+      new Set(
+        activity.videoCaptionTracks
+          .map((track) => track.language)
+          .filter((language): language is string => Boolean(language)),
+      ),
+    );
+    const defaultCaptionLanguage =
+      activity.videoCaptionTracks.find((track) => track.isDefault)?.language ??
+      captionLanguages[0] ??
+      null;
     const availablePanels = [
       assessmentDisplayPolicy.allowNotes ? "notes" : null,
       assessmentDisplayPolicy.allowTranscript ? "transcript" : null,
@@ -359,6 +411,8 @@ export class LearningWorkspaceService {
       availablePanels,
       assessmentDisplayPolicy,
       transcriptAvailable: activity.transcriptSegments.length > 0,
+      captionLanguages,
+      defaultCaptionLanguage,
       notesCount,
       bookmarksCount,
     };
@@ -374,6 +428,306 @@ export class LearningWorkspaceService {
       where: { organizationId: organization.id, activityId },
       orderBy: [{ orderIndex: "asc" }, { startSeconds: "asc" }],
     });
+  }
+
+  async instructorCaptionTracks(
+    organization: OrganizationContext,
+    userId: string,
+    activityId: string,
+  ) {
+    const activity = await this.ensureCanManageActivity(
+      organization,
+      userId,
+      activityId,
+    );
+    this.ensureVideoActivity(activity);
+    return this.prisma.videoCaptionTrack.findMany({
+      where: { organizationId: organization.id, activityId },
+      orderBy: [{ isDefault: "desc" }, { language: "asc" }, { label: "asc" }],
+    });
+  }
+
+  async createCaptionTrack(
+    organization: OrganizationContext,
+    userId: string,
+    activityId: string,
+    dto: CreateCaptionTrackDto,
+  ) {
+    const activity = await this.ensureCanManageActivity(
+      organization,
+      userId,
+      activityId,
+    );
+    this.ensureVideoActivity(activity);
+    const payload = this.captionTrackPayload(dto);
+    const result = await this.prisma.$transaction(async (tx) => {
+      if (payload.isDefault) {
+        await tx.videoCaptionTrack.updateMany({
+          where: { organizationId: organization.id, activityId },
+          data: { isDefault: false },
+        });
+      }
+      const created = await tx.videoCaptionTrack.create({
+        data: {
+          organizationId: organization.id,
+          courseId: activity.courseId,
+          lessonId: activity.lessonId,
+          activityId,
+          label: payload.label,
+          language: payload.language,
+          kind: payload.kind,
+          source: payload.source,
+          isDefault: payload.isDefault,
+          cues: payload.cues as Prisma.InputJsonArray,
+          rawContent: payload.rawContent,
+          metadata: payload.metadata as Prisma.InputJsonObject,
+        },
+      });
+      if (dto.syncTranscript) {
+        await this.syncTranscriptFromCaptionTrackTx(
+          tx,
+          organization.id,
+          activity,
+          payload.language,
+          payload.cues,
+        );
+      }
+      return created;
+    });
+    await this.audit(organization.id, userId, "caption_track.created", result.id);
+    if (dto.syncTranscript) {
+      await this.aiIndexing
+        .indexActivity(organization.id, activityId)
+        .catch(() => undefined);
+    }
+    return result;
+  }
+
+  async updateCaptionTrack(
+    organization: OrganizationContext,
+    userId: string,
+    trackId: string,
+    dto: UpdateCaptionTrackDto,
+  ) {
+    const track = await this.getCaptionTrack(organization.id, trackId);
+    const activity = await this.ensureCanManageActivity(
+      organization,
+      userId,
+      track.activityId,
+    );
+    this.ensureVideoActivity(activity);
+    const payload = this.captionTrackPayload(dto, track);
+    const result = await this.prisma.$transaction(async (tx) => {
+      if (payload.isDefault) {
+        await tx.videoCaptionTrack.updateMany({
+          where: { organizationId: organization.id, activityId: track.activityId },
+          data: { isDefault: false },
+        });
+      }
+      const updated = await tx.videoCaptionTrack.update({
+        where: { id: trackId },
+        data: {
+          label: payload.label,
+          language: payload.language,
+          kind: payload.kind,
+          source: payload.source,
+          isDefault: payload.isDefault,
+          cues: payload.cues as Prisma.InputJsonArray,
+          rawContent: payload.rawContent,
+          metadata: payload.metadata as Prisma.InputJsonObject,
+        },
+      });
+      if (dto.syncTranscript) {
+        await this.syncTranscriptFromCaptionTrackTx(
+          tx,
+          organization.id,
+          activity,
+          payload.language,
+          payload.cues,
+        );
+      }
+      return updated;
+    });
+    await this.audit(organization.id, userId, "caption_track.updated", trackId);
+    if (dto.syncTranscript) {
+      await this.aiIndexing
+        .indexActivity(organization.id, track.activityId)
+        .catch(() => undefined);
+    }
+    return result;
+  }
+
+  async deleteCaptionTrack(
+    organization: OrganizationContext,
+    userId: string,
+    trackId: string,
+  ) {
+    const track = await this.getCaptionTrack(organization.id, trackId);
+    await this.ensureCanManageActivity(organization, userId, track.activityId);
+    const deleted = await this.prisma.videoCaptionTrack.delete({
+      where: { id: trackId },
+    });
+    await this.audit(organization.id, userId, "caption_track.deleted", trackId);
+    return deleted;
+  }
+
+  async listCaptionCues(
+    organization: OrganizationContext,
+    userId: string,
+    trackId: string,
+  ) {
+    const track = await this.prisma.videoCaptionTrack.findFirst({
+      where: { id: trackId, organizationId: organization.id },
+    });
+    if (!track) throw new NotFoundException("Caption track not found");
+    await this.ensureCanManageActivity(organization, userId, track.activityId);
+    return Array.isArray(track.cues) ? (track.cues as unknown[]) : [];
+  }
+
+  async createCaptionCue(
+    organization: OrganizationContext,
+    userId: string,
+    trackId: string,
+    dto: CreateCaptionCueDto,
+  ) {
+    const track = await this.prisma.videoCaptionTrack.findFirst({
+      where: { id: trackId, organizationId: organization.id },
+    });
+    if (!track) throw new NotFoundException("Caption track not found");
+    await this.ensureCanManageActivity(organization, userId, track.activityId);
+    const cues = Array.isArray(track.cues)
+      ? (track.cues as Array<Record<string, unknown>>)
+      : [];
+    cues.push({
+      startSeconds: dto.startSeconds,
+      endSeconds: dto.endSeconds,
+      text: dto.text,
+    });
+    const normalized = normalizeCaptionCues(
+      cues.map((cue) => ({
+        startSeconds: Number(cue.startSeconds),
+        endSeconds: Number(cue.endSeconds),
+        text: String(cue.text ?? ""),
+      })),
+    );
+    const updated = await this.prisma.videoCaptionTrack.update({
+      where: { id: track.id },
+      data: { cues: normalized as unknown as Prisma.InputJsonValue },
+    });
+    await this.audit(organization.id, userId, "caption_cue.created", trackId);
+    return updated;
+  }
+
+  async updateCaptionCue(
+    organization: OrganizationContext,
+    userId: string,
+    trackId: string,
+    cueIndex: number,
+    dto: UpdateCaptionCueDto,
+  ) {
+    const track = await this.prisma.videoCaptionTrack.findFirst({
+      where: { id: trackId, organizationId: organization.id },
+    });
+    if (!track) throw new NotFoundException("Caption track not found");
+    await this.ensureCanManageActivity(organization, userId, track.activityId);
+    const cues = Array.isArray(track.cues)
+      ? (track.cues as Array<Record<string, unknown>>)
+      : [];
+    if (cueIndex < 0 || cueIndex >= cues.length) {
+      throw new NotFoundException("Caption cue not found");
+    }
+    const existing = cues[cueIndex]!;
+    cues[cueIndex] = {
+      startSeconds: dto.startSeconds ?? Number(existing.startSeconds ?? 0),
+      endSeconds: dto.endSeconds ?? Number(existing.endSeconds ?? 0),
+      text: dto.text ?? String(existing.text ?? ""),
+    };
+    const normalized = normalizeCaptionCues(
+      cues.map((cue) => ({
+        startSeconds: Number(cue.startSeconds),
+        endSeconds: Number(cue.endSeconds),
+        text: String(cue.text ?? ""),
+      })),
+    );
+    const updated = await this.prisma.videoCaptionTrack.update({
+      where: { id: track.id },
+      data: { cues: normalized as unknown as Prisma.InputJsonValue },
+    });
+    await this.audit(organization.id, userId, "caption_cue.updated", trackId);
+    return updated;
+  }
+
+  async deleteCaptionCue(
+    organization: OrganizationContext,
+    userId: string,
+    trackId: string,
+    cueIndex: number,
+  ) {
+    const track = await this.prisma.videoCaptionTrack.findFirst({
+      where: { id: trackId, organizationId: organization.id },
+    });
+    if (!track) throw new NotFoundException("Caption track not found");
+    await this.ensureCanManageActivity(organization, userId, track.activityId);
+    const cues = Array.isArray(track.cues)
+      ? (track.cues as Array<Record<string, unknown>>)
+      : [];
+    if (cueIndex < 0 || cueIndex >= cues.length) {
+      throw new NotFoundException("Caption cue not found");
+    }
+    cues.splice(cueIndex, 1);
+    const normalized = normalizeCaptionCues(
+      cues.map((cue) => ({
+        startSeconds: Number(cue.startSeconds),
+        endSeconds: Number(cue.endSeconds),
+        text: String(cue.text ?? ""),
+      })),
+    );
+    const updated = await this.prisma.videoCaptionTrack.update({
+      where: { id: track.id },
+      data: { cues: normalized as unknown as Prisma.InputJsonValue },
+    });
+    await this.audit(organization.id, userId, "caption_cue.deleted", trackId);
+    return updated;
+  }
+
+  async reorderCaptionCues(
+    organization: OrganizationContext,
+    userId: string,
+    trackId: string,
+    dto: ReorderCaptionCuesDto,
+  ) {
+    const track = await this.prisma.videoCaptionTrack.findFirst({
+      where: { id: trackId, organizationId: organization.id },
+    });
+    if (!track) throw new NotFoundException("Caption track not found");
+    await this.ensureCanManageActivity(organization, userId, track.activityId);
+    const cues = Array.isArray(track.cues)
+      ? (track.cues as Array<Record<string, unknown>>)
+      : [];
+    if (
+      dto.orderedIndices.length !== cues.length ||
+      new Set(dto.orderedIndices).size !== cues.length
+    ) {
+      throw new BadRequestException(
+        "orderedIndices must contain every existing cue index exactly once",
+      );
+    }
+    const reordered = dto.orderedIndices
+      .map((index) => cues[index])
+      .filter((cue): cue is Record<string, unknown> => Boolean(cue));
+    const normalized = normalizeCaptionCues(
+      reordered.map((cue) => ({
+        startSeconds: Number(cue.startSeconds),
+        endSeconds: Number(cue.endSeconds),
+        text: String(cue.text ?? ""),
+      })),
+    );
+    const updated = await this.prisma.videoCaptionTrack.update({
+      where: { id: track.id },
+      data: { cues: normalized as unknown as Prisma.InputJsonValue },
+    });
+    await this.audit(organization.id, userId, "caption_cue.reordered", trackId);
+    return updated;
   }
 
   async upsertInstructorTranscript(
@@ -600,6 +954,95 @@ export class LearningWorkspaceService {
     });
     if (!segment) throw new NotFoundException("Transcript segment not found");
     return segment;
+  }
+
+  private async getCaptionTrack(organizationId: string, trackId: string) {
+    const track = await this.prisma.videoCaptionTrack.findFirst({
+      where: { id: trackId, organizationId },
+    });
+    if (!track) throw new NotFoundException("Caption track not found");
+    return track;
+  }
+
+  private ensureVideoActivity(activity: {
+    activityTypeKey: string;
+    id: string;
+  }) {
+    if (activity.activityTypeKey !== "core.video") {
+      throw new BadRequestException(
+        "Caption tracks are only available for video activities",
+      );
+    }
+  }
+
+  private captionTrackPayload(
+    dto: CreateCaptionTrackDto | UpdateCaptionTrackDto,
+    existing?: {
+      label: string;
+      language: string;
+      kind: "CAPTION" | "SUBTITLE";
+      source: "MANUAL" | "UPLOAD" | "TRANSCRIPT";
+      isDefault: boolean;
+      cues: unknown;
+      rawContent: string | null;
+      metadata: unknown;
+    },
+  ) {
+    const rawContent =
+      dto.rawContent !== undefined ? dto.rawContent : existing?.rawContent ?? null;
+    const cues =
+      dto.rawContent && dto.rawContent.trim().length > 0
+        ? parseCaptionContent(dto.rawContent)
+        : dto.cues?.length
+          ? normalizeCaptionCues(dto.cues)
+          : Array.isArray(existing?.cues)
+            ? normalizeCaptionCues(existing.cues as never)
+            : [];
+    if (!cues.length) {
+      throw new BadRequestException(
+        "Caption content must include at least one valid cue",
+      );
+    }
+    return {
+      label: dto.label ?? existing?.label ?? "Default captions",
+      language: dto.language ?? existing?.language ?? "en",
+      kind: dto.kind ?? existing?.kind ?? "CAPTION",
+      source: dto.source ?? existing?.source ?? "MANUAL",
+      isDefault: dto.isDefault ?? existing?.isDefault ?? false,
+      cues,
+      rawContent,
+      metadata:
+        (dto.metadata ?? existing?.metadata ?? {}) as Record<string, unknown>,
+    };
+  }
+
+  private async syncTranscriptFromCaptionTrackTx(
+    tx: Prisma.TransactionClient,
+    organizationId: string,
+    activity: { id: string; courseId: string; lessonId: string | null },
+    language: string,
+    cues: Array<{ startSeconds: number; endSeconds: number; text: string }>,
+  ) {
+    const segments = cuesToTranscriptSegments(cues, language);
+    await tx.transcriptSegment.deleteMany({
+      where: { organizationId, activityId: activity.id, language },
+    });
+    for (const segment of segments) {
+      await tx.transcriptSegment.create({
+        data: {
+          organizationId,
+          courseId: activity.courseId,
+          lessonId: activity.lessonId,
+          activityId: activity.id,
+          startSeconds: segment.startSeconds,
+          endSeconds: segment.endSeconds,
+          text: segment.text,
+          language: segment.language,
+          orderIndex: segment.orderIndex,
+          metadata: {},
+        },
+      });
+    }
   }
 
   private assessmentPolicy(value: unknown) {

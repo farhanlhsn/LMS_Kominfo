@@ -392,6 +392,28 @@ export interface TranscriptSegment {
   metadata?: Record<string, unknown>;
 }
 
+export interface VideoCaptionCue {
+  startSeconds: number;
+  endSeconds: number;
+  text: string;
+}
+
+export interface VideoCaptionTrack {
+  id: string;
+  organizationId: string;
+  courseId: string;
+  lessonId?: string | null;
+  activityId: string;
+  label: string;
+  language: string;
+  kind: "CAPTION" | "SUBTITLE";
+  source: "MANUAL" | "UPLOAD" | "TRANSCRIPT";
+  isDefault: boolean;
+  cues: VideoCaptionCue[];
+  rawContent?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
 export interface AssessmentDisplayPolicy {
   allowPopout: boolean;
   allowDualWindow: boolean;
@@ -416,6 +438,8 @@ export interface WorkspaceContext {
   availablePanels: WorkspacePanelMode[];
   assessmentDisplayPolicy: AssessmentDisplayPolicy;
   transcriptAvailable: boolean;
+  captionLanguages: string[];
+  defaultCaptionLanguage?: string | null;
   notesCount: number;
   bookmarksCount: number;
 }
@@ -573,12 +597,236 @@ export interface AiTutorResponse {
   disabled: boolean;
 }
 
+export interface AiGeneratedItem {
+  id: string;
+  organizationId: string;
+  courseId?: string | null;
+  lessonId?: string | null;
+  activityId?: string | null;
+  createdById: string;
+  type:
+    | "QUESTION"
+    | "QUIZ"
+    | "SUMMARY"
+    | "FLASHCARD"
+    | "ASSIGNMENT"
+    | "RUBRIC"
+    | "COURSE_OUTLINE"
+    | "LESSON_CONTENT";
+  title?: string | null;
+  prompt: string;
+  output: Record<string, unknown>;
+  status: "DRAFT" | "APPROVED" | "REJECTED" | "PUBLISHED";
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface RubricLevel {
   id: string;
   title: string;
   description?: string | null;
   points: number;
   orderIndex: number;
+}
+
+// Phase 18: Advanced assignment (group, peer review, plagiarism, portfolio, showcase)
+
+export type AssignmentCollaborationMode = "INDIVIDUAL" | "GROUP";
+
+export type PeerReviewStatus =
+  | "PENDING"
+  | "IN_PROGRESS"
+  | "SUBMITTED"
+  | "EXPIRED"
+  | "DECLINED";
+
+export type PlagiarismCheckStatus =
+  | "PENDING"
+  | "RUNNING"
+  | "COMPLETED"
+  | "FAILED"
+  | "CANCELLED";
+
+export interface AssignmentGroupMember {
+  id: string;
+  organizationId: string;
+  groupId: string;
+  userId: string;
+  role: string;
+  joinedAt: string;
+  user?: {
+    id: string;
+    email: string;
+    name: string;
+  };
+}
+
+export interface AssignmentGroup {
+  id: string;
+  organizationId: string;
+  assignmentId: string;
+  courseId: string;
+  name: string;
+  maxMembers: number;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  members?: AssignmentGroupMember[];
+  _count?: { submissions: number };
+}
+
+export interface PeerReviewConfig {
+  id: string;
+  organizationId: string;
+  assignmentId: string;
+  reviewsRequired: number;
+  reviewsToReceive: number;
+  openFrom?: string | null;
+  dueAt?: string | null;
+  rubricId?: string | null;
+  anonymize: boolean;
+  allowSelfReview: boolean;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PeerReviewRubricScore {
+  criterionId: string;
+  levelId?: string;
+  points: number;
+  feedback?: string;
+}
+
+export interface PeerReviewMatch {
+  id: string;
+  organizationId: string;
+  configId: string;
+  submissionId: string;
+  reviewerUserId: string;
+  status: PeerReviewStatus;
+  dueAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  submission?: {
+    id: string;
+    assignmentId?: string;
+    textAnswer?: string | null;
+    linkUrl?: string | null;
+    fileIds?: unknown[];
+    userId?: string;
+    attemptNumber?: number;
+  };
+  reviewer?: { id: string; email: string; name: string };
+  config?: { id: string; anonymize: boolean; assignmentId: string };
+  review?: PeerReview | null;
+}
+
+export interface PeerReview {
+  id: string;
+  organizationId: string;
+  matchId: string;
+  authorId?: string | null;
+  overallScore?: number | null;
+  feedback?: string | null;
+  submittedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  rubricScores?: PeerReviewRubricScore[];
+}
+
+export interface SubmissionAnnotation {
+  id: string;
+  organizationId: string;
+  submissionId: string;
+  authorId: string;
+  startOffset: number;
+  endOffset: number;
+  selectedText: string;
+  comment: string;
+  resolved: boolean;
+  resolvedById?: string | null;
+  resolvedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  author?: { id: string; email: string; name: string };
+  resolvedBy?: { id: string; email: string; name: string };
+}
+
+export interface PlagiarismMatchedSource {
+  url?: string;
+  title?: string;
+  excerpt?: string;
+  similarityPercent: number;
+}
+
+export interface PlagiarismCheck {
+  id: string;
+  organizationId: string;
+  submissionId: string;
+  requesterId?: string | null;
+  provider: string;
+  status: PlagiarismCheckStatus;
+  similarityScore?: number | null;
+  matchedSources?: PlagiarismMatchedSource[];
+  reportUrl?: string | null;
+  details?: Record<string, unknown>;
+  errorMessage?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string | null;
+}
+
+export interface ProjectShowcase {
+  id: string;
+  organizationId: string;
+  courseId: string;
+  submissionId: string;
+  createdById: string;
+  title: string;
+  summary?: string | null;
+  thumbnailUrl?: string | null;
+  externalUrl?: string | null;
+  publishedAt?: string | null;
+  featured: boolean;
+  viewCount: number;
+  createdAt: string;
+  updatedAt: string;
+  submission?: {
+    id: string;
+    assignment?: { id: string; title: string };
+  };
+  createdBy?: { id: string; email: string; name: string };
+}
+
+export interface PortfolioEntry {
+  id: string;
+  organizationId: string;
+  portfolioId: string;
+  submissionId?: string | null;
+  showcaseId?: string | null;
+  title: string;
+  description?: string | null;
+  orderIndex: number;
+  createdAt: string;
+  updatedAt: string;
+  submission?: { id: string; assignmentId: string } | null;
+  showcase?: ProjectShowcase | null;
+}
+
+export interface Portfolio {
+  id: string;
+  organizationId: string;
+  userId: string;
+  title: string;
+  description?: string | null;
+  isPublic: boolean;
+  shareToken?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  entries: PortfolioEntry[];
+  user?: { id: string; email: string; name: string };
 }
 
 export interface RubricCriterion {
@@ -618,6 +866,10 @@ export interface Assignment {
   status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
   rubric?: Rubric | null;
   _count?: { submissions?: number };
+  collaborationMode?: AssignmentCollaborationMode;
+  groupMinMembers?: number;
+  groupMaxMembers?: number;
+  maxResubmissions?: number;
 }
 
 export interface RubricScore {

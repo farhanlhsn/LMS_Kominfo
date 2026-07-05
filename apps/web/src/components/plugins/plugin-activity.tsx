@@ -22,10 +22,15 @@ import {
 import { AssignmentActivityRenderer } from "../assignments/assignment";
 import { QuizActivityRenderer } from "../quiz/quiz";
 import { StatusBadge } from "../ui/core";
-import type { Activity, ActivityContentResponse } from "../../lib/lms-types";
+import type {
+  Activity,
+  ActivityContentResponse,
+  VideoCaptionTrack,
+} from "../../lib/lms-types";
 
 type RendererProps = {
   response: ActivityContentResponse;
+  videoTracks?: VideoCaptionTrack[];
   onVideoProgress?: (currentTime: number, duration: number) => void;
   onRequestPictureInPicture?: () => void;
   onLabLaunchStateChange?: (launched: boolean) => void;
@@ -127,6 +132,7 @@ function CoreTextRenderer({ response }: RendererProps) {
 
 function CoreVideoRenderer({
   response,
+  videoTracks,
   onVideoProgress,
   onRequestPictureInPicture,
 }: RendererProps) {
@@ -136,6 +142,7 @@ function CoreVideoRenderer({
       onRequestPictureInPicture={onRequestPictureInPicture}
       onProgress={onVideoProgress}
       src={externalUrl}
+      tracks={videoTracks}
       title={response.activity.title}
     />
   );

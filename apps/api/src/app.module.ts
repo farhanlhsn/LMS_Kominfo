@@ -5,6 +5,7 @@ import { validateEnvironment } from "@lms/config";
 import { AiModule } from "./ai/ai.module";
 import { AuthModule } from "./auth/auth.module";
 import { ActivityContentModule } from "./activity-content/activity-content.module";
+import { AdvancedAssignmentModule } from "./advanced-assignment/advanced-assignment.module";
 import { AssignmentsModule } from "./assignments/assignments.module";
 import { CertificatesModule } from "./certificates/certificates.module";
 import { RequestLoggingMiddleware } from "./common/middleware/request-logging.middleware";
@@ -52,6 +53,7 @@ import { ExperiencesModule } from "./experiences/experiences.module";
     ContentLibraryModule,
     ActivityContentModule,
     ContentProcessingModule,
+    AdvancedAssignmentModule,
     OrganizationsModule,
     PluginsModule,
     LearningWorkspaceModule,

@@ -6,9 +6,11 @@ import { AiCanonicalCacheService } from "./ai-canonical-cache.service";
 import { AiChunkerService } from "./ai-chunker.service";
 import {
   AiController,
+  InstructorActivityAiController,
   InstructorAiController,
   LearnerAiController,
 } from "./ai.controller";
+import { AiGeneratedItemService } from "./ai-generated-item.service";
 import { AiIndexingService } from "./ai-indexing.service";
 import {
   AiChatProviderFactory,
@@ -23,13 +25,19 @@ import { AiTutorService } from "./ai-tutor.service";
 
 @Module({
   imports: [RbacModule, StorageModule],
-  controllers: [AiController, LearnerAiController, InstructorAiController],
+  controllers: [
+    AiController,
+    LearnerAiController,
+    InstructorAiController,
+    InstructorActivityAiController,
+  ],
   providers: [
     { provide: AI_CONFIG, useFactory: () => createAiConfig(process.env) },
     AiChatProviderFactory,
     AiEmbeddingProviderFactory,
     LocalEmbeddingProviderFactory,
     AiStatusService,
+    AiGeneratedItemService,
     AiTextExtractorService,
     AiChunkerService,
     AiIndexingService,
