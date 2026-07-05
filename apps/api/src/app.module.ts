@@ -33,6 +33,25 @@ import { PrismaModule } from "./prisma/prisma.module";
 import { QuizModule } from "./quiz/quiz.module";
 import { RbacModule } from "./rbac/rbac.module";
 import { ExperiencesModule } from "./experiences/experiences.module";
+import { SearchModule } from "./search/search.module";
+import { HelpModule } from "./help/help.module";
+import { LocaleModule } from "./locale/locale.module";
+import { TranscriptNotesModule } from "./notes/notes.module";
+import { Content3DModule } from "./content-3d/content-3d.module";
+import { CodeRunnerModule } from "./code-runner/code-runner.module";
+import { PluginMarketplaceModule } from "./plugin-marketplace/plugin-marketplace.module";
+import { PopoutModule } from "./popout/popout.module";
+import { PluginPanelsModule } from "./plugin-panels/plugin-panels.module";
+import { RealtimeModule } from "./realtime/realtime.module";
+import { BulkOperationModule } from "./bulk/bulk.module";
+import { MessagingModule } from "./messaging/messaging.module";
+import { GovernanceModule } from "./governance/governance.module";
+import { OAuthModule } from "./oauth/oauth.module";
+import { ModerationModule } from "./moderation/moderation.module";
+import { SchedulingModule } from "./scheduling/scheduling.module";
+import { ProctoringModule } from "./proctoring/proctoring.module";
+import { PayoutModule } from "./payout/payout.module";
+import { TaxModule } from "./tax/tax.module";
 
 @Module({
   imports: [
@@ -68,6 +87,25 @@ import { ExperiencesModule } from "./experiences/experiences.module";
     QuizModule,
     HealthModule,
     ExperiencesModule,
+    RealtimeModule,
+    BulkOperationModule,
+    MessagingModule,
+    Content3DModule,
+    CodeRunnerModule,
+    PluginMarketplaceModule,
+    PopoutModule,
+    PluginPanelsModule,
+    SearchModule,
+    HelpModule,
+    LocaleModule,
+    TranscriptNotesModule,
+    GovernanceModule,
+    OAuthModule,
+    ModerationModule,
+    SchedulingModule,
+    ProctoringModule,
+    PayoutModule,
+    TaxModule,
   ],
 })
 export class AppModule implements NestModule {

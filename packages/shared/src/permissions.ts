@@ -1,4 +1,4 @@
-﻿export const SYSTEM_ROLES = {
+export const SYSTEM_ROLES = {
   superAdmin: "super_admin",
   orgAdmin: "org_admin",
   courseManager: "course_manager",
@@ -32,6 +32,7 @@ export const PERMISSIONS = {
   quizGrade: "quiz:grade",
   assignmentsManage: "assignments:manage",
   assignmentsGrade: "assignments:grade",
+  assessmentsTake: "assessments:take",
   certificatesManage: "certificates:manage",
   certificatesIssue: "certificates:issue",
   goalsManage: "goals:manage",

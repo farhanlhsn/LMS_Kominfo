@@ -1,6 +1,28 @@
 "use client";
 
 import type {
+  CodeExecutionRecord,
+  CodeJudgeResult,
+  CodeLanguage,
+  CodeSubmissionRecord,
+  PanelEntry,
+  PanelPosition,
+  PanelSize,
+  PluginInstallationRecord,
+  PluginListingRecord,
+  PluginListingStatus,
+  PluginPanelDefinition,
+  PluginPolicyRecord,
+  PluginReviewRecord,
+  PluginReviewStatus,
+  PopoutSessionResponse,
+  PopoutValidationResponse,
+  ThreeDAssetRecord,
+  ThreeDInteractionRecord,
+  ThreeDSceneRecord,
+  UserPanelLayoutRecord,
+} from "./lms-types";
+import type {
   ActivityContentResponse,
   ActivityProgress,
   AiStatus,
@@ -101,6 +123,70 @@ import type {
   ProjectShowcase,
   Portfolio,
   PortfolioEntry,
+  RealtimeEvent,
+  RealtimeTransportInfo,
+  RealtimePollResult,
+  BulkJob,
+  CreateBulkJobInput,
+  CreateBulkJobResult,
+  Conversation,
+  CreateConversationInput,
+  ChatMessage,
+  SendMessageInput,
+  GlobalSearchResult,
+  SearchAnalytics,
+  SearchEntityType,
+  UserLocalePreference,
+  OrgLocalePreference,
+  HelpCategory,
+  HelpArticle,
+  SupportTicket,
+  SupportTicketReply,
+  TranscriptNote,
+  NoteContext,
+  NoteExportResult,
+  ContentFlag,
+  ModerationTargetType,
+  ModerationReportStatus,
+  ModerationActionType,
+  ModerationReport,
+  ModerationAction,
+  LegalDocument,
+  LegalDocumentType,
+  ConsentRecord,
+  DataExportRequest,
+  AnonymizationRequest,
+  RetentionPolicy,
+  BackupJob,
+  OAuthProvider,
+  OAuthAccount,
+  MfaFactor,
+  MfaEnrollmentChallenge,
+  RefreshSessionEntry,
+  Cohort,
+  CohortMember,
+  CohortSchedule,
+  UserTimezonePreference,
+  ProctoringSession,
+  ProctoringEvent,
+  ProctoringFlag,
+  ProctoringFlagStatus,
+  ProctoringEventType,
+  ProctoringSeverity,
+  RevenueShareRule,
+  Payout,
+  PayoutMethod,
+  PayoutPeriod,
+  PayoutPeriodStatus,
+  PayoutStatus,
+  PayoutBeneficiaryType,
+  PayoutMethodType,
+  RevenueShareScope,
+  TaxRegion,
+  TaxRule,
+  TaxCalculation,
+  TaxRuleType,
+  SupportedCurrency,
 } from "./lms-types";
 
 const SESSION_KEY = "lms.session.v1";
@@ -1638,4 +1724,1007 @@ export const api = {
       body: JSON.stringify({ endpoint }),
     }),
 
+  // Phase 24: Realtime Gateway
+  realtimeTransports: () =>
+    apiRequest<{ data: RealtimeTransportInfo }>("/realtime/transports"),
+  buildRealtimeChannel: (entity: string, entityId: string) =>
+    apiRequest<{ data: { channel: string } }>(
+      `/realtime/channels/org/${encodeURIComponent(entity)}/${encodeURIComponent(entityId)}`,
+    ),
+
+  // ── Phase 21: Data Governance & Backup ──────────────────
+  listLegalDocuments: (query?: { type?: LegalDocumentType }) =>
+    apiRequest<{ data: LegalDocument[] }>(
+      `/governance/legal-documents${query?.type ? `?type=${query.type}` : ""}`,
+    ),
+  getLatestLegalDocuments: () =>
+    apiRequest<{ data: LegalDocument[] }>(
+      "/governance/legal-documents/latest",
+    ),
+  recordConsent: (input: {
+    documentType: LegalDocumentType;
+    documentVersion: string;
+    documentId?: string;
+  }) =>
+    apiRequest<{ data: ConsentRecord }>("/governance/consent", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  listMyConsents: () =>
+    apiRequest<{ data: ConsentRecord[] }>("/governance/my-consents"),
+  recordCookieConsent: (input: {
+    necessary: boolean;
+    analytics: boolean;
+    marketing: boolean;
+    preferences?: boolean;
+    sessionId: string;
+  }) =>
+    apiRequest<{ data: unknown }>("/governance/cookie-consent", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  requestDataExport: (reason?: string) =>
+    apiRequest<{ data: DataExportRequest }>("/governance/data-export", {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+  previewDataExport: () =>
+    apiRequest<{ data: unknown }>("/governance/data-export/preview"),
+  requestAnonymization: (input: { confirm: boolean; reason?: string }) =>
+    apiRequest<{ data: AnonymizationRequest }>("/governance/anonymize-me", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  // Admin
+  createLegalDocument: (input: {
+    type: LegalDocumentType;
+    version: string;
+    title: string;
+    content: string;
+    effectiveAt: string;
+    publish?: boolean;
+  }) =>
+    apiRequest<{ data: LegalDocument }>(
+      "/governance/admin/legal-documents",
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  updateLegalDocument: (
+    documentId: string,
+    input: {
+      title?: string;
+      content?: string;
+      effectiveAt?: string;
+      publish?: boolean;
+    },
+  ) =>
+    apiRequest<{ data: LegalDocument }>(
+      `/governance/admin/legal-documents/${documentId}`,
+      { method: "PATCH", body: JSON.stringify(input) },
+    ),
+  listDataExportRequests: () =>
+    apiRequest<{ data: DataExportRequest[] }>(
+      "/governance/admin/data-export-requests",
+    ),
+  listRetentionPolicies: () =>
+    apiRequest<{ data: RetentionPolicy[] }>(
+      "/governance/admin/retention-policies",
+    ),
+  upsertRetentionPolicy: (input: {
+    entityType: string;
+    retentionDays: number;
+    anonymize?: boolean;
+    description?: string;
+  }) =>
+    apiRequest<{ data: RetentionPolicy }>(
+      "/governance/admin/retention-policies",
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  listBackupJobs: () =>
+    apiRequest<{ data: BackupJob[] }>("/governance/admin/backup-jobs"),
+  triggerBackupJob: (input: { type: "FULL" | "INCREMENTAL"; notes?: string }) =>
+    apiRequest<{ data: BackupJob }>("/governance/admin/backup-jobs", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  // ── Phase 22: OAuth, Captcha, MFA ──────────────────
+  startOAuth: (provider: OAuthProvider, redirectUri?: string) =>
+    apiRequest<{ data: { authorizeUrl: string; state: string } }>(
+      `/auth/oauth/${provider.toLowerCase()}/start`,
+      {
+        method: "POST",
+        body: JSON.stringify({ redirectUri }),
+      },
+    ),
+  finishOAuth: (
+    provider: OAuthProvider,
+    code: string,
+  ) =>
+    apiRequest<{
+      data:
+        | { account: OAuthAccount; user: { id: string; email: string; name?: string | null }; linked: true }
+        | { profile: { provider: OAuthProvider; providerUserId: string; email: string; name: string; raw: Record<string, unknown> } };
+    }>(`/auth/oauth/${provider.toLowerCase()}/callback`, {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    }),
+  listOAuthAccounts: () =>
+    apiRequest<{ data: OAuthAccount[] }>("/auth/oauth/accounts"),
+  linkOAuthAccount: (input: {
+    provider: OAuthProvider;
+    profile: {
+      providerUserId: string;
+      email?: string;
+      raw?: Record<string, unknown>;
+    };
+  }) =>
+    apiRequest<{ data: OAuthAccount }>("/auth/oauth/accounts/link", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  unlinkOAuthAccount: (id: string) =>
+    apiRequest<{ data: { id: string } }>(`/auth/oauth/accounts/${id}`, {
+      method: "DELETE",
+    }),
+  listMfaFactors: () =>
+    apiRequest<{ data: MfaFactor[] }>("/auth/mfa"),
+  enrollMfa: (type: "TOTP" | "BACKUP_CODE") =>
+    apiRequest<{ data: MfaEnrollmentChallenge }>("/auth/mfa/enroll", {
+      method: "POST",
+      body: JSON.stringify({ type }),
+    }),
+  verifyMfa: (code: string) =>
+    apiRequest<{
+      data: { valid: boolean; type: "TOTP" | "BACKUP_CODE"; remainingCodes?: number };
+    }>("/auth/mfa/verify", {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    }),
+  disableMfa: (type: "TOTP" | "BACKUP_CODE") =>
+    apiRequest<{ data: { removed: number } }>("/auth/mfa/disable", {
+      method: "DELETE",
+      body: JSON.stringify({ type }),
+    }),
+  listSessions: () =>
+    apiRequest<{ data: RefreshSessionEntry[] }>("/auth/sessions"),
+  revokeSession: (id: string) =>
+    apiRequest<{ data: { id: string } }>(`/auth/sessions/${id}`, {
+      method: "DELETE",
+    }),
+  revokeAllSessions: () =>
+    apiRequest<{ data: { revoked: number } }>("/auth/sessions", {
+      method: "DELETE",
+    }),
+
+  // ── Phase 26: Moderation ──────────────────
+  submitReport: (input: {
+    targetType: ModerationTargetType;
+    targetId: string;
+    reason: string;
+    description?: string;
+    metadata?: Record<string, unknown>;
+  }) =>
+    apiRequest<{ data: ModerationReport }>("/moderation/reports", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  listModerationReports: (query?: {
+    targetType?: ModerationTargetType;
+    status?: ModerationReportStatus;
+  }) => {
+    const params = new URLSearchParams();
+    if (query?.targetType) params.set("targetType", query.targetType);
+    if (query?.status) params.set("status", query.status);
+    const qs = params.toString();
+    return apiRequest<{ data: ModerationReport[] }>(
+      `/admin/moderation/reports${qs ? `?${qs}` : ""}`,
+    );
+  },
+  updateModerationReport: (
+    id: string,
+    input: { status?: ModerationReportStatus; resolution?: string },
+  ) =>
+    apiRequest<{ data: ModerationReport }>(
+      `/admin/moderation/reports/${id}`,
+      { method: "PATCH", body: JSON.stringify(input) },
+    ),
+  listModerationActions: () =>
+    apiRequest<{ data: ModerationAction[] }>("/admin/moderation/actions"),
+  createModerationAction: (input: {
+    targetType: ModerationTargetType;
+    targetId: string;
+    actionType: ModerationActionType;
+    reason: string;
+    notes?: string;
+  }) =>
+    apiRequest<{ data: ModerationAction }>("/admin/moderation/actions", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  listContentFlags: () =>
+    apiRequest<{ data: ContentFlag[] }>("/admin/moderation/flags"),
+  pollRealtime: (params: { channel?: string; since?: string; order?: "asc" | "desc"; limit?: number } = {}) => {
+    const search = new URLSearchParams();
+    if (params.channel) search.set("channel", params.channel);
+    if (params.since) search.set("since", params.since);
+    if (params.order) search.set("order", params.order);
+    if (params.limit) search.set("limit", String(params.limit));
+    const query = search.toString();
+    return apiRequest<RealtimePollResult>(
+      `/realtime/poll${query ? `?${query}` : ""}`,
+    );
+  },
+  publishRealtime: (input: { channel: string; type: string; payload?: Record<string, unknown> }) =>
+    apiRequest<{ data: RealtimeEvent }>("/realtime/publish", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  subscribeRealtime: (channel: string) =>
+    apiRequest(`/realtime/subscribe`, {
+      method: "POST",
+      body: JSON.stringify({ channel }),
+    }),
+  unsubscribeRealtime: (channel: string) =>
+    apiRequest(`/realtime/subscribe`, {
+      method: "DELETE",
+      body: JSON.stringify({ channel }),
+    }),
+  ackRealtime: (channel: string, eventId: string) =>
+    apiRequest(`/realtime/ack`, {
+      method: "POST",
+      body: JSON.stringify({ channel, eventId }),
+    }),
+
+  // Phase 25: Bulk Operations
+  listBulkJobs: (params: { type?: string; status?: string } = {}) => {
+    const search = new URLSearchParams();
+    if (params.type) search.set("type", params.type);
+    if (params.status) search.set("status", params.status);
+    const query = search.toString();
+    return apiRequest<{ data: BulkJob[] }>(
+      `/admin/bulk/jobs${query ? `?${query}` : ""}`,
+    );
+  },
+  getBulkJob: (id: string) =>
+    apiRequest<{ data: BulkJob }>(`/admin/bulk/jobs/${encodeURIComponent(id)}`),
+  createBulkJob: (input: CreateBulkJobInput) =>
+    apiRequest<CreateBulkJobResult>("/admin/bulk/jobs", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  cancelBulkJob: (id: string, reason: string) =>
+    apiRequest<{ data: BulkJob }>(
+      `/admin/bulk/jobs/${encodeURIComponent(id)}/cancel`,
+      { method: "POST", body: JSON.stringify({ reason }) },
+    ),
+  resumeBulkJob: (id: string) =>
+    apiRequest<{ data: { resumed: boolean; id: string } }>(
+      `/admin/bulk/jobs/${encodeURIComponent(id)}/resume`,
+      { method: "POST" },
+    ),
+
+  // Phase 27: Direct Messaging
+  listConversations: () => apiRequest<{ data: Conversation[] }>("/messages/conversations"),
+  getConversation: (id: string) =>
+    apiRequest<{ data: Conversation }>(`/messages/conversations/${encodeURIComponent(id)}`),
+  createConversation: (input: CreateConversationInput) =>
+    apiRequest<{ data: Conversation }>("/messages/conversations", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  addConversationMembers: (id: string, userIds: string[]) =>
+    apiRequest<{ data: Conversation }>(
+      `/messages/conversations/${encodeURIComponent(id)}/members`,
+      { method: "POST", body: JSON.stringify({ userIds }) },
+    ),
+  listMessages: (id: string, params: { cursor?: string; limit?: number } = {}) => {
+    const search = new URLSearchParams();
+    if (params.cursor) search.set("cursor", params.cursor);
+    if (params.limit) search.set("limit", String(params.limit));
+    const query = search.toString();
+    return apiRequest<{ data: ChatMessage[] }>(
+      `/messages/conversations/${encodeURIComponent(id)}/messages${query ? `?${query}` : ""}`,
+    );
+  },
+  sendMessage: (id: string, input: SendMessageInput) =>
+    apiRequest<{ data: ChatMessage }>(
+      `/messages/conversations/${encodeURIComponent(id)}/messages`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  editMessage: (messageId: string, content: string) =>
+    apiRequest<{ data: ChatMessage }>(
+      `/messages/messages/${encodeURIComponent(messageId)}`,
+      { method: "PATCH", body: JSON.stringify({ content }) },
+    ),
+  deleteMessage: (messageId: string) =>
+    apiRequest<{ data: ChatMessage }>(
+      `/messages/messages/${encodeURIComponent(messageId)}`,
+      { method: "DELETE" },
+    ),
+  reactMessage: (messageId: string, emoji: string) =>
+    apiRequest<{ data: { id?: string; removed?: boolean } }>(
+      `/messages/messages/${encodeURIComponent(messageId)}/reactions`,
+      { method: "POST", body: JSON.stringify({ emoji }) },
+    ),
+  markConversationRead: (id: string, messageId?: string) =>
+    apiRequest<{ data: { readAt: string; conversationId: string } }>(
+      `/messages/conversations/${encodeURIComponent(id)}/read`,
+      { method: "POST", body: JSON.stringify({ messageId }) },
+    ),
+  blockUser: (userId: string) =>
+    apiRequest(`/messages/blocks`, {
+      method: "POST",
+      body: JSON.stringify({ userId }),
+    }),
+  unblockUser: (userId: string) =>
+    apiRequest(`/messages/blocks/${encodeURIComponent(userId)}`, {
+      method: "DELETE",
+    }),
+
+  // ── Phase 19: Global Search ────────────────────────
+  globalSearch: (q: string, options: { types?: SearchEntityType[]; courseId?: string; limit?: number } = {}) => {
+    const search = new URLSearchParams();
+    search.set("q", q);
+    if (options.types && options.types.length) {
+      search.set("types", options.types.join(","));
+    }
+    if (options.courseId) search.set("courseId", options.courseId);
+    if (options.limit) search.set("limit", String(options.limit));
+    return apiRequest<GlobalSearchResult>(`/search?${search.toString()}`);
+  },
+  searchAnalytics: (params: { days?: number; limit?: number } = {}) => {
+    const search = new URLSearchParams();
+    if (params.days) search.set("days", String(params.days));
+    if (params.limit) search.set("limit", String(params.limit));
+    const query = search.toString();
+    return apiRequest<SearchAnalytics>(`/admin/search/analytics${query ? `?${query}` : ""}`);
+  },
+
+  // ── Phase 20: Localization ──────────────────────────
+  getLocalePreference: () => apiRequest<UserLocalePreference>("/locale/preferences"),
+  updateLocalePreference: (input: Partial<UserLocalePreference>) =>
+    apiRequest<UserLocalePreference>("/locale/preferences", {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
+  resolveLocale: () =>
+    apiRequest<{ locale: string; supportedLocales: string[]; fallbackChain: string[]; timezone: string }>(
+      "/locale/resolve",
+    ),
+  getOrgLocalePreference: () => apiRequest<OrgLocalePreference>("/admin/locale/preferences"),
+  updateOrgLocalePreference: (input: Partial<OrgLocalePreference>) =>
+    apiRequest<OrgLocalePreference>("/admin/locale/preferences", {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
+
+  // ── Phase 20: Help Center ──────────────────────────
+  listHelpCategories: () => apiRequest<HelpCategory[]>("/help/categories"),
+  listHelpArticles: (params: { q?: string; categoryId?: string; limit?: number } = {}) => {
+    const search = new URLSearchParams();
+    if (params.q) search.set("q", params.q);
+    if (params.categoryId) search.set("categoryId", params.categoryId);
+    if (params.limit) search.set("limit", String(params.limit));
+    const query = search.toString();
+    return apiRequest<HelpArticle[]>(`/help/articles${query ? `?${query}` : ""}`);
+  },
+  getHelpArticle: (id: string) =>
+    apiRequest<HelpArticle>(`/help/articles/${encodeURIComponent(id)}`),
+  createHelpArticle: (input: {
+    categoryId: string;
+    slug: string;
+    title: string;
+    body: string;
+    excerpt?: string;
+    tags?: string[];
+    status?: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+  }) =>
+    apiRequest<HelpArticle>("/admin/help/articles", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateHelpArticle: (id: string, input: Partial<{
+    categoryId: string;
+    slug: string;
+    title: string;
+    body: string;
+    excerpt: string;
+    tags: string[];
+    status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+  }>) =>
+    apiRequest<HelpArticle>(`/admin/help/articles/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  deleteHelpArticle: (id: string) =>
+    apiRequest<{ id: string }>(`/admin/help/articles/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    }),
+  createHelpCategory: (input: { key: string; title: string; description?: string; icon?: string; orderIndex?: number }) =>
+    apiRequest<HelpCategory>("/admin/help/categories", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  // ── Phase 20: Support Tickets ──────────────────────
+  listSupportTickets: (params: { status?: string; limit?: number } = {}) => {
+    const search = new URLSearchParams();
+    if (params.status) search.set("status", params.status);
+    if (params.limit) search.set("limit", String(params.limit));
+    const query = search.toString();
+    return apiRequest<SupportTicket[]>(`/support/tickets${query ? `?${query}` : ""}`);
+  },
+  getSupportTicket: (id: string) =>
+    apiRequest<SupportTicket>(`/support/tickets/${encodeURIComponent(id)}`),
+  createSupportTicket: (input: { subject: string; body: string; category?: string; priority?: "LOW" | "NORMAL" | "HIGH" | "URGENT" }) =>
+    apiRequest<SupportTicket>("/support/tickets", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  replySupportTicket: (id: string, body: string, isInternal = false) =>
+    apiRequest<SupportTicketReply>(`/support/tickets/${encodeURIComponent(id)}/replies`, {
+      method: "POST",
+      body: JSON.stringify({ body, isInternal }),
+    }),
+  updateSupportTicket: (id: string, input: { status?: string; priority?: string; assignedToId?: string }) =>
+    apiRequest<SupportTicket>(`/admin/support/tickets/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+
+  // ── Phase 35: Transcript Notes ─────────────────────
+  listTranscriptNotes: (params: { lessonId?: string } = {}) => {
+    const search = new URLSearchParams();
+    if (params.lessonId) search.set("lessonId", params.lessonId);
+    const query = search.toString();
+    return apiRequest<TranscriptNote[]>(`/learn/notes${query ? `?${query}` : ""}`);
+  },
+  searchTranscriptNotes: (params: { q?: string; lessonId?: string; activityId?: string; tags?: string[]; limit?: number } = {}) => {
+    const search = new URLSearchParams();
+    if (params.q) search.set("q", params.q);
+    if (params.lessonId) search.set("lessonId", params.lessonId);
+    if (params.activityId) search.set("activityId", params.activityId);
+    if (params.tags && params.tags.length) search.set("tags", params.tags.join(","));
+    if (params.limit) search.set("limit", String(params.limit));
+    const query = search.toString();
+    return apiRequest<TranscriptNote[]>(`/learn/notes/search${query ? `?${query}` : ""}`);
+  },
+  createTranscriptNote: (input: {
+    lessonId: string;
+    activityId?: string;
+    timestampSeconds?: number;
+    content: string;
+    color?: "yellow" | "green" | "blue" | "pink" | "purple";
+    tags?: string[];
+  }) =>
+    apiRequest<TranscriptNote>("/learn/notes", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateTranscriptNote: (id: string, input: Partial<{
+    content: string;
+    color: "yellow" | "green" | "blue" | "pink" | "purple";
+    tags: string[];
+    timestampSeconds: number;
+  }>) =>
+    apiRequest<TranscriptNote>(`/learn/notes/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  deleteTranscriptNote: (id: string) =>
+    apiRequest<{ id: string }>(`/learn/notes/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    }),
+  generateNoteContext: (id: string, input: { providerKey?: string; candidateNoteIds?: string[] } = {}) =>
+    apiRequest<NoteContext>(`/learn/notes/${encodeURIComponent(id)}/context`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  getNoteContext: (id: string) =>
+    apiRequest<NoteContext | null>(`/learn/notes/${encodeURIComponent(id)}/context`),
+  exportTranscriptNotes: (input: { lessonId?: string } = {}) =>
+    apiRequest<NoteExportResult>("/learn/notes/export", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  // Phase 31: 3D Content Plugin
+  listThreeDAssets: (params: { search?: string; format?: string } = {}) => {
+    const query = new URLSearchParams();
+    if (params.search) query.set("search", params.search);
+    if (params.format) query.set("format", params.format);
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    return apiRequest<ThreeDAssetRecord[]>(`/content-3d/assets${suffix}`);
+  },
+  getThreeDAsset: (id: string) =>
+    apiRequest<ThreeDAssetRecord>(`/content-3d/assets/${encodeURIComponent(id)}`),
+  createThreeDAsset: (input: {
+    name: string;
+    format: "GLB" | "GLTF" | "FBX" | "OBJ";
+    sizeBytes?: number;
+    url: string;
+    thumbnailUrl?: string;
+  }) =>
+    apiRequest<ThreeDAssetRecord>("/content-3d/assets", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateThreeDAsset: (
+    id: string,
+    input: Partial<{
+      name: string;
+      format: "GLB" | "GLTF" | "FBX" | "OBJ";
+      sizeBytes: number;
+      url: string;
+      thumbnailUrl: string;
+    }>,
+  ) =>
+    apiRequest<ThreeDAssetRecord>(`/content-3d/assets/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  deleteThreeDAsset: (id: string) =>
+    apiRequest<{ deleted: boolean; id: string }>(
+      `/content-3d/assets/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+    ),
+  generateThreeDPreview: (id: string) =>
+    apiRequest<ThreeDAssetRecord>(
+      `/content-3d/assets/${encodeURIComponent(id)}/preview`,
+      { method: "POST" },
+    ),
+  listThreeDScenes: (assetId: string) =>
+    apiRequest<ThreeDSceneRecord[]>(
+      `/content-3d/assets/${encodeURIComponent(assetId)}/scenes`,
+    ),
+  createThreeDScene: (
+    assetId: string,
+    input: { scene: Record<string, unknown>; version?: number },
+  ) =>
+    apiRequest<ThreeDSceneRecord>(
+      `/content-3d/assets/${encodeURIComponent(assetId)}/scenes`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  getThreeDScene: (id: string) =>
+    apiRequest<ThreeDSceneRecord>(`/content-3d/scenes/${encodeURIComponent(id)}`),
+  addThreeDInteraction: (
+    sceneId: string,
+    input: { name: string; trigger: string; action: Record<string, unknown> },
+  ) =>
+    apiRequest<ThreeDInteractionRecord>(
+      `/content-3d/scenes/${encodeURIComponent(sceneId)}/interactions`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+
+  // Phase 32: Code Runner Plugin
+  executeCode: (input: {
+    language: CodeLanguage;
+    code: string;
+    stdin?: string;
+    timeoutMs?: number;
+  }) =>
+    apiRequest<CodeExecutionRecord & { sandboxStatus: string }>(
+      "/code-runner/execute",
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  judgeCode: (input: {
+    assignmentId: string;
+    language: CodeLanguage;
+    code: string;
+    testCases: Array<{ name: string; input?: string; expectedOutput: string }>;
+    timeoutMs?: number;
+    scoreWeight?: number;
+  }) =>
+    apiRequest<CodeJudgeResult>("/code-runner/judge", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  listCodeSubmissions: (params: { assignmentId?: string; userId?: string } = {}) => {
+    const query = new URLSearchParams();
+    if (params.assignmentId) query.set("assignmentId", params.assignmentId);
+    if (params.userId) query.set("userId", params.userId);
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    return apiRequest<CodeSubmissionRecord[]>(
+      `/code-runner/submissions${suffix}`,
+    );
+  },
+  getCodeExecution: (id: string) =>
+    apiRequest<CodeExecutionRecord>(
+      `/code-runner/executions/${encodeURIComponent(id)}`,
+    ),
+
+  // Phase 33: Plugin Marketplace Governance
+  listPluginListings: (status?: string) =>
+    apiRequest<PluginListingRecord[]>(
+      `/admin/plugin-marketplace/listings${status ? `?status=${encodeURIComponent(status)}` : ""}`,
+    ),
+  getPluginListing: (id: string) =>
+    apiRequest<PluginListingRecord>(
+      `/admin/plugin-marketplace/listings/${encodeURIComponent(id)}`,
+    ),
+  createPluginListing: (input: {
+    pluginId: string;
+    name: string;
+    description: string;
+    longDescription?: string;
+    categories?: string[];
+    screenshots?: string[];
+    pricing?: Record<string, unknown>;
+  }) =>
+    apiRequest<PluginListingRecord>("/admin/plugin-marketplace/listings", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updatePluginListing: (
+    id: string,
+    input: Partial<{
+      name: string;
+      description: string;
+      longDescription: string;
+      categories: string[];
+      screenshots: string[];
+      pricing: Record<string, unknown>;
+    }>,
+  ) =>
+    apiRequest<PluginListingRecord>(
+      `/admin/plugin-marketplace/listings/${encodeURIComponent(id)}`,
+      { method: "PATCH", body: JSON.stringify(input) },
+    ),
+  updatePluginListingStatus: (
+    id: string,
+    status: PluginListingStatus,
+  ) =>
+    apiRequest<PluginListingRecord>(
+      `/admin/plugin-marketplace/listings/${encodeURIComponent(id)}/status`,
+      { method: "PATCH", body: JSON.stringify({ status }) },
+    ),
+  listPluginReviews: (listingId?: string) =>
+    apiRequest<Array<PluginReviewRecord & { reviewer: { id: string; name: string; email: string }; listing: { id: string; name: string } }>>(
+      `/admin/plugin-marketplace/reviews${listingId ? `?listingId=${encodeURIComponent(listingId)}` : ""}`,
+    ),
+  createPluginReview: (input: {
+    listingId: string;
+    rating: number;
+    comment?: string;
+  }) =>
+    apiRequest<PluginReviewRecord>("/admin/plugin-marketplace/reviews", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updatePluginReviewStatus: (id: string, status: PluginReviewStatus) =>
+    apiRequest<PluginReviewRecord>(
+      `/admin/plugin-marketplace/reviews/${encodeURIComponent(id)}/status`,
+      { method: "PATCH", body: JSON.stringify({ status }) },
+    ),
+  listPluginInstallations: () =>
+    apiRequest<PluginInstallationRecord[]>(
+      "/admin/plugin-marketplace/installations",
+    ),
+  installPlugin: (input: { listingId: string; config?: Record<string, unknown> }) =>
+    apiRequest<PluginInstallationRecord>(
+      "/admin/plugin-marketplace/installations",
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  uninstallPlugin: (id: string) =>
+    apiRequest<{ deleted: boolean; id: string }>(
+      `/admin/plugin-marketplace/installations/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+    ),
+  getPluginPolicy: () =>
+    apiRequest<PluginPolicyRecord>("/admin/plugin-marketplace/policy"),
+  updatePluginPolicy: (input: {
+    maxInstalls?: number;
+    allowedCategories?: string[];
+    requireApproval?: boolean;
+  }) =>
+    apiRequest<PluginPolicyRecord>("/admin/plugin-marketplace/policy", {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
+
+  // Phase 34: Popout Dual Monitor
+  issuePopoutToken: (input: { lessonId: string; ttlMs?: number }) =>
+    apiRequest<PopoutSessionResponse>("/popout/issue", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  validatePopoutToken: (token: string) =>
+    apiRequest<PopoutValidationResponse>(
+      `/popout/validate/${encodeURIComponent(token)}`,
+    ),
+  revokePopoutToken: (token: string) =>
+    apiRequest<{ revoked: boolean; id: string }>(
+      `/popout/${encodeURIComponent(token)}`,
+      { method: "DELETE" },
+    ),
+
+  // Phase 36: Plugin Workspace Panels
+  listAvailablePanels: () =>
+    apiRequest<PluginPanelDefinition[]>("/plugin-panels/available"),
+  registerPluginPanel: (input: {
+    pluginId: string;
+    panelKey: string;
+    name: string;
+    defaultSize?: PanelSize;
+    defaultPosition?: PanelPosition;
+    allowedRoutes?: string[];
+    configSchema?: Record<string, unknown>;
+  }) =>
+    apiRequest<PluginPanelDefinition>("/plugin-panels/register", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  getPanelLayout: (layoutKey: string) =>
+    apiRequest<UserPanelLayoutRecord>(
+      `/me/panel-layouts/${encodeURIComponent(layoutKey)}`,
+    ),
+  savePanelLayout: (
+    layoutKey: string,
+    input: { panels: PanelEntry[] },
+  ) =>
+    apiRequest<UserPanelLayoutRecord>(
+      `/me/panel-layouts/${encodeURIComponent(layoutKey)}`,
+      { method: "PUT", body: JSON.stringify(input) },
+    ),
+
+  // Phase 23: Cohorts, Schedules & Timezones
+  listCohorts: (params: { courseId?: string; status?: Cohort["status"] } = {}) => {
+    const query = new URLSearchParams();
+    if (params.courseId) query.set("courseId", params.courseId);
+    if (params.status) query.set("status", params.status);
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    return apiRequest<Cohort[]>(`/admin/cohorts${suffix}`);
+  },
+  listMyCohorts: () => apiRequest<Cohort[]>("/learn/cohorts"),
+  getCohort: (id: string) =>
+    apiRequest<Cohort>(`/admin/cohorts/${encodeURIComponent(id)}`),
+  createCohort: (input: {
+    name: string;
+    courseId: string;
+    startAt: string;
+    endAt: string;
+    timezone?: string;
+    maxSeats?: number;
+    status?: Cohort["status"];
+  }) =>
+    apiRequest<Cohort>("/admin/cohorts", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateCohort: (
+    id: string,
+    input: Partial<{
+      name: string;
+      startAt: string;
+      endAt: string;
+      timezone: string;
+      maxSeats: number;
+      status: Cohort["status"];
+    }>,
+  ) =>
+    apiRequest<Cohort>(`/admin/cohorts/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  deleteCohort: (id: string) =>
+    apiRequest<{ id: string }>(`/admin/cohorts/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    }),
+  addCohortMember: (
+    cohortId: string,
+    input: { userId: string; status?: CohortMember["status"] },
+  ) =>
+    apiRequest<CohortMember>(
+      `/admin/cohorts/${encodeURIComponent(cohortId)}/members`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  removeCohortMember: (cohortId: string, userId: string) =>
+    apiRequest<{ id: string }>(
+      `/admin/cohorts/${encodeURIComponent(cohortId)}/members/${encodeURIComponent(userId)}`,
+      { method: "DELETE" },
+    ),
+  listCohortSchedule: (cohortId: string) =>
+    apiRequest<CohortSchedule[]>(
+      `/admin/cohorts/${encodeURIComponent(cohortId)}/schedule`,
+    ),
+  addCohortSchedule: (
+    cohortId: string,
+    input: {
+      weekday: number;
+      startTime: string;
+      endTime: string;
+      lessonId?: string;
+      meetingUrl?: string;
+    },
+  ) =>
+    apiRequest<CohortSchedule>(
+      `/admin/cohorts/${encodeURIComponent(cohortId)}/schedule`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  bulkAddCohortSchedule: (
+    cohortId: string,
+    items: Array<{
+      weekday: number;
+      startTime: string;
+      endTime: string;
+      lessonId?: string;
+      meetingUrl?: string;
+    }>,
+  ) =>
+    apiRequest<CohortSchedule[]>(
+      `/admin/cohorts/${encodeURIComponent(cohortId)}/schedule/bulk`,
+      { method: "POST", body: JSON.stringify({ items }) },
+    ),
+  getMyTimezone: () => apiRequest<UserTimezonePreference>("/me/timezone"),
+  updateMyTimezone: (input: { timezone: string; autoDetect?: boolean }) =>
+    apiRequest<UserTimezonePreference>("/me/timezone", {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
+
+  // Phase 28: Proctoring
+  startProctoringSession: (input: {
+    attemptId: string;
+    attemptType?: string;
+    metadata?: Record<string, unknown>;
+  }) =>
+    apiRequest<ProctoringSession>("/proctoring/sessions", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  getProctoringSession: (id: string) =>
+    apiRequest<ProctoringSession>(
+      `/proctoring/sessions/${encodeURIComponent(id)}`,
+    ),
+  ingestProctoringEvent: (
+    sessionId: string,
+    input: {
+      type: ProctoringEventType;
+      severity?: ProctoringSeverity;
+      metadata?: Record<string, unknown>;
+    },
+  ) =>
+    apiRequest<ProctoringEvent>(
+      `/proctoring/sessions/${encodeURIComponent(sessionId)}/events`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  ingestProctoringEventBatch: (
+    sessionId: string,
+    events: Array<{
+      type: ProctoringEventType;
+      severity?: ProctoringSeverity;
+      metadata?: Record<string, unknown>;
+    }>,
+  ) =>
+    apiRequest<ProctoringEvent[]>(
+      `/proctoring/sessions/${encodeURIComponent(sessionId)}/events/batch`,
+      { method: "POST", body: JSON.stringify({ events }) },
+    ),
+  endProctoringSession: (sessionId: string) =>
+    apiRequest<ProctoringSession>(
+      `/proctoring/sessions/${encodeURIComponent(sessionId)}/end`,
+      { method: "POST" },
+    ),
+  listProctoringSessions: (params: { userId?: string; status?: ProctoringSession["status"] } = {}) => {
+    const query = new URLSearchParams();
+    if (params.userId) query.set("userId", params.userId);
+    if (params.status) query.set("status", params.status);
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    return apiRequest<ProctoringSession[]>(
+      `/admin/proctoring/sessions${suffix}`,
+    );
+  },
+  listProctoringFlags: (params: { status?: ProctoringFlagStatus; sessionId?: string } = {}) => {
+    const query = new URLSearchParams();
+    if (params.status) query.set("status", params.status);
+    if (params.sessionId) query.set("sessionId", params.sessionId);
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    return apiRequest<ProctoringFlag[]>(`/admin/proctoring/flags${suffix}`);
+  },
+  reviewProctoringFlag: (
+    flagId: string,
+    input: { status: ProctoringFlagStatus; notes?: string },
+  ) =>
+    apiRequest<ProctoringFlag>(
+      `/admin/proctoring/flags/${encodeURIComponent(flagId)}`,
+      { method: "PATCH", body: JSON.stringify(input) },
+    ),
+
+  // Phase 29: Revenue Share & Payouts
+  listRevenueShareRules: () =>
+    apiRequest<RevenueShareRule[]>("/admin/payouts/rules"),
+  createRevenueShareRule: (input: {
+    scope: RevenueShareScope;
+    targetId?: string;
+    percent: number;
+    active?: boolean;
+  }) =>
+    apiRequest<RevenueShareRule>("/admin/payouts/rules", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateRevenueShareRule: (
+    id: string,
+    input: { percent?: number; active?: boolean },
+  ) =>
+    apiRequest<RevenueShareRule>(
+      `/admin/payouts/rules/${encodeURIComponent(id)}`,
+      { method: "PATCH", body: JSON.stringify(input) },
+    ),
+  listPayoutMethods: () =>
+    apiRequest<PayoutMethod[]>("/admin/payouts/methods"),
+  createPayoutMethod: (input: {
+    beneficiaryType: PayoutBeneficiaryType;
+    beneficiaryId: string;
+    type: PayoutMethodType;
+    details: Record<string, unknown>;
+  }) =>
+    apiRequest<PayoutMethod>("/admin/payouts/methods", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  listPayoutPeriods: () =>
+    apiRequest<PayoutPeriod[]>("/admin/payouts/periods"),
+  createPayoutPeriod: (input: {
+    periodStart: string;
+    periodEnd: string;
+    currency?: string;
+  }) =>
+    apiRequest<PayoutPeriod>("/admin/payouts/periods", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  computePayoutPeriod: (periodId: string) =>
+    apiRequest<PayoutPeriod>(
+      `/admin/payouts/periods/${encodeURIComponent(periodId)}/compute`,
+      { method: "POST" },
+    ),
+  lockPayoutPeriod: (periodId: string) =>
+    apiRequest<PayoutPeriod>(
+      `/admin/payouts/periods/${encodeURIComponent(periodId)}/lock`,
+      { method: "POST" },
+    ),
+  payPayoutPeriod: (periodId: string, input: { reference?: string }) =>
+    apiRequest<PayoutPeriod>(
+      `/admin/payouts/periods/${encodeURIComponent(periodId)}/pay`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  listMyPayouts: () => apiRequest<Payout[]>("/payouts/me"),
+
+  // Phase 30: Tax Regions & Rules
+  listTaxRegions: () => apiRequest<TaxRegion[]>("/tax/regions"),
+  listTaxRules: () => apiRequest<TaxRule[]>("/admin/tax/rules"),
+  createTaxRule: (input: {
+    regionCode: string;
+    rate: number;
+    type: TaxRuleType;
+    inclusive?: boolean;
+    active?: boolean;
+  }) =>
+    apiRequest<TaxRule>("/admin/tax/rules", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateTaxRule: (
+    id: string,
+    input: { rate?: number; inclusive?: boolean; active?: boolean },
+  ) =>
+    apiRequest<TaxRule>(
+      `/admin/tax/rules/${encodeURIComponent(id)}`,
+      { method: "PATCH", body: JSON.stringify(input) },
+    ),
+  calculateTax: (input: {
+    subtotal: number;
+    regionCode: string;
+    currency: SupportedCurrency;
+    lines?: Array<{
+      productId: string;
+      amount: number;
+      metadata?: Record<string, unknown>;
+    }>;
+  }) =>
+    apiRequest<TaxCalculation>("/tax/calculate", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
 };

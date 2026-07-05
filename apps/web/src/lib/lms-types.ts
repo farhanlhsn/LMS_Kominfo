@@ -1606,3 +1606,1045 @@ export interface CourseFeedbackListResponse {
   totalFeedback: number;
   meta: ApiMeta;
 }
+
+// ── Phase 21 — Data Governance & Backup ──────────────────────
+
+export type LegalDocumentType =
+  | "PRIVACY_POLICY"
+  | "TERMS"
+  | "COOKIE_POLICY"
+  | "DPA";
+
+export interface LegalDocument {
+  id: string;
+  organizationId: string;
+  type: LegalDocumentType;
+  version: string;
+  title: string;
+  content: string;
+  effectiveAt: string;
+  publishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ConsentRecord {
+  id: string;
+  userId: string;
+  organizationId: string;
+  documentId: string | null;
+  documentType: LegalDocumentType;
+  documentVersion: string;
+  granted: boolean;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  grantedAt: string;
+}
+
+export interface CookieConsent {
+  necessary: boolean;
+  analytics: boolean;
+  marketing: boolean;
+  preferences?: boolean;
+  sessionId: string;
+}
+
+export type DataExportStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
+
+export interface DataExportRequest {
+  id: string;
+  userId: string;
+  organizationId: string;
+  status: DataExportStatus;
+  requestedAt: string;
+  completedAt: string | null;
+  downloadUrl: string | null;
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface AnonymizationRequest {
+  id: string;
+  userId: string;
+  organizationId: string;
+  status: string;
+  requestedAt: string;
+  completedAt: string | null;
+  reason?: string | null;
+}
+
+export interface RetentionPolicy {
+  id: string;
+  organizationId: string;
+  entityType: string;
+  retentionDays: number;
+  anonymize: boolean;
+  description?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type BackupJobType = "FULL" | "INCREMENTAL";
+export type BackupJobStatus = "PENDING" | "RUNNING" | "COMPLETED" | "FAILED";
+
+export interface BackupJob {
+  id: string;
+  organizationId: string;
+  type: BackupJobType;
+  status: BackupJobStatus;
+  startedAt: string | null;
+  completedAt: string | null;
+  sizeBytes: string | null;
+  location: string | null;
+  notes?: string | null;
+  triggeredBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ── Phase 22 — OAuth, Captcha, MFA ──────────────────────
+
+export type OAuthProvider = "GOOGLE" | "MICROSOFT";
+
+export interface OAuthAccount {
+  id: string;
+  userId: string;
+  organizationId?: string | null;
+  provider: OAuthProvider;
+  providerUserId: string;
+  email?: string | null;
+  expiresAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type MfaFactorType = "TOTP" | "BACKUP_CODE";
+
+export interface MfaFactor {
+  id: string;
+  userId: string;
+  type: MfaFactorType;
+  verifiedAt: string | null;
+  lastUsedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MfaEnrollmentChallenge {
+  id: string;
+  type: MfaFactorType;
+  secret?: string;
+  otpauthUrl?: string;
+  codes?: string[];
+  verified: boolean;
+}
+
+export interface RefreshSessionEntry {
+  id: string;
+  userId: string;
+  deviceInfo?: string | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  lastUsedAt: string | null;
+  expiresAt: string;
+  revokedAt: string | null;
+  createdAt: string;
+}
+
+export interface LoginAttempt {
+  id: string;
+  email: string;
+  organizationId?: string | null;
+  userId?: string | null;
+  success: boolean;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  reason?: string | null;
+  createdAt: string;
+}
+
+// ── Phase 26 — Moderation, Legal, Consent ──────────────────────
+
+export type ModerationTargetType =
+  | "CONTENT"
+  | "USER"
+  | "COMMENT"
+  | "COURSE"
+  | "DISCUSSION";
+
+export type ModerationReportStatus =
+  | "OPEN"
+  | "IN_REVIEW"
+  | "RESOLVED"
+  | "DISMISSED";
+
+export type ModerationActionType =
+  | "WARN"
+  | "SUSPEND"
+  | "BAN"
+  | "REMOVE"
+  | "RESTORE"
+  | "LOCK";
+
+export interface ModerationReport {
+  id: string;
+  organizationId: string;
+  reporterId: string;
+  targetType: ModerationTargetType;
+  targetId: string;
+  reason: string;
+  description?: string | null;
+  status: ModerationReportStatus;
+  reviewedById?: string | null;
+  reviewedAt?: string | null;
+  resolution?: string | null;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+  reporter?: { id: string; name?: string | null; email: string };
+  reviewedBy?: { id: string; name?: string | null; email: string };
+}
+
+export interface ModerationAction {
+  id: string;
+  organizationId: string;
+  actorId: string;
+  targetType: ModerationTargetType;
+  targetId: string;
+  actionType: ModerationActionType;
+  reason: string;
+  notes?: string | null;
+  expiresAt?: string | null;
+  createdAt: string;
+  actor?: { id: string; name?: string | null; email: string };
+}
+
+export interface ContentFlag {
+  id: string;
+  organizationId: string;
+  flaggedById?: string | null;
+  targetType: ModerationTargetType;
+  targetId: string;
+  flagType: string;
+  autoDetected: boolean;
+  confidence?: number | null;
+  reason?: string | null;
+  resolvedAt?: string | null;
+  createdAt: string;
+}
+
+export interface LegalAcceptanceLog {
+  id: string;
+  userId: string;
+  organizationId: string;
+  documentType: LegalDocumentType;
+  documentVersion: string;
+  acceptedAt: string;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+}
+
+// ── Phase 24 — Realtime Gateway ──────────────────────
+
+export type RealtimeTransport = "polling" | "sse" | "websocket";
+
+export interface RealtimeTransportInfo {
+  preferred: RealtimeTransport;
+  available: RealtimeTransport[];
+}
+
+export interface RealtimeEvent {
+  id: string;
+  organizationId: string;
+  channel: string;
+  type: string;
+  payload: Record<string, unknown>;
+  actorId?: string | null;
+  createdAt: string;
+}
+
+export interface RealtimeSubscription {
+  id: string;
+  userId: string;
+  channel: string;
+  lastSeenAt: string;
+}
+
+export interface RealtimePollResult {
+  data: RealtimeEvent[];
+  meta: { count: number; transport: RealtimeTransport };
+}
+
+// ── Phase 25 — Bulk Operations ───────────────────────
+
+export type BulkJobType =
+  | "IMPORT"
+  | "EXPORT"
+  | "ARCHIVE"
+  | "UNARCHIVE"
+  | "ENROLL"
+  | "UNENROLL"
+  | "TAG"
+  | "UNTAG";
+
+export type BulkJobStatus =
+  | "PENDING"
+  | "RUNNING"
+  | "COMPLETED"
+  | "FAILED"
+  | "CANCELLED"
+  | "PARTIAL";
+
+export type BulkJobItemStatus = "PENDING" | "PROCESSED" | "FAILED" | "SKIPPED";
+
+export type BulkEntityType =
+  | "course"
+  | "user"
+  | "enrollment"
+  | "content"
+  | "tag";
+
+export interface BulkJobItem {
+  id: string;
+  jobId: string;
+  entityType: BulkEntityType;
+  entityId?: string | null;
+  status: BulkJobItemStatus;
+  error?: string | null;
+  input?: Record<string, unknown>;
+  processedAt?: string | null;
+  createdAt: string;
+}
+
+export interface BulkJob {
+  id: string;
+  organizationId: string;
+  type: BulkJobType;
+  status: BulkJobStatus;
+  input: Record<string, unknown>;
+  result: Record<string, unknown>;
+  progressTotal: number;
+  progressDone: number;
+  progressFailed: number;
+  errorMessage?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  createdById: string;
+  createdAt: string;
+  updatedAt: string;
+  items?: BulkJobItem[];
+}
+
+export interface CreateBulkJobInput {
+  type: BulkJobType;
+  description?: string;
+  items: Array<{
+    entityType: BulkEntityType;
+    entityId?: string;
+    input?: Record<string, unknown>;
+  }>;
+}
+
+export interface CreateBulkJobResult {
+  job: BulkJob;
+  items: Array<{ id: string; status: "ok" | "skipped" | "failed"; error?: string }>;
+}
+
+// ── Phase 27 — Direct Messaging ──────────────────────
+
+export type ConversationType = "DIRECT" | "GROUP";
+export type ConversationMemberRole = "MEMBER" | "ADMIN";
+
+export interface ConversationMember {
+  userId: string;
+  role: ConversationMemberRole;
+  lastReadAt?: string | null;
+  user?: { id: string; name?: string | null; email: string };
+}
+
+export interface Conversation {
+  id: string;
+  organizationId: string;
+  type: ConversationType;
+  createdById: string;
+  name?: string | null;
+  lastMessageAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  members: ConversationMember[];
+  messages?: Array<{
+    id: string;
+    content: string;
+    createdAt: string;
+    senderId: string;
+  }>;
+}
+
+export interface MessageAttachment {
+  url: string;
+  name?: string;
+  mimeType?: string;
+  size?: number;
+}
+
+export interface MessageReaction {
+  id: string;
+  messageId: string;
+  userId: string;
+  emoji: string;
+  createdAt: string;
+}
+
+export interface MessageReadReceipt {
+  id: string;
+  messageId: string;
+  userId: string;
+  readAt: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  organizationId: string;
+  conversationId: string;
+  senderId: string;
+  content: string;
+  attachments: MessageAttachment[];
+  parentMessageId?: string | null;
+  editedAt?: string | null;
+  deletedAt?: string | null;
+  createdAt: string;
+  reactions?: MessageReaction[];
+  reads?: MessageReadReceipt[];
+}
+
+export interface CreateConversationInput {
+  type: ConversationType;
+  name?: string;
+  memberIds: string[];
+}
+
+export interface SendMessageInput {
+  content: string;
+  attachments?: MessageAttachment[];
+  parentMessageId?: string;
+}
+
+// ── Phase 19 — Global Search ─────────────────────────
+
+export type SearchEntityType =
+  | "course"
+  | "lesson"
+  | "discussion"
+  | "user"
+  | "certificate"
+  | "help_article";
+
+export interface SearchHit {
+  id: string;
+  type: SearchEntityType;
+  title: string;
+  snippet: string;
+  score: number;
+  url: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface GlobalSearchResult {
+  query: string;
+  total: number;
+  hits: SearchHit[];
+  facetCounts: Record<SearchEntityType, number>;
+}
+
+export interface SearchAnalytics {
+  windowDays: number;
+  total: number;
+  topQueries: Array<{ query: string; count: number }>;
+  recent: Array<{
+    id: string;
+    query: string;
+    types: unknown;
+    resultsCount: number;
+    createdAt: string;
+  }>;
+}
+
+// ── Phase 20 — Localization and Help Center ─────────
+
+export interface UserLocalePreference {
+  id?: string;
+  organizationId: string;
+  userId: string;
+  locale: string;
+  timezone: string;
+  fallbackChain: string[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface OrgLocalePreference {
+  id?: string;
+  organizationId: string;
+  defaultLocale: string;
+  supportedLocales: string[];
+  fallbackChain: string[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface HelpCategory {
+  id: string;
+  organizationId: string;
+  key: string;
+  title: string;
+  description?: string | null;
+  icon?: string | null;
+  orderIndex: number;
+  createdAt: string;
+  updatedAt: string;
+  _count?: { articles: number };
+}
+
+export interface HelpArticle {
+  id: string;
+  organizationId: string;
+  categoryId: string;
+  slug: string;
+  title: string;
+  body: string;
+  excerpt?: string | null;
+  status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+  tags: string[];
+  viewCount: number;
+  publishedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  category?: { id: string; key: string; title: string };
+}
+
+export type SupportTicketStatus =
+  | "OPEN"
+  | "PENDING"
+  | "RESOLVED"
+  | "CLOSED"
+  | "REJECTED";
+
+export type SupportTicketPriority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
+
+export interface SupportTicket {
+  id: string;
+  organizationId: string;
+  userId: string;
+  subject: string;
+  body: string;
+  category: string;
+  priority: SupportTicketPriority;
+  status: SupportTicketStatus;
+  assignedToId?: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+  closedAt?: string | null;
+  user?: { id: string; email: string; name?: string | null };
+  assignedTo?: { id: string; email: string; name?: string | null };
+  replies?: SupportTicketReply[];
+  _count?: { replies: number };
+}
+
+export interface SupportTicketReply {
+  id: string;
+  organizationId: string;
+  ticketId: string;
+  authorId: string;
+  body: string;
+  isInternal: boolean;
+  createdAt: string;
+  author?: { id: string; email: string; name?: string | null };
+}
+
+// ── Phase 35 — Transcript Notes AI Context ──────────
+
+export type TranscriptNoteColor =
+  | "yellow"
+  | "green"
+  | "blue"
+  | "pink"
+  | "purple";
+
+export interface TranscriptNote {
+  id: string;
+  organizationId: string;
+  userId: string;
+  lessonId: string;
+  activityId?: string | null;
+  timestampSeconds: number;
+  content: string;
+  color: TranscriptNoteColor;
+  tags: string[];
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NoteContext {
+  id: string;
+  organizationId: string;
+  noteId: string;
+  aiContextSummary: string;
+  relatedNotes: Array<{ id: string; relevance: number; reason: string }>;
+  providerKey: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NoteExportResult {
+  id: string;
+  markdown: string;
+  count: number;
+  format: string;
+}
+
+// Phase 31: 3D Content Plugin types
+export type ThreeDFormat = "GLB" | "GLTF" | "FBX" | "OBJ";
+
+export interface ThreeDAssetRecord {
+  id: string;
+  organizationId: string;
+  name: string;
+  format: ThreeDFormat;
+  sizeBytes: number;
+  url: string;
+  thumbnailUrl: string | null;
+  uploadedBy: string;
+  createdAt: string;
+  uploader?: { id: string; name: string; email: string };
+  _count?: { scenes: number };
+  scenes?: ThreeDSceneRecord[];
+}
+
+export interface ThreeDSceneRecord {
+  id: string;
+  organizationId: string;
+  assetId: string;
+  scene: Record<string, unknown>;
+  version: number;
+  createdAt: string;
+  interactions?: ThreeDInteractionRecord[];
+  asset?: Pick<ThreeDAssetRecord, "id" | "name" | "format" | "url" | "thumbnailUrl">;
+}
+
+export interface ThreeDInteractionRecord {
+  id: string;
+  sceneId: string;
+  name: string;
+  trigger: string;
+  action: Record<string, unknown>;
+  createdAt: string;
+}
+
+// Phase 32: Code Runner Plugin types
+export type CodeLanguage =
+  | "PYTHON"
+  | "JAVASCRIPT"
+  | "TYPESCRIPT"
+  | "GO"
+  | "RUST"
+  | "JAVA"
+  | "CPP"
+  | "RUBY"
+  | "PHP";
+
+export type CodeExecutionStatus =
+  | "PENDING"
+  | "COMPLETED"
+  | "RUNNING"
+  | "FAILED"
+  | "TIMED_OUT"
+  | "RUNTIME_ERROR"
+  | "ERROR";
+
+export interface CodeExecutionRecord {
+  id: string;
+  organizationId: string;
+  userId: string;
+  language: CodeLanguage;
+  code: string;
+  status: CodeExecutionStatus;
+  output: string | null;
+  error: string | null;
+  durationMs: number | null;
+  createdAt: string;
+  completedAt: string | null;
+  testCases?: CodeExecutionTestCaseRecord[];
+}
+
+export interface CodeExecutionTestCaseRecord {
+  id: string;
+  executionId: string;
+  name: string;
+  input: string;
+  expectedOutput: string;
+  actualOutput: string | null;
+  passed: boolean;
+}
+
+export interface CodeSubmissionRecord {
+  id: string;
+  organizationId: string;
+  assignmentId: string;
+  userId: string;
+  language: CodeLanguage;
+  code: string;
+  status: "SUBMITTED" | "PASSED" | "FAILED";
+  score: number | null;
+  feedback: string | null;
+  createdAt: string;
+}
+
+export interface CodeJudgeResult {
+  executionId: string;
+  status: "PASSED" | "FAILED";
+  score: number;
+  results: Array<{
+    id: string;
+    name: string;
+    passed: boolean;
+    actualOutput: string;
+    durationMs: number;
+  }>;
+}
+
+// Phase 33: Plugin Marketplace Governance types
+export type PluginListingStatus = "DRAFT" | "PUBLISHED" | "SUSPENDED" | "ARCHIVED";
+export type PluginInstallationStatus = "ACTIVE" | "DISABLED";
+export type PluginReviewStatus = "PENDING" | "APPROVED" | "REJECTED";
+
+export interface PluginListingRecord {
+  id: string;
+  pluginId: string;
+  organizationId: string;
+  name: string;
+  description: string;
+  longDescription: string | null;
+  categories: string[];
+  screenshots: string[];
+  pricing: Record<string, unknown>;
+  status: PluginListingStatus;
+  submittedAt: string | null;
+  publishedAt: string | null;
+  reviewedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+  _count?: { reviews: number; installations: number };
+  reviews?: PluginReviewRecord[];
+  installations?: PluginInstallationRecord[];
+}
+
+export interface PluginReviewRecord {
+  id: string;
+  organizationId: string;
+  listingId: string;
+  reviewerId: string;
+  rating: number;
+  comment: string | null;
+  status: PluginReviewStatus;
+  createdAt: string;
+  reviewer?: { id: string; name: string; email: string };
+  listing?: { id: string; name: string };
+}
+
+export interface PluginInstallationRecord {
+  id: string;
+  organizationId: string;
+  listingId: string;
+  installedAt: string;
+  config: Record<string, unknown>;
+  status: PluginInstallationStatus;
+  listing?: { id: string; name: string; pluginId: string; status: PluginListingStatus };
+}
+
+export interface PluginPolicyRecord {
+  id: string;
+  organizationId: string;
+  maxInstalls: number;
+  allowedCategories: string[];
+  requireApproval: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Phase 34: Popout Dual Monitor types
+export interface PopoutSessionResponse {
+  token: string;
+  expiresAt: string;
+  lessonId: string;
+}
+
+export interface PopoutValidationResponse {
+  lessonId: string;
+  organizationId: string;
+  userId: string;
+  expiresAt: string;
+}
+
+// Phase 36: Plugin Workspace Panels types
+export type PanelSize = "sm" | "md" | "lg";
+export type PanelPosition = "left" | "right" | "top" | "bottom";
+
+export interface PluginPanelDefinition {
+  id: string;
+  organizationId: string;
+  pluginId: string;
+  panelKey: string;
+  name: string;
+  defaultSize: PanelSize;
+  defaultPosition: PanelPosition;
+  allowedRoutes: string[];
+  configSchema: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PanelEntry {
+  panelKey: string;
+  size?: PanelSize;
+  position?: PanelPosition;
+  visible?: boolean;
+}
+
+export interface UserPanelLayoutRecord {
+  layoutKey: string;
+  panels: PanelEntry[];
+  updatedAt: string | null;
+}
+
+// ── Phase 23: Cohorts, Schedules & Timezones ──────────────────────
+
+export type CohortStatus = "PLANNED" | "ACTIVE" | "COMPLETED" | "CANCELLED";
+export type CohortMemberStatus = "ACTIVE" | "WITHDRAWN" | "COMPLETED";
+
+export interface Cohort {
+  id: string;
+  organizationId: string;
+  name: string;
+  courseId: string;
+  startAt: string;
+  endAt: string;
+  timezone: string;
+  maxSeats: number;
+  status: CohortStatus;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+  members?: CohortMember[];
+  schedule?: CohortSchedule[];
+  course?: { id: string; title: string; slug: string };
+  _count?: { members: number; schedule: number };
+}
+
+export interface CohortMember {
+  id: string;
+  organizationId: string;
+  cohortId: string;
+  userId: string;
+  status: CohortMemberStatus;
+  joinedAt: string;
+  user?: { id: string; email: string; name?: string | null };
+}
+
+export interface CohortSchedule {
+  id: string;
+  organizationId: string;
+  cohortId: string;
+  weekday: number;
+  startTime: string;
+  endTime: string;
+  lessonId?: string | null;
+  meetingUrl?: string | null;
+}
+
+export interface UserTimezonePreference {
+  userId: string;
+  timezone: string;
+  autoDetect: boolean;
+  updatedAt: string | null;
+}
+
+// ── Phase 28: Proctoring & Integrity ────────────────────────────
+
+export type ProctoringEventType =
+  | "TAB_SWITCH"
+  | "FULLSCREEN_EXIT"
+  | "COPY_PASTE"
+  | "LOOKING_AWAY"
+  | "NO_FACE"
+  | "MULTIPLE_FACES"
+  | "PHONE_DETECTED"
+  | "NOISE_DETECTED";
+
+export type ProctoringSeverity = "LOW" | "MEDIUM" | "HIGH";
+export type ProctoringFlagStatus = "OPEN" | "DISMISSED" | "UPHELD";
+export type ProctoringSessionStatus =
+  | "ACTIVE"
+  | "COMPLETED"
+  | "FLAGGED"
+  | "REVIEWED";
+
+export interface ProctoringSession {
+  id: string;
+  organizationId: string;
+  attemptId: string;
+  attemptType: string;
+  userId: string;
+  status: ProctoringSessionStatus;
+  startedAt: string;
+  endedAt: string | null;
+  integrityScore: number | null;
+  metadata: Record<string, unknown>;
+  user?: { id: string; email: string; name?: string | null };
+  events?: ProctoringEvent[];
+  flags?: ProctoringFlag[];
+  _count?: { events: number; flags: number };
+}
+
+export interface ProctoringEvent {
+  id: string;
+  organizationId: string;
+  sessionId: string;
+  type: ProctoringEventType;
+  severity: ProctoringSeverity;
+  occurredAt: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface ProctoringFlag {
+  id: string;
+  organizationId: string;
+  sessionId: string;
+  eventId: string;
+  status: ProctoringFlagStatus;
+  notes?: string | null;
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+  createdAt: string;
+  event?: ProctoringEvent;
+  session?: {
+    id: string;
+    userId: string;
+    attemptId: string;
+    attemptType: string;
+  };
+  reviewer?: { id: string; email: string; name?: string | null };
+}
+
+// ── Phase 29: Revenue Share & Payouts ────────────────────────────
+
+export type RevenueShareScope = "PLATFORM" | "INSTRUCTOR" | "COURSE";
+export type PayoutBeneficiaryType = "INSTRUCTOR" | "ORG" | "PLATFORM";
+export type PayoutStatus = "PENDING" | "APPROVED" | "PAID" | "FAILED";
+export type PayoutMethodType = "BANK" | "PAYPAL" | "STRIPE";
+export type PayoutPeriodStatus = "OPEN" | "LOCKED" | "PAID";
+
+export interface RevenueShareRule {
+  id: string;
+  organizationId: string;
+  scope: RevenueShareScope;
+  targetId?: string | null;
+  percent: number;
+  active: boolean;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PayoutMethod {
+  id: string;
+  organizationId: string;
+  beneficiaryType: PayoutBeneficiaryType;
+  beneficiaryId: string;
+  type: PayoutMethodType;
+  details: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface PayoutPeriod {
+  id: string;
+  organizationId: string;
+  periodStart: string;
+  periodEnd: string;
+  currency: string;
+  status: PayoutPeriodStatus;
+  totalAmount: number;
+  lockedAt?: string | null;
+  paidAt?: string | null;
+  createdAt: string;
+  _count?: { payouts: number };
+}
+
+export interface Payout {
+  id: string;
+  organizationId: string;
+  periodId: string;
+  beneficiaryType: PayoutBeneficiaryType;
+  beneficiaryId: string;
+  grossAmount: number;
+  feeAmount: number;
+  netAmount: number;
+  currency: string;
+  status: PayoutStatus;
+  reference?: string | null;
+  paidAt?: string | null;
+  createdAt: string;
+  period?: { id: string; periodStart: string; periodEnd: string };
+}
+
+// ── Phase 30: Tax Regions & Rules ────────────────────────────────
+
+export type TaxRuleType = "VAT" | "GST" | "SALES_TAX";
+export type SupportedCurrency =
+  | "USD"
+  | "EUR"
+  | "GBP"
+  | "IDR"
+  | "SGD"
+  | "MYR"
+  | "AUD"
+  | "JPY"
+  | "INR"
+  | "BRL";
+
+export interface TaxRegion {
+  id: string;
+  code: string;
+  name: string;
+  currency: string;
+  taxPercent: number;
+}
+
+export interface TaxRule {
+  id: string;
+  organizationId: string;
+  regionCode: string;
+  rate: number;
+  type: TaxRuleType;
+  inclusive: boolean;
+  active: boolean;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+  region?: TaxRegion;
+}
+
+export interface TaxCalculationLine {
+  type: TaxRuleType;
+  rate: number;
+  amount: number;
+  inclusive: boolean;
+}
+
+export interface TaxCalculation {
+  subtotal: number;
+  taxAmount: number;
+  total: number;
+  currency: string;
+  regionCode: string;
+  lines: TaxCalculationLine[];
+}

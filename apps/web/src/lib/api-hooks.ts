@@ -82,6 +82,87 @@ import type {
   CourseFeedbackListResponse,
   CourseFeedbackEntry,
   SurveyResponse as SurveyResponseEntry,
+  RealtimeTransportInfo,
+  BulkJob,
+  CreateBulkJobInput,
+  Conversation,
+  ChatMessage,
+  CreateConversationInput,
+  SendMessageInput,
+  GlobalSearchResult,
+  SearchAnalytics,
+  SearchEntityType,
+  UserLocalePreference,
+  OrgLocalePreference,
+  HelpCategory,
+  HelpArticle,
+  SupportTicket,
+  TranscriptNote,
+  NoteContext,
+  ContentFlag,
+  ModerationTargetType,
+  ModerationReportStatus,
+  ModerationActionType,
+  ModerationReport,
+  ModerationAction,
+  LegalDocument,
+  LegalDocumentType,
+  ConsentRecord,
+  DataExportRequest,
+  AnonymizationRequest,
+  RetentionPolicy,
+  BackupJob,
+  OAuthProvider,
+  OAuthAccount,
+  MfaFactor,
+  MfaEnrollmentChallenge,
+  RefreshSessionEntry,
+  Cohort,
+  CohortMember,
+  CohortSchedule,
+  UserTimezonePreference,
+  ProctoringSession,
+  ProctoringEvent,
+  ProctoringFlag,
+  ProctoringFlagStatus,
+  ProctoringEventType,
+  ProctoringSeverity,
+  RevenueShareRule,
+  Payout,
+  PayoutMethod,
+  PayoutPeriod,
+  PayoutPeriodStatus,
+  PayoutStatus,
+  PayoutBeneficiaryType,
+  PayoutMethodType,
+  RevenueShareScope,
+  TaxRegion,
+  TaxRule,
+  TaxCalculation,
+  TaxRuleType,
+  SupportedCurrency,
+  ThreeDAssetRecord,
+  ThreeDSceneRecord,
+  ThreeDInteractionRecord,
+  CodeExecutionRecord,
+  CodeSubmissionRecord,
+  CodeExecutionTestCaseRecord,
+  CodeJudgeResult,
+  CodeLanguage,
+  CodeExecutionStatus,
+  PluginListingRecord,
+  PluginReviewRecord,
+  PluginInstallationRecord,
+  PluginPolicyRecord,
+  PluginListingStatus,
+  PluginReviewStatus,
+  PopoutSessionResponse,
+  PopoutValidationResponse,
+  PluginPanelDefinition,
+  PanelEntry,
+  PanelPosition,
+  PanelSize,
+  UserPanelLayoutRecord,
 } from "./lms-types";
 import type { ListResponse } from "./api-client";
 
@@ -91,6 +172,8 @@ export interface QueryState<T> {
   error: ApiClientError | Error | null;
   reload: () => Promise<void>;
   refresh: () => Promise<void>;
+  refetch: () => Promise<void>;
+  isLoading: boolean;
 }
 
 function useApiQuery<T>(
@@ -125,7 +208,15 @@ function useApiQuery<T>(
     void reload();
   }, [reload]);
 
-  return { data, loading, error, reload, refresh };
+  return {
+    data,
+    loading,
+    error,
+    reload,
+    refresh: reload,
+    refetch: reload,
+    isLoading: loading,
+  };
 }
 
 export function useSession() {
@@ -1436,4 +1527,1134 @@ export function useCourseFeedback(courseId: string | null) {
     if (!courseId) return null;
     return api.listCourseFeedback(courseId);
   }, [courseId]);
+}
+
+// ── Phase 24: Realtime Gateway hooks ────────────────
+
+export function useRealtimeTransports() {
+  return useApiQuery<RealtimeTransportInfo>(async () => {
+    const res = await api.realtimeTransports();
+    return res.data;
+  }, []);
+}
+
+export function useBulkJobs(query?: { type?: string; status?: string }) {
+  return useApiQuery<BulkJob[]>(async () => {
+    const res = await api.listBulkJobs(query);
+    return res.data;
+  }, [JSON.stringify(query)]);
+}
+
+export function useBulkJob(id: string | null) {
+  return useApiQuery<BulkJob | null>(async () => {
+    if (!id) return null;
+    const res = await api.getBulkJob(id);
+    return res.data;
+  }, [id]);
+}
+
+export function useCreateBulkJob() {
+  return useCallback((input: CreateBulkJobInput) => api.createBulkJob(input), []);
+}
+
+export function useCancelBulkJob() {
+  return useCallback((id: string, reason: string) => api.cancelBulkJob(id, reason), []);
+}
+
+export function useResumeBulkJob() {
+  return useCallback((id: string) => api.resumeBulkJob(id), []);
+}
+
+// ── Phase 27: Direct Messaging hooks ────────────────
+
+export function useConversations() {
+  return useApiQuery<Conversation[]>(async () => {
+    const res = await api.listConversations();
+    return res.data;
+  }, []);
+}
+
+export function useConversation(id: string | null) {
+  return useApiQuery<Conversation | null>(async () => {
+    if (!id) return null;
+    const res = await api.getConversation(id);
+    return res.data;
+  }, [id]);
+}
+
+export function useMessages(conversationId: string | null, params?: { cursor?: string; limit?: number }) {
+  return useApiQuery<ChatMessage[]>(async () => {
+    if (!conversationId) return [];
+    const res = await api.listMessages(conversationId, params);
+    return res.data;
+  }, [conversationId, JSON.stringify(params)]);
+}
+
+export function useCreateConversation() {
+  return useCallback((input: CreateConversationInput) => api.createConversation(input), []);
+}
+
+export function useAddConversationMembers() {
+  return useCallback((id: string, userIds: string[]) => api.addConversationMembers(id, userIds), []);
+}
+
+export function useSendMessage() {
+  return useCallback((conversationId: string, input: SendMessageInput) =>
+    api.sendMessage(conversationId, input), []);
+}
+
+export function useEditMessage() {
+  return useCallback((messageId: string, content: string) =>
+    api.editMessage(messageId, content), []);
+}
+
+export function useDeleteMessage() {
+  return useCallback((messageId: string) => api.deleteMessage(messageId), []);
+}
+
+export function useReactMessage() {
+  return useCallback((messageId: string, emoji: string) =>
+    api.reactMessage(messageId, emoji), []);
+}
+
+export function useMarkConversationRead() {
+  return useCallback((conversationId: string, messageId?: string) =>
+    api.markConversationRead(conversationId, messageId), []);
+}
+
+// ── Phase 19: Global Search hooks ───────────────────
+
+export function useGlobalSearch(query: string, options: { types?: SearchEntityType[]; courseId?: string; limit?: number } = {}, enabled = true) {
+  return useApiQuery<GlobalSearchResult>(async () => {
+    if (!enabled || !query.trim()) {
+      return { query: "", total: 0, hits: [], facetCounts: emptyFacetCounts() };
+    }
+    return api.globalSearch(query, options);
+  }, [query, JSON.stringify(options), enabled]);
+}
+
+export function useSearchAnalytics(params: { days?: number; limit?: number } = {}) {
+  return useApiQuery<SearchAnalytics>(
+    () => api.searchAnalytics(params),
+    [JSON.stringify(params)],
+  );
+}
+
+function emptyFacetCounts(): GlobalSearchResult["facetCounts"] {
+  return { course: 0, lesson: 0, discussion: 0, user: 0, certificate: 0, help_article: 0 };
+}
+
+// ── Phase 20: Localization hooks ─────────────────────
+
+export function useLocalePreference() {
+  return useApiQuery<UserLocalePreference>(async () => {
+    const result = await api.getLocalePreference();
+    return result;
+  }, []);
+}
+
+export function useUpdateLocalePreference() {
+  return useCallback((input: Partial<UserLocalePreference>) => api.updateLocalePreference(input), []);
+}
+
+export function useOrgLocalePreference() {
+  return useApiQuery<OrgLocalePreference | null>(async () => {
+    try {
+      return await api.getOrgLocalePreference();
+    } catch {
+      return null;
+    }
+  }, []);
+}
+
+export function useUpdateOrgLocalePreference() {
+  return useCallback((input: Partial<OrgLocalePreference>) => api.updateOrgLocalePreference(input), []);
+}
+
+// ── Phase 20: Help Center hooks ──────────────────────
+
+export function useHelpCategories() {
+  return useApiQuery<HelpCategory[]>(async () => api.listHelpCategories(), []);
+}
+
+export function useHelpArticles(params: { q?: string; categoryId?: string; limit?: number } = {}) {
+  return useApiQuery<HelpArticle[]>(() => api.listHelpArticles(params), [JSON.stringify(params)]);
+}
+
+export function useHelpArticle(id: string | null) {
+  return useApiQuery<HelpArticle | null>(async () => {
+    if (!id) return null;
+    return api.getHelpArticle(id);
+  }, [id]);
+}
+
+export function useCreateHelpArticle() {
+  return useCallback(
+    (input: { categoryId: string; slug: string; title: string; body: string; excerpt?: string; tags?: string[]; status?: "DRAFT" | "PUBLISHED" | "ARCHIVED" }) =>
+      api.createHelpArticle(input),
+    [],
+  );
+}
+
+export function useUpdateHelpArticle() {
+  return useCallback(
+    (id: string, input: Partial<{ categoryId: string; slug: string; title: string; body: string; excerpt: string; tags: string[]; status: "DRAFT" | "PUBLISHED" | "ARCHIVED" }>) =>
+      api.updateHelpArticle(id, input),
+    [],
+  );
+}
+
+export function useDeleteHelpArticle() {
+  return useCallback((id: string) => api.deleteHelpArticle(id), []);
+}
+
+export function useCreateHelpCategory() {
+  return useCallback(
+    (input: { key: string; title: string; description?: string; icon?: string; orderIndex?: number }) =>
+      api.createHelpCategory(input),
+    [],
+  );
+}
+
+// ── Phase 20: Support Tickets hooks ──────────────────
+
+export function useSupportTickets(params: { status?: string; limit?: number } = {}) {
+  return useApiQuery<SupportTicket[]>(() => api.listSupportTickets(params), [JSON.stringify(params)]);
+}
+
+export function useSupportTicket(id: string | null) {
+  return useApiQuery<SupportTicket | null>(async () => {
+    if (!id) return null;
+    return api.getSupportTicket(id);
+  }, [id]);
+}
+
+export function useCreateSupportTicket() {
+  return useCallback(
+    (input: { subject: string; body: string; category?: string; priority?: "LOW" | "NORMAL" | "HIGH" | "URGENT" }) =>
+      api.createSupportTicket(input),
+    [],
+  );
+}
+
+export function useReplySupportTicket() {
+  return useCallback(
+    (id: string, body: string, isInternal = false) => api.replySupportTicket(id, body, isInternal),
+    [],
+  );
+}
+
+export function useUpdateSupportTicket() {
+  return useCallback(
+    (id: string, input: { status?: string; priority?: string; assignedToId?: string }) =>
+      api.updateSupportTicket(id, input),
+    [],
+  );
+}
+
+// ── Phase 35: Transcript Notes hooks ─────────────────
+
+export function useTranscriptNotes(lessonId?: string) {
+  return useApiQuery<TranscriptNote[]>(
+    () => api.listTranscriptNotes({ lessonId }),
+    [lessonId ?? ""],
+  );
+}
+
+export function useSearchTranscriptNotes(params: { q?: string; lessonId?: string; activityId?: string; tags?: string[]; limit?: number } = {}) {
+  return useApiQuery<TranscriptNote[]>(
+    () => api.searchTranscriptNotes(params),
+    [JSON.stringify(params)],
+  );
+}
+
+export function useCreateTranscriptNote() {
+  return useCallback(
+    (input: {
+      lessonId: string;
+      activityId?: string;
+      timestampSeconds?: number;
+      content: string;
+      color?: "yellow" | "green" | "blue" | "pink" | "purple";
+      tags?: string[];
+    }) => api.createTranscriptNote(input),
+    [],
+  );
+}
+
+export function useUpdateTranscriptNote() {
+  return useCallback(
+    (id: string, input: Partial<{
+      content: string;
+      color: "yellow" | "green" | "blue" | "pink" | "purple";
+      tags: string[];
+      timestampSeconds: number;
+    }>) => api.updateTranscriptNote(id, input),
+    [],
+  );
+}
+
+export function useDeleteTranscriptNote() {
+  return useCallback((id: string) => api.deleteTranscriptNote(id), []);
+}
+
+export function useGenerateNoteContext() {
+  return useCallback(
+    (id: string, input: { providerKey?: string; candidateNoteIds?: string[] } = {}) =>
+      api.generateNoteContext(id, input),
+    [],
+  );
+}
+
+export function useNoteContext(noteId: string | null) {
+  return useApiQuery<NoteContext | null>(async () => {
+    if (!noteId) return null;
+    return api.getNoteContext(noteId);
+  }, [noteId]);
+}
+
+export function useExportTranscriptNotes() {
+  return useCallback((input: { lessonId?: string } = {}) => api.exportTranscriptNotes(input), []);
+}
+
+// ── Phase 21: Data Governance & Backup ──────────────────────
+
+export function useLegalDocuments(query?: { type?: LegalDocumentType }) {
+  return useApiQuery<LegalDocument[]>(
+    () => api.listLegalDocuments(query).then((r) => r.data),
+    [JSON.stringify(query ?? {})],
+  );
+}
+
+export function useLatestLegalDocuments() {
+  return useApiQuery<LegalDocument[]>(
+    () => api.getLatestLegalDocuments().then((r) => r.data),
+    [],
+  );
+}
+
+export function useMyConsents() {
+  return useApiQuery<ConsentRecord[]>(
+    () => api.listMyConsents().then((r) => r.data),
+    [],
+  );
+}
+
+export function useRecordConsent() {
+  return useCallback(
+    (input: {
+      documentType: LegalDocumentType;
+      documentVersion: string;
+      documentId?: string;
+    }) => api.recordConsent(input),
+    [],
+  );
+}
+
+export function useRecordCookieConsent() {
+  return useCallback(
+    (input: {
+      necessary: boolean;
+      analytics: boolean;
+      marketing: boolean;
+      preferences?: boolean;
+      sessionId: string;
+    }) => api.recordCookieConsent(input),
+    [],
+  );
+}
+
+export function useRequestDataExport() {
+  return useCallback((reason?: string) => api.requestDataExport(reason), []);
+}
+
+export function useRequestAnonymization() {
+  return useCallback(
+    (input: { confirm: boolean; reason?: string }) =>
+      api.requestAnonymization(input),
+    [],
+  );
+}
+
+export function useAdminDataExportRequests() {
+  return useApiQuery<DataExportRequest[]>(
+    () => api.listDataExportRequests().then((r) => r.data),
+    [],
+  );
+}
+
+export function useRetentionPolicies() {
+  return useApiQuery<RetentionPolicy[]>(
+    () => api.listRetentionPolicies().then((r) => r.data),
+    [],
+  );
+}
+
+export function useUpsertRetentionPolicy() {
+  return useCallback(
+    (input: {
+      entityType: string;
+      retentionDays: number;
+      anonymize?: boolean;
+      description?: string;
+    }) => api.upsertRetentionPolicy(input),
+    [],
+  );
+}
+
+export function useBackupJobs() {
+  return useApiQuery<BackupJob[]>(
+    () => api.listBackupJobs().then((r) => r.data),
+    [],
+  );
+}
+
+export function useTriggerBackupJob() {
+  return useCallback(
+    (input: { type: "FULL" | "INCREMENTAL"; notes?: string }) =>
+      api.triggerBackupJob(input),
+    [],
+  );
+}
+
+export function useCreateLegalDocument() {
+  return useCallback(
+    (input: {
+      type: LegalDocumentType;
+      version: string;
+      title: string;
+      content: string;
+      effectiveAt: string;
+      publish?: boolean;
+    }) => api.createLegalDocument(input),
+    [],
+  );
+}
+
+export function useUpdateLegalDocument() {
+  return useCallback(
+    (
+      id: string,
+      input: {
+        title?: string;
+        content?: string;
+        effectiveAt?: string;
+        publish?: boolean;
+      },
+    ) => api.updateLegalDocument(id, input),
+    [],
+  );
+}
+
+// ── Phase 22: OAuth, MFA, Sessions ──────────────────────
+
+export function useOAuthAccounts() {
+  return useApiQuery<OAuthAccount[]>(
+    () => api.listOAuthAccounts().then((r) => r.data),
+    [],
+  );
+}
+
+export function useUnlinkOAuthAccount() {
+  return useCallback(
+    (id: string) => api.unlinkOAuthAccount(id),
+    [],
+  );
+}
+
+export function useLinkOAuthAccount() {
+  return useCallback(
+    (input: {
+      provider: OAuthProvider;
+      profile: {
+        providerUserId: string;
+        email?: string;
+        raw?: Record<string, unknown>;
+      };
+    }) => api.linkOAuthAccount(input),
+    [],
+  );
+}
+
+export function useMfaFactors() {
+  return useApiQuery<MfaFactor[]>(
+    () => api.listMfaFactors().then((r) => r.data),
+    [],
+  );
+}
+
+export function useEnrollMfa() {
+  return useCallback((type: "TOTP" | "BACKUP_CODE") => api.enrollMfa(type), []);
+}
+
+export function useVerifyMfa() {
+  return useCallback((code: string) => api.verifyMfa(code), []);
+}
+
+export function useDisableMfa() {
+  return useCallback(
+    (type: "TOTP" | "BACKUP_CODE") => api.disableMfa(type),
+    [],
+  );
+}
+
+export function useSessions() {
+  return useApiQuery<RefreshSessionEntry[]>(
+    () => api.listSessions().then((r) => r.data),
+    [],
+  );
+}
+
+export function useRevokeSession() {
+  return useCallback((id: string) => api.revokeSession(id), []);
+}
+
+export function useRevokeAllSessions() {
+  return useCallback(() => api.revokeAllSessions(), []);
+}
+
+// ── Phase 26: Moderation ──────────────────────
+
+export function useModerationReports(query?: {
+  targetType?: ModerationTargetType;
+  status?: ModerationReportStatus;
+}) {
+  return useApiQuery<ModerationReport[]>(
+    () => api.listModerationReports(query).then((r) => r.data),
+    [JSON.stringify(query ?? {})],
+  );
+}
+
+export function useUpdateModerationReport() {
+  return useCallback(
+    (
+      id: string,
+      input: { status?: ModerationReportStatus; resolution?: string },
+    ) => api.updateModerationReport(id, input),
+    [],
+  );
+}
+
+export function useModerationActions() {
+  return useApiQuery<ModerationAction[]>(
+    () => api.listModerationActions().then((r) => r.data),
+    [],
+  );
+}
+
+export function useCreateModerationAction() {
+  return useCallback(
+    (input: {
+      targetType: ModerationTargetType;
+      targetId: string;
+      actionType: ModerationActionType;
+      reason: string;
+      notes?: string;
+    }) => api.createModerationAction(input),
+    [],
+  );
+}
+
+export function useContentFlags() {
+  return useApiQuery<ContentFlag[]>(
+    () => api.listContentFlags().then((r) => r.data),
+    [],
+  );
+}
+
+export function useSubmitReport() {
+  return useCallback(
+    (input: {
+      targetType: ModerationTargetType;
+      targetId: string;
+      reason: string;
+      description?: string;
+      metadata?: Record<string, unknown>;
+    }) => api.submitReport(input),
+    [],
+  );
+}
+
+// ── Phase 23: Cohort & Timezone hooks ──────────────────────
+
+export function useCohorts(params: { courseId?: string; status?: Cohort["status"] } = {}) {
+  return useApiQuery<Cohort[]>(
+    () => api.listCohorts(params),
+    [JSON.stringify(params)],
+  );
+}
+
+export function useMyCohorts() {
+  return useApiQuery<Cohort[]>(() => api.listMyCohorts(), []);
+}
+
+export function useCohort(id: string | null) {
+  return useApiQuery<Cohort | null>(async () => {
+    if (!id) return null;
+    return api.getCohort(id);
+  }, [id]);
+}
+
+export function useCreateCohort() {
+  return useCallback(
+    (input: {
+      name: string;
+      courseId: string;
+      startAt: string;
+      endAt: string;
+      timezone?: string;
+      maxSeats?: number;
+      status?: Cohort["status"];
+    }) => api.createCohort(input),
+    [],
+  );
+}
+
+export function useUpdateCohort() {
+  return useCallback(
+    (
+      id: string,
+      input: Partial<{
+        name: string;
+        startAt: string;
+        endAt: string;
+        timezone: string;
+        maxSeats: number;
+        status: Cohort["status"];
+      }>,
+    ) => api.updateCohort(id, input),
+    [],
+  );
+}
+
+export function useDeleteCohort() {
+  return useCallback((id: string) => api.deleteCohort(id), []);
+}
+
+export function useAddCohortMember() {
+  return useCallback(
+    (cohortId: string, input: { userId: string; status?: CohortMember["status"] }) =>
+      api.addCohortMember(cohortId, input),
+    [],
+  );
+}
+
+export function useRemoveCohortMember() {
+  return useCallback(
+    (cohortId: string, userId: string) => api.removeCohortMember(cohortId, userId),
+    [],
+  );
+}
+
+export function useCohortSchedule(cohortId: string | null) {
+  return useApiQuery<CohortSchedule[]>(async () => {
+    if (!cohortId) return [];
+    return api.listCohortSchedule(cohortId);
+  }, [cohortId]);
+}
+
+export function useAddCohortSchedule() {
+  return useCallback(
+    (
+      cohortId: string,
+      input: {
+        weekday: number;
+        startTime: string;
+        endTime: string;
+        lessonId?: string;
+        meetingUrl?: string;
+      },
+    ) => api.addCohortSchedule(cohortId, input),
+    [],
+  );
+}
+
+export function useBulkAddCohortSchedule() {
+  return useCallback(
+    (
+      cohortId: string,
+      items: Array<{
+        weekday: number;
+        startTime: string;
+        endTime: string;
+        lessonId?: string;
+        meetingUrl?: string;
+      }>,
+    ) => api.bulkAddCohortSchedule(cohortId, items),
+    [],
+  );
+}
+
+export function useMyTimezone() {
+  return useApiQuery<UserTimezonePreference>(() => api.getMyTimezone(), []);
+}
+
+export function useUpdateMyTimezone() {
+  return useCallback(
+    (input: { timezone: string; autoDetect?: boolean }) =>
+      api.updateMyTimezone(input),
+    [],
+  );
+}
+
+// ── Phase 28: Proctoring hooks ──────────────────────
+
+export function useProctoringSessions(params: { userId?: string; status?: ProctoringSession["status"] } = {}) {
+  return useApiQuery<ProctoringSession[]>(
+    () => api.listProctoringSessions(params),
+    [JSON.stringify(params)],
+  );
+}
+
+export function useProctoringSession(id: string | null) {
+  return useApiQuery<ProctoringSession | null>(async () => {
+    if (!id) return null;
+    return api.getProctoringSession(id);
+  }, [id]);
+}
+
+export function useProctoringFlags(params: { status?: ProctoringFlagStatus; sessionId?: string } = {}) {
+  return useApiQuery<ProctoringFlag[]>(
+    () => api.listProctoringFlags(params),
+    [JSON.stringify(params)],
+  );
+}
+
+export function useStartProctoringSession() {
+  return useCallback(
+    (input: { attemptId: string; attemptType?: string; metadata?: Record<string, unknown> }) =>
+      api.startProctoringSession(input),
+    [],
+  );
+}
+
+export function useIngestProctoringEvent() {
+  return useCallback(
+    (
+      sessionId: string,
+      input: { type: ProctoringEventType; severity?: ProctoringSeverity; metadata?: Record<string, unknown> },
+    ) => api.ingestProctoringEvent(sessionId, input),
+    [],
+  );
+}
+
+export function useEndProctoringSession() {
+  return useCallback((sessionId: string) => api.endProctoringSession(sessionId), []);
+}
+
+export function useReviewProctoringFlag() {
+  return useCallback(
+    (flagId: string, input: { status: ProctoringFlagStatus; notes?: string }) =>
+      api.reviewProctoringFlag(flagId, input),
+    [],
+  );
+}
+
+// ── Phase 29: Payout hooks ──────────────────────
+
+export function useRevenueShareRules() {
+  return useApiQuery<RevenueShareRule[]>(() => api.listRevenueShareRules(), []);
+}
+
+export function useCreateRevenueShareRule() {
+  return useCallback(
+    (input: { scope: RevenueShareScope; targetId?: string; percent: number; active?: boolean }) =>
+      api.createRevenueShareRule(input),
+    [],
+  );
+}
+
+export function useUpdateRevenueShareRule() {
+  return useCallback(
+    (id: string, input: { percent?: number; active?: boolean }) =>
+      api.updateRevenueShareRule(id, input),
+    [],
+  );
+}
+
+export function usePayoutMethods() {
+  return useApiQuery<PayoutMethod[]>(() => api.listPayoutMethods(), []);
+}
+
+export function useCreatePayoutMethod() {
+  return useCallback(
+    (input: {
+      beneficiaryType: PayoutBeneficiaryType;
+      beneficiaryId: string;
+      type: PayoutMethodType;
+      details: Record<string, unknown>;
+    }) => api.createPayoutMethod(input),
+    [],
+  );
+}
+
+export function usePayoutPeriods() {
+  return useApiQuery<PayoutPeriod[]>(() => api.listPayoutPeriods(), []);
+}
+
+export function useCreatePayoutPeriod() {
+  return useCallback(
+    (input: { periodStart: string; periodEnd: string; currency?: string }) =>
+      api.createPayoutPeriod(input),
+    [],
+  );
+}
+
+export function useComputePayoutPeriod() {
+  return useCallback((periodId: string) => api.computePayoutPeriod(periodId), []);
+}
+
+export function useLockPayoutPeriod() {
+  return useCallback((periodId: string) => api.lockPayoutPeriod(periodId), []);
+}
+
+export function usePayPayoutPeriod() {
+  return useCallback(
+    (periodId: string, input: { reference?: string }) => api.payPayoutPeriod(periodId, input),
+    [],
+  );
+}
+
+export function useMyPayouts() {
+  return useApiQuery<Payout[]>(() => api.listMyPayouts(), []);
+}
+
+// ── Phase 30: Tax hooks ──────────────────────
+
+export function useTaxRegions() {
+  return useApiQuery<TaxRegion[]>(() => api.listTaxRegions(), []);
+}
+
+export function useTaxRules() {
+  return useApiQuery<TaxRule[]>(() => api.listTaxRules(), []);
+}
+
+export function useCreateTaxRule() {
+  return useCallback(
+    (input: {
+      regionCode: string;
+      rate: number;
+      type: TaxRuleType;
+      inclusive?: boolean;
+      active?: boolean;
+    }) => api.createTaxRule(input),
+    [],
+  );
+}
+
+export function useUpdateTaxRule() {
+  return useCallback(
+    (id: string, input: { rate?: number; inclusive?: boolean; active?: boolean }) =>
+      api.updateTaxRule(id, input),
+    [],
+  );
+}
+
+export function useCalculateTax() {
+  return useCallback(
+    (input: {
+      subtotal: number;
+      regionCode: string;
+      currency: SupportedCurrency;
+      lines?: Array<{ productId: string; amount: number; metadata?: Record<string, unknown> }>;
+    }) => api.calculateTax(input),
+    [],
+  );
+}
+
+// ── Phase 31: 3D Content Plugin hooks ──────────────────────
+
+export function useThreeDAssets(params: { search?: string; format?: string } = {}) {
+  return useApiQuery<ThreeDAssetRecord[]>(
+    () => api.listThreeDAssets(params),
+    [JSON.stringify(params)],
+  );
+}
+
+export function useThreeDAsset(id: string | null) {
+  return useApiQuery<ThreeDAssetRecord | null>(async () => {
+    if (!id) return null;
+    return api.getThreeDAsset(id);
+  }, [id]);
+}
+
+export function useCreateThreeDAsset() {
+  return useCallback(
+    (input: {
+      name: string;
+      format: "GLB" | "GLTF" | "FBX" | "OBJ";
+      sizeBytes?: number;
+      url: string;
+      thumbnailUrl?: string;
+    }) => api.createThreeDAsset(input),
+    [],
+  );
+}
+
+export function useUpdateThreeDAsset() {
+  return useCallback(
+    (
+      id: string,
+      input: Partial<{
+        name: string;
+        format: "GLB" | "GLTF" | "FBX" | "OBJ";
+        sizeBytes: number;
+        url: string;
+        thumbnailUrl: string;
+      }>,
+    ) => api.updateThreeDAsset(id, input),
+    [],
+  );
+}
+
+export function useDeleteThreeDAsset() {
+  return useCallback((id: string) => api.deleteThreeDAsset(id), []);
+}
+
+export function useGenerateThreeDPreview() {
+  return useCallback((id: string) => api.generateThreeDPreview(id), []);
+}
+
+export function useThreeDScenes(assetId: string | null) {
+  return useApiQuery<ThreeDSceneRecord[]>(async () => {
+    if (!assetId) return [];
+    return api.listThreeDScenes(assetId);
+  }, [assetId]);
+}
+
+export function useCreateThreeDScene() {
+  return useCallback(
+    (assetId: string, input: { scene: Record<string, unknown>; version?: number }) =>
+      api.createThreeDScene(assetId, input),
+    [],
+  );
+}
+
+export function useThreeDScene(id: string | null) {
+  return useApiQuery<ThreeDSceneRecord | null>(async () => {
+    if (!id) return null;
+    return api.getThreeDScene(id);
+  }, [id]);
+}
+
+export function useAddThreeDInteraction() {
+  return useCallback(
+    (
+      sceneId: string,
+      input: { name: string; trigger: string; action: Record<string, unknown> },
+    ) => api.addThreeDInteraction(sceneId, input),
+    [],
+  );
+}
+
+// ── Phase 32: Code Runner Plugin hooks ──────────────────────
+
+export function useCodeExecution(id: string | null) {
+  return useApiQuery<CodeExecutionRecord | null>(async () => {
+    if (!id) return null;
+    return api.getCodeExecution(id);
+  }, [id]);
+}
+
+export function useCodeSubmissions(params: { assignmentId?: string; userId?: string } = {}) {
+  return useApiQuery<CodeSubmissionRecord[]>(
+    () => api.listCodeSubmissions(params),
+    [JSON.stringify(params)],
+  );
+}
+
+export function useExecuteCode() {
+  return useCallback(
+    (input: {
+      language: CodeLanguage;
+      code: string;
+      stdin?: string;
+      timeoutMs?: number;
+    }) => api.executeCode(input),
+    [],
+  );
+}
+
+export function useJudgeCode() {
+  return useCallback(
+    (input: {
+      assignmentId: string;
+      language: CodeLanguage;
+      code: string;
+      testCases: Array<{ name: string; input?: string; expectedOutput: string }>;
+      timeoutMs?: number;
+      scoreWeight?: number;
+    }) => api.judgeCode(input),
+    [],
+  );
+}
+
+// ── Phase 33: Plugin Marketplace Governance hooks ──────────────────────
+
+export function usePluginListings(status?: PluginListingStatus) {
+  return useApiQuery<PluginListingRecord[]>(
+    () => api.listPluginListings(status),
+    [status ?? ""],
+  );
+}
+
+export function usePluginListing(id: string | null) {
+  return useApiQuery<PluginListingRecord | null>(async () => {
+    if (!id) return null;
+    return api.getPluginListing(id);
+  }, [id]);
+}
+
+export function useCreatePluginListing() {
+  return useCallback(
+    (input: {
+      pluginId: string;
+      name: string;
+      description: string;
+      longDescription?: string;
+      categories?: string[];
+      screenshots?: string[];
+      pricing?: Record<string, unknown>;
+    }) => api.createPluginListing(input),
+    [],
+  );
+}
+
+export function useUpdatePluginListing() {
+  return useCallback(
+    (
+      id: string,
+      input: Partial<{
+        name: string;
+        description: string;
+        longDescription: string;
+        categories: string[];
+        screenshots: string[];
+        pricing: Record<string, unknown>;
+      }>,
+    ) => api.updatePluginListing(id, input),
+    [],
+  );
+}
+
+export function useUpdatePluginListingStatus() {
+  return useCallback(
+    (id: string, status: PluginListingStatus) =>
+      api.updatePluginListingStatus(id, status),
+    [],
+  );
+}
+
+export function usePluginReviews(listingId?: string) {
+  return useApiQuery<Array<PluginReviewRecord & { reviewer: { id: string; name: string; email: string }; listing: { id: string; name: string } }>>(
+    () => api.listPluginReviews(listingId),
+    [listingId ?? ""],
+  );
+}
+
+export function useCreatePluginReview() {
+  return useCallback(
+    (input: { listingId: string; rating: number; comment?: string }) =>
+      api.createPluginReview(input),
+    [],
+  );
+}
+
+export function useUpdatePluginReviewStatus() {
+  return useCallback(
+    (id: string, status: PluginReviewStatus) =>
+      api.updatePluginReviewStatus(id, status),
+    [],
+  );
+}
+
+export function usePluginInstallations() {
+  return useApiQuery<PluginInstallationRecord[]>(
+    () => api.listPluginInstallations(),
+    [],
+  );
+}
+
+export function useInstallPlugin() {
+  return useCallback(
+    (input: { listingId: string; config?: Record<string, unknown> }) =>
+      api.installPlugin(input),
+    [],
+  );
+}
+
+export function useUninstallPlugin() {
+  return useCallback((id: string) => api.uninstallPlugin(id), []);
+}
+
+export function usePluginPolicy() {
+  return useApiQuery<PluginPolicyRecord>(() => api.getPluginPolicy(), []);
+}
+
+export function useUpdatePluginPolicy() {
+  return useCallback(
+    (input: { maxInstalls?: number; allowedCategories?: string[]; requireApproval?: boolean }) =>
+      api.updatePluginPolicy(input),
+    [],
+  );
+}
+
+// ── Phase 34: Popout Dual Monitor hooks ──────────────────────
+
+export function useIssuePopoutToken() {
+  return useCallback(
+    (input: { lessonId: string; ttlMs?: number }) => api.issuePopoutToken(input),
+    [],
+  );
+}
+
+export function useValidatePopoutToken(token: string | null) {
+  return useApiQuery<PopoutValidationResponse | null>(async () => {
+    if (!token) return null;
+    try {
+      return await api.validatePopoutToken(token);
+    } catch {
+      return null;
+    }
+  }, [token]);
+}
+
+export function useRevokePopoutToken() {
+  return useCallback((token: string) => api.revokePopoutToken(token), []);
+}
+
+// ── Phase 36: Plugin Workspace Panels hooks ──────────────────────
+
+export function useAvailablePanels() {
+  return useApiQuery<PluginPanelDefinition[]>(() => api.listAvailablePanels(), []);
+}
+
+export function useRegisterPluginPanel() {
+  return useCallback(
+    (input: {
+      pluginId: string;
+      panelKey: string;
+      name: string;
+      defaultSize?: PanelSize;
+      defaultPosition?: PanelPosition;
+      allowedRoutes?: string[];
+      configSchema?: Record<string, unknown>;
+    }) => api.registerPluginPanel(input),
+    [],
+  );
+}
+
+export function usePanelLayout(layoutKey: string | null) {
+  return useApiQuery<UserPanelLayoutRecord | null>(async () => {
+    if (!layoutKey) return null;
+    return api.getPanelLayout(layoutKey);
+  }, [layoutKey]);
+}
+
+export function useSavePanelLayout() {
+  return useCallback(
+    (layoutKey: string, input: { panels: PanelEntry[] }) =>
+      api.savePanelLayout(layoutKey, input),
+    [],
+  );
 }

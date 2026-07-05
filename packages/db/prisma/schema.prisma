@@ -399,84 +399,125 @@ enum DiscussionReportStatus {
 }
 
 model User {
-  id                          String                        @id @default(cuid())
-  email                       String                        @unique
-  name                        String?
-  passwordHash                String?
-  timezone                    String                        @default("UTC")
-  status                      UserStatus                    @default(ACTIVE)
-  createdAt                   DateTime                      @default(now())
-  updatedAt                   DateTime                      @updatedAt
-  memberships                 OrganizationMember[]
-  sessions                    UserSession[]
-  auditLogs                   AuditLog[]
-  identities                  UserIdentity[]
-  courseInstructors           CourseInstructor[]
-  enrollments                 Enrollment[]
-  activityProgress            ActivityProgress[]
-  learningEvents              LearningEvent[]
-  ownedFiles                  File[]                        @relation("FileOwner")
-  createdFolders              Folder[]                      @relation("FolderCreator")
-  contentItems                ContentLibraryItem[]          @relation("ContentLibraryCreator")
-  installedPlugins            OrganizationPlugin[]          @relation("PluginInstaller")
-  pluginLogs                  PluginExecutionLog[]          @relation("PluginLogUser")
-  workspacePreferences        LearningWorkspacePreference[]
-  lessonWorkspaceStates       LessonWorkspaceState[]
-  learnerNotes                LearnerNote[]
-  learnerBookmarks            LearnerBookmark[]
-  questionBanks               QuestionBank[]                @relation("QuestionBankOwner")
-  questions                   Question[]                    @relation("QuestionCreator")
-  quizzes                     Quiz[]                        @relation("QuizCreator")
-  quizAttempts                QuizAttempt[]
-  assignments                 Assignment[]                  @relation("AssignmentCreator")
-  assignmentSubmissions       AssignmentSubmission[]
-  gradedAssignmentSubmissions AssignmentSubmission[]        @relation("AssignmentSubmissionGrader")
-  rubrics                     Rubric[]                      @relation("RubricCreator")
-  certificateTemplates        CertificateTemplate[]         @relation("CertificateTemplateCreator")
-  certificates                Certificate[]                 @relation("CertificateLearner")
-  revokedCertificates         Certificate[]                 @relation("CertificateRevoker")
-  learningGoals               LearningGoal[]
-  learningPathEnrollments     LearningPathEnrollment[]
-  userSkills                  UserSkill[]
-  xpTransactions              XpTransaction[]
-  userAchievements            UserAchievement[]
-  learnerDailyActivities      LearnerDailyActivity[]
-  aiConversations             AiConversation[]
-  aiUsageLogs                 AiUsageLog[]
-  aiGeneratedItems            AiGeneratedItem[]            @relation("AiGeneratedItemCreator")
-  discussionThreads           DiscussionThread[]           @relation("DiscussionThreadAuthor")
-  discussionReplies           DiscussionReply[]            @relation("DiscussionReplyAuthor")
-  liveClassesCreated          LiveClass[]                   @relation("LiveClassCreator")
-  notifications               Notification[]
-  notificationPreferences     NotificationPreference[]
-  discussionReports           DiscussionReport[]           @relation("DiscussionReportReporter")
-  calendarEventsCreated       CalendarEvent[]               @relation("CalendarEventCreator")
-  createdCoupons              Coupon[]
-  orders                      Order[]
-  confirmedPayments           Payment[]
-  subscriptions               UserSubscription[]
-  createdApiKeys              ApiKey[]
-  createdWebhookEndpoints     WebhookEndpoint[]
-  authoredCourseReviews       CourseReview[]               @relation("CourseReviewAuthor")
-  moderatedCourseReviews      CourseReview[]               @relation("ReviewModerator")
-  wishlists                   Wishlist[]
-  favoriteInstructorSelections FavoriteInstructor[]        @relation("FavoriteInstructorOwner")
-  favoritedByUsers            FavoriteInstructor[]         @relation("FavoriteInstructorUser")
-  recentlyViewedCourses       RecentlyViewedCourse[]
-  scormAttempts               ScormAttempt[]               @relation("ScormAttemptUser")
-  h5pResults                  H5PResult[]                  @relation("H5PResultUser")
-  surveyResponses             SurveyResponse[]             @relation("SurveyResponseUser")
-  pollVotes                   PollVote[]                   @relation("PollVoteUser")
-  courseFeedbackSubmissions   CourseFeedback[]             @relation("CourseFeedbackUser")
-  pushSubscriptions           PushSubscription[]            @relation("PushSubscriptionUser")
-  assignmentGroupMemberships  AssignmentGroupMember[]
-  peerReviewAssignments       PeerReviewMatch[]            @relation("PeerReviewReviewer")
-  peerReviewsAuthored         PeerReview[]                 @relation("PeerReviewAuthor")
-  submissionAnnotations       SubmissionAnnotation[]       @relation("AnnotationAuthor")
-  annotationsResolved         SubmissionAnnotation[]       @relation("AnnotationResolver")
-  portfolios                  Portfolio[]                  @relation("PortfolioOwner")
-  projectShowcasesCreated     ProjectShowcase[]            @relation("ProjectShowcaseCreator")
-  plagiarismChecks            PlagiarismCheck[]            @relation("PlagiarismRequester")
+  id                           String                        @id @default(cuid())
+  email                        String                        @unique
+  name                         String?
+  passwordHash                 String?
+  timezone                     String                        @default("UTC")
+  status                       UserStatus                    @default(ACTIVE)
+  createdAt                    DateTime                      @default(now())
+  updatedAt                    DateTime                      @updatedAt
+  memberships                  OrganizationMember[]
+  sessions                     UserSession[]
+  auditLogs                    AuditLog[]
+  identities                   UserIdentity[]
+  courseInstructors            CourseInstructor[]
+  enrollments                  Enrollment[]
+  activityProgress             ActivityProgress[]
+  learningEvents               LearningEvent[]
+  ownedFiles                   File[]                        @relation("FileOwner")
+  createdFolders               Folder[]                      @relation("FolderCreator")
+  contentItems                 ContentLibraryItem[]          @relation("ContentLibraryCreator")
+  installedPlugins             OrganizationPlugin[]          @relation("PluginInstaller")
+  pluginLogs                   PluginExecutionLog[]          @relation("PluginLogUser")
+  workspacePreferences         LearningWorkspacePreference[]
+  lessonWorkspaceStates        LessonWorkspaceState[]
+  learnerNotes                 LearnerNote[]
+  learnerBookmarks             LearnerBookmark[]
+  questionBanks                QuestionBank[]                @relation("QuestionBankOwner")
+  questions                    Question[]                    @relation("QuestionCreator")
+  quizzes                      Quiz[]                        @relation("QuizCreator")
+  quizAttempts                 QuizAttempt[]
+  assignments                  Assignment[]                  @relation("AssignmentCreator")
+  assignmentSubmissions        AssignmentSubmission[]
+  gradedAssignmentSubmissions  AssignmentSubmission[]        @relation("AssignmentSubmissionGrader")
+  rubrics                      Rubric[]                      @relation("RubricCreator")
+  certificateTemplates         CertificateTemplate[]         @relation("CertificateTemplateCreator")
+  certificates                 Certificate[]                 @relation("CertificateLearner")
+  revokedCertificates          Certificate[]                 @relation("CertificateRevoker")
+  learningGoals                LearningGoal[]
+  learningPathEnrollments      LearningPathEnrollment[]
+  userSkills                   UserSkill[]
+  xpTransactions               XpTransaction[]
+  userAchievements             UserAchievement[]
+  learnerDailyActivities       LearnerDailyActivity[]
+  aiConversations              AiConversation[]
+  aiUsageLogs                  AiUsageLog[]
+  aiGeneratedItems             AiGeneratedItem[]             @relation("AiGeneratedItemCreator")
+  discussionThreads            DiscussionThread[]            @relation("DiscussionThreadAuthor")
+  discussionReplies            DiscussionReply[]             @relation("DiscussionReplyAuthor")
+  liveClassesCreated           LiveClass[]                   @relation("LiveClassCreator")
+  notifications                Notification[]
+  notificationPreferences      NotificationPreference[]
+  discussionReports            DiscussionReport[]            @relation("DiscussionReportReporter")
+  calendarEventsCreated        CalendarEvent[]               @relation("CalendarEventCreator")
+  createdCoupons               Coupon[]
+  orders                       Order[]
+  confirmedPayments            Payment[]
+  subscriptions                UserSubscription[]
+  createdApiKeys               ApiKey[]
+  createdWebhookEndpoints      WebhookEndpoint[]
+  authoredCourseReviews        CourseReview[]                @relation("CourseReviewAuthor")
+  moderatedCourseReviews       CourseReview[]                @relation("ReviewModerator")
+  wishlists                    Wishlist[]
+  favoriteInstructorSelections FavoriteInstructor[]          @relation("FavoriteInstructorOwner")
+  favoritedByUsers             FavoriteInstructor[]          @relation("FavoriteInstructorUser")
+  recentlyViewedCourses        RecentlyViewedCourse[]
+  scormAttempts                ScormAttempt[]                @relation("ScormAttemptUser")
+  h5pResults                   H5PResult[]                   @relation("H5PResultUser")
+  surveyResponses              SurveyResponse[]              @relation("SurveyResponseUser")
+  pollVotes                    PollVote[]                    @relation("PollVoteUser")
+  courseFeedbackSubmissions    CourseFeedback[]              @relation("CourseFeedbackUser")
+  pushSubscriptions            PushSubscription[]            @relation("PushSubscriptionUser")
+  assignmentGroupMemberships   AssignmentGroupMember[]
+  peerReviewAssignments        PeerReviewMatch[]             @relation("PeerReviewReviewer")
+  peerReviewsAuthored          PeerReview[]                  @relation("PeerReviewAuthor")
+  submissionAnnotations        SubmissionAnnotation[]        @relation("AnnotationAuthor")
+  annotationsResolved          SubmissionAnnotation[]        @relation("AnnotationResolver")
+  portfolios                   Portfolio[]                   @relation("PortfolioOwner")
+  projectShowcasesCreated      ProjectShowcase[]             @relation("ProjectShowcaseCreator")
+  plagiarismChecks             PlagiarismCheck[]             @relation("PlagiarismRequester")
+  realtimeEvents               RealtimeEvent[]
+  realtimeSubscriptions        RealtimeSubscription[]
+  bulkJobsCreated              BulkJob[]
+  conversationsCreated         Conversation[]                @relation("ConversationCreator")
+  conversationMemberships      ConversationMember[]
+  messagesSent                 Message[]                     @relation("MessageSender")
+  messageReactions             MessageReaction[]
+  messageReads                 MessageRead[]
+  usersBlocked                 UserBlock[]                   @relation("UserBlockBlocker")
+  usersBlockedBy               UserBlock[]                   @relation("UserBlockBlocked")
+  oauthAccounts                OAuthAccount[]                @relation("OAuthAccountOwner")
+  mfaFactors                   MfaFactor[]                   @relation("MfaFactorOwner")
+  refreshSessions              RefreshSession[]              @relation("RefreshSessionOwner")
+  loginAttempts                LoginAttempt[]                @relation("LoginAttemptUser")
+  consentRecords               ConsentRecord[]               @relation("ConsentRecordUser")
+  dataExportRequests           DataExportRequest[]           @relation("DataExportRequestUser")
+  anonymizationRequests        AnonymizationRequest[]        @relation("AnonymizationRequestUser")
+  legalAcceptances             LegalAcceptanceLog[]          @relation("LegalAcceptanceLogUser")
+  moderationReports            ModerationReport[]            @relation("ModerationReportReporter")
+  moderationActionsActored     ModerationAction[]            @relation("ModerationActionActor")
+  moderationActionsReviewed    ModerationReport[]            @relation("ModerationReportReviewer")
+  contentFlags                 ContentFlag[]                 @relation("ContentFlagFlagger")
+  userPanelLayouts             UserPanelLayout[]             @relation("UserPanelLayoutUser")
+  cohortMembers                CohortMember[]                @relation("CohortMemberUser")
+  userTimezonePreferences      UserTimezonePreference[]      @relation("UserTimezonePreferenceUser")
+  proctoringSessions           ProctoringSession[]           @relation("ProctoringSessionUser")
+  proctoringFlagsReviewed      ProctoringFlag[]              @relation("ProctoringFlagReviewer")
+  searchQueries                SearchQuery[]                 @relation("SearchQueryUser")
+  helpArticleViews             HelpArticleView[]             @relation("HelpArticleViewUser")
+  supportTickets               SupportTicket[]               @relation("SupportTicketRequester")
+  supportTicketsAssigned       SupportTicket[]               @relation("SupportTicketAssignee")
+  supportTicketReplies         SupportTicketReply[]          @relation("SupportTicketReplyAuthor")
+  userLocalePreferences        UserLocalePreference[]        @relation("UserLocalePreferenceUser")
+  transcriptNotes              TranscriptNote[]              @relation("TranscriptNoteUser")
+  notesExports                 NotesExport[]                 @relation("NotesExportUser")
+  threeDAssets                 ThreeDAsset[]                 @relation("ThreeDAssetUploader")
+  codeExecutions               CodeExecution[]               @relation("CodeExecutionUser")
+  codeSubmissions              CodeSubmission[]              @relation("CodeSubmissionUser")
+  pluginListingsReviewed       PluginListing[]               @relation("PluginListingReviewer")
+  pluginReviews                PluginReview[]                @relation("PluginReviewReviewer")
+  popoutSessions               PopoutSession[]               @relation("PopoutSessionUser")
 
   @@index([status])
   @@index([createdAt])
@@ -573,21 +614,72 @@ model Organization {
   xapiActivityStates         XapiActivityState[]
   surveys                    Survey[]
   surveyResponses            SurveyResponse[]
-  polls                        Poll[]
-  pollVotes                    PollVote[]
-  courseFeedback               CourseFeedback[]
-  pushSubscriptions            PushSubscription[]
-  assignmentGroups             AssignmentGroup[]
-  assignmentGroupMembers      AssignmentGroupMember[]
-  peerReviewConfigs            PeerReviewConfig[]
-  peerReviewMatches            PeerReviewMatch[]
-  peerReviews                  PeerReview[]
-  peerReviewRubricScores       PeerReviewRubricScore[]
-  plagiarismChecks             PlagiarismCheck[]
-  submissionAnnotations        SubmissionAnnotation[]
-  projectShowcases             ProjectShowcase[]
-  portfolios                   Portfolio[]
-  portfolioEntries             PortfolioEntry[]
+  polls                      Poll[]
+  pollVotes                  PollVote[]
+  courseFeedback             CourseFeedback[]
+  pushSubscriptions          PushSubscription[]
+  assignmentGroups           AssignmentGroup[]
+  assignmentGroupMembers     AssignmentGroupMember[]
+  peerReviewConfigs          PeerReviewConfig[]
+  peerReviewMatches          PeerReviewMatch[]
+  peerReviews                PeerReview[]
+  peerReviewRubricScores     PeerReviewRubricScore[]
+  plagiarismChecks           PlagiarismCheck[]
+  submissionAnnotations      SubmissionAnnotation[]
+  projectShowcases           ProjectShowcase[]
+  portfolios                 Portfolio[]
+  portfolioEntries           PortfolioEntry[]
+  threeDAssets               ThreeDAsset[]
+  threeDScenes               ThreeDScene[]
+  codeExecutions             CodeExecution[]
+  codeSubmissions            CodeSubmission[]
+  pluginListings             PluginListing[]
+  pluginReviews              PluginReview[]
+  pluginInstallations        PluginInstallation[]
+  pluginPolicies             PluginPolicy[]
+  popoutSessions             PopoutSession[]
+  pluginPanels               PluginPanel[]
+  userPanelLayouts           UserPanelLayout[]
+  realtimeEvents             RealtimeEvent[]
+  realtimeSubscriptions      RealtimeSubscription[]
+  bulkJobs                   BulkJob[]
+  bulkJobItems               BulkJobItem[]
+  conversations              Conversation[]
+  conversationMembers        ConversationMember[]
+  messages                   Message[]
+  messageReactions           MessageReaction[]
+  messageReads               MessageRead[]
+  userBlocks                 UserBlock[]
+  legalDocuments             LegalDocument[]
+  retentionPolicies          RetentionPolicy[]
+  backupJobs                 BackupJob[]
+  cookieConsents             CookieConsent[]
+  moderationReports          ModerationReport[]
+  moderationActions          ModerationAction[]
+  contentFlags               ContentFlag[]
+  cohorts                    Cohort[]
+  cohortMembers              CohortMember[]
+  cohortSchedules            CohortSchedule[]
+  proctoringSessions         ProctoringSession[]
+  proctoringEvents           ProctoringEvent[]
+  proctoringFlags            ProctoringFlag[]
+  revenueShareRules          RevenueShareRule[]
+  payoutPeriods              PayoutPeriod[]
+  payouts                    Payout[]
+  payoutMethods              PayoutMethod[]
+  taxRules                   TaxRule[]
+  taxCalculations            TaxCalculation[]
+  searchQueries              SearchQuery[]
+  helpCategories             HelpCategory[]
+  helpArticles               HelpArticle[]
+  helpArticleViews           HelpArticleView[]
+  supportTickets             SupportTicket[]
+  supportTicketReplies       SupportTicketReply[]
+  userLocalePreferences      UserLocalePreference[]
+  orgLocalePreference        OrgLocalePreference?
+  transcriptNotes            TranscriptNote[]
+  noteContexts               NoteContext[]
+  notesExports               NotesExport[]                 @relation("NotesExportOrg")
 
   @@index([status])
   @@index([createdAt])
@@ -787,77 +879,78 @@ model CourseCategory {
 }
 
 model Course {
-  id                    String                 @id @default(cuid())
-  organizationId        String
-  categoryId            String?
-  title                 String
-  slug                  String
-  subtitle              String?
-  description           String?
-  thumbnailUrl          String?
-  level                 CourseLevel            @default(ALL_LEVELS)
-  language              String                 @default("en")
-  durationMinutes       Int                    @default(0)
-  status                CourseStatus           @default(DRAFT)
-  visibility            CourseVisibility       @default(ORGANIZATION_ONLY)
-  learningObjectives    Json                   @default("[]")
-  requirements          Json                   @default("[]")
-  targetAudience        Json                   @default("[]")
-  tags                  Json                   @default("[]")
-  metadata              Json                   @default("{}")
-  autoCertificate       Boolean                @default(false)
-  isPaid                Boolean                @default(false)
-  price                 Int?
-  currency              String                 @default("IDR")
+  id                        String                 @id @default(cuid())
+  organizationId            String
+  categoryId                String?
+  title                     String
+  slug                      String
+  subtitle                  String?
+  description               String?
+  thumbnailUrl              String?
+  level                     CourseLevel            @default(ALL_LEVELS)
+  language                  String                 @default("en")
+  durationMinutes           Int                    @default(0)
+  status                    CourseStatus           @default(DRAFT)
+  visibility                CourseVisibility       @default(ORGANIZATION_ONLY)
+  learningObjectives        Json                   @default("[]")
+  requirements              Json                   @default("[]")
+  targetAudience            Json                   @default("[]")
+  tags                      Json                   @default("[]")
+  metadata                  Json                   @default("{}")
+  autoCertificate           Boolean                @default(false)
+  isPaid                    Boolean                @default(false)
+  price                     Int?
+  currency                  String                 @default("IDR")
   autoCertificateTemplateId String?
-  publishedAt           DateTime?
-  archivedAt            DateTime?
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
-  deletedAt             DateTime?
-  organization          Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  category              CourseCategory?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  autoCertificateTemplate CertificateTemplate? @relation("CourseAutoCertificateTemplate", fields: [autoCertificateTemplateId], references: [id], onDelete: SetNull)
-  instructors           CourseInstructor[]
-  modules               CourseModule[]
-  lessons               Lesson[]
-  activities            Activity[]
-  enrollments           Enrollment[]
-  activityProgress      ActivityProgress[]
-  learningEvents        LearningEvent[]
-  lessonWorkspaceStates LessonWorkspaceState[]
-  learnerNotes          LearnerNote[]
-  learnerBookmarks      LearnerBookmark[]
-  transcriptSegments    TranscriptSegment[]
-  videoCaptionTracks    VideoCaptionTrack[]
-  aiGeneratedItems      AiGeneratedItem[]
-  questionBanks         QuestionBank[]
-  quizzes               Quiz[]
-  quizAttempts          QuizAttempt[]
-  assignments           Assignment[]
-  assignmentSubmissions AssignmentSubmission[]
-  rubrics               Rubric[]
-  certificates          Certificate[]
-  learningGoals         LearningGoal[]
-  learningPathCourses   LearningPathCourse[]
-  courseSkills          CourseSkill[]
-  leaderboardSnapshots  LeaderboardSnapshot[]
-  dailyCourseAggregates DailyCourseAggregate[]
-  discussionThreads     DiscussionThread[]
-  liveClasses           LiveClass[]
-  calendarEvents        CalendarEvent[]
-  coupons               Coupon[]
-  orderItems            OrderItem[]
-  courseReviews         CourseReview[]
-  wishlists             Wishlist[]
-  recentlyViewedCourses RecentlyViewedCourse[]
-  scormPackages         ScormPackage[]      @relation("ScormPackageCourse")
-  h5pContents           H5PContent[]        @relation("H5PContentCourse")
-  surveys               Survey[]            @relation("SurveyCourse")
-  polls                 Poll[]              @relation("PollCourse")
-  courseFeedback        CourseFeedback[]    @relation("CourseFeedbackCourse")
-  assignmentGroups      AssignmentGroup[]
-  projectShowcases      ProjectShowcase[]
+  publishedAt               DateTime?
+  archivedAt                DateTime?
+  createdAt                 DateTime               @default(now())
+  updatedAt                 DateTime               @updatedAt
+  deletedAt                 DateTime?
+  organization              Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  category                  CourseCategory?        @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  autoCertificateTemplate   CertificateTemplate?   @relation("CourseAutoCertificateTemplate", fields: [autoCertificateTemplateId], references: [id], onDelete: SetNull)
+  instructors               CourseInstructor[]
+  modules                   CourseModule[]
+  lessons                   Lesson[]
+  activities                Activity[]
+  enrollments               Enrollment[]
+  activityProgress          ActivityProgress[]
+  learningEvents            LearningEvent[]
+  lessonWorkspaceStates     LessonWorkspaceState[]
+  learnerNotes              LearnerNote[]
+  learnerBookmarks          LearnerBookmark[]
+  transcriptSegments        TranscriptSegment[]
+  videoCaptionTracks        VideoCaptionTrack[]
+  aiGeneratedItems          AiGeneratedItem[]
+  questionBanks             QuestionBank[]
+  quizzes                   Quiz[]
+  quizAttempts              QuizAttempt[]
+  assignments               Assignment[]
+  assignmentSubmissions     AssignmentSubmission[]
+  rubrics                   Rubric[]
+  certificates              Certificate[]
+  learningGoals             LearningGoal[]
+  learningPathCourses       LearningPathCourse[]
+  courseSkills              CourseSkill[]
+  leaderboardSnapshots      LeaderboardSnapshot[]
+  dailyCourseAggregates     DailyCourseAggregate[]
+  discussionThreads         DiscussionThread[]
+  liveClasses               LiveClass[]
+  calendarEvents            CalendarEvent[]
+  coupons                   Coupon[]
+  orderItems                OrderItem[]
+  courseReviews             CourseReview[]
+  wishlists                 Wishlist[]
+  recentlyViewedCourses     RecentlyViewedCourse[]
+  scormPackages             ScormPackage[]         @relation("ScormPackageCourse")
+  h5pContents               H5PContent[]           @relation("H5PContentCourse")
+  surveys                   Survey[]               @relation("SurveyCourse")
+  polls                     Poll[]                 @relation("PollCourse")
+  courseFeedback            CourseFeedback[]       @relation("CourseFeedbackCourse")
+  assignmentGroups          AssignmentGroup[]
+  projectShowcases          ProjectShowcase[]
+  cohorts                   Cohort[]
 
   @@unique([organizationId, slug])
   @@index([organizationId, status])
@@ -927,6 +1020,9 @@ model Lesson {
   aiGeneratedItems      AiGeneratedItem[]
   discussionThreads     DiscussionThread[]
   calendarEvents        CalendarEvent[]
+  cohortSchedule        CohortSchedule[]
+  transcriptNotes       TranscriptNote[]
+  notesExports          NotesExport[]          @relation("NotesExportLesson")
 
   @@unique([courseId, slug])
   @@index([moduleId, orderIndex])
@@ -966,16 +1062,17 @@ model Activity {
   transcriptSegments      TranscriptSegment[]
   videoCaptionTracks      VideoCaptionTrack[]
   aiGeneratedItems        AiGeneratedItem[]
-  scormPackages           ScormPackage[]   @relation("ScormPackageActivity")
-  h5pContents             H5PContent[]     @relation("H5PContentActivity")
-  surveys                 Survey[]         @relation("SurveyActivity")
-  polls                   Poll[]           @relation("PollActivity")
+  scormPackages           ScormPackage[]         @relation("ScormPackageActivity")
+  h5pContents             H5PContent[]           @relation("H5PContentActivity")
+  surveys                 Survey[]               @relation("SurveyActivity")
+  polls                   Poll[]                 @relation("PollActivity")
   quiz                    Quiz?
   quizAttempts            QuizAttempt[]
   assignment              Assignment?
   assignmentSubmissions   AssignmentSubmission[]
   discussionThreads       DiscussionThread[]
   calendarEvents          CalendarEvent[]
+  transcriptNotes         TranscriptNote[]
 
   @@index([lessonId, orderIndex])
   @@index([organizationId, courseId])
@@ -986,7 +1083,6 @@ model ActivityContent {
   id             String   @id @default(cuid())
   organizationId String
   activityId     String   @unique
-  @@index([activityId])
   body           Json     @default("{}")
   content        Json     @default("{}")
   textContent    String?
@@ -999,6 +1095,7 @@ model ActivityContent {
   activity       Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
   file           File?    @relation(fields: [fileId], references: [id], onDelete: SetNull)
 
+  @@index([activityId])
   @@index([organizationId])
   @@index([fileId])
 }
@@ -1208,7 +1305,6 @@ model LessonWorkspaceState {
   rightPanelCollapsed  Boolean             @default(false)
   lastVideoTimeSeconds Float?
   lastOpenedAt         DateTime            @default(now())
-  @@index([userId])
   metadata             Json                @default("{}")
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
@@ -1218,6 +1314,7 @@ model LessonWorkspaceState {
   lesson               Lesson?             @relation(fields: [lessonId], references: [id], onDelete: SetNull)
   activity             Activity?           @relation(fields: [activityId], references: [id], onDelete: SetNull)
 
+  @@index([userId])
   @@index([organizationId, userId, courseId])
   @@index([organizationId, userId, lessonId])
   @@index([organizationId, userId, activityId])
@@ -1234,7 +1331,6 @@ model LearnerNote {
   selectedText     String?
   content          String
   visibility       LearnerNoteVisibility @default(PRIVATE)
-  @@index([userId])
   metadata         Json                  @default("{}")
   createdAt        DateTime              @default(now())
   updatedAt        DateTime              @updatedAt
@@ -1245,6 +1341,7 @@ model LearnerNote {
   lesson           Lesson?               @relation(fields: [lessonId], references: [id], onDelete: SetNull)
   activity         Activity?             @relation(fields: [activityId], references: [id], onDelete: SetNull)
 
+  @@index([userId])
   @@index([organizationId, userId, courseId])
   @@index([organizationId, userId, activityId])
   @@index([organizationId, deletedAt])
@@ -1260,7 +1357,6 @@ model LearnerBookmark {
   videoTimeSeconds Float?
   title            String?
   note             String?
-  @@index([userId])
   metadata         Json         @default("{}")
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
@@ -1271,6 +1367,7 @@ model LearnerBookmark {
   lesson           Lesson?      @relation(fields: [lessonId], references: [id], onDelete: SetNull)
   activity         Activity?    @relation(fields: [activityId], references: [id], onDelete: SetNull)
 
+  @@index([userId])
   @@index([organizationId, userId, courseId])
   @@index([organizationId, userId, activityId])
   @@index([organizationId, deletedAt])
@@ -1458,8 +1555,6 @@ model QuizAttempt {
   maxScore       Float             @default(0)
   percentage     Float             @default(0)
   passed         Boolean           @default(false)
-  @@index([quizId])
-  @@index([userId])
   metadata       Json              @default("{}")
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
@@ -1471,6 +1566,8 @@ model QuizAttempt {
   answers        QuizAnswer[]
 
   @@unique([quizId, userId, attemptNumber])
+  @@index([quizId])
+  @@index([userId])
   @@index([organizationId, userId, quizId])
   @@index([organizationId, activityId])
   @@index([organizationId, status])
@@ -1711,40 +1808,41 @@ model AiUsageLog {
 }
 
 model Assignment {
-  id                     String                   @id @default(cuid())
-  organizationId         String
-  courseId               String
-  activityId             String?                  @unique
-  createdById            String
-  title                  String
-  description            String?
-  instructions           String?
-  submissionType         AssignmentSubmissionType
-  collaborationMode      AssignmentCollaborationMode @default(INDIVIDUAL)
-  groupMinMembers        Int                      @default(2)
-  groupMaxMembers        Int                      @default(5)
-  dueAt                  DateTime?
-  availableFrom          DateTime?
-  availableUntil         DateTime?
-  allowLateSubmission    Boolean                  @default(false)
-  latePenaltyPercent     Float?
-  maxAttempts            Int?
-  allowResubmission      Boolean                  @default(false)
-  maxResubmissions       Int?
-  rubricId               String?
-  status                 AssignmentStatus         @default(DRAFT)
-  metadata               Json                     @default("{}")
-  createdAt              DateTime                 @default(now())
-  updatedAt              DateTime                 @updatedAt
-  deletedAt              DateTime?
-  organization           Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  course                 Course                   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  activity               Activity?                @relation(fields: [activityId], references: [id], onDelete: SetNull)
-  createdBy              User                     @relation("AssignmentCreator", fields: [createdById], references: [id], onDelete: Cascade)
-  rubric                 Rubric?                  @relation(fields: [rubricId], references: [id], onDelete: SetNull)
-  submissions            AssignmentSubmission[]
-  groups                 AssignmentGroup[]
-  peerReviewConfig       PeerReviewConfig?
+  id                  String                      @id @default(cuid())
+  organizationId      String
+  courseId            String
+  activityId          String?                     @unique
+  createdById         String
+  title               String
+  description         String?
+  instructions        String?
+  submissionType      AssignmentSubmissionType
+  collaborationMode   AssignmentCollaborationMode @default(INDIVIDUAL)
+  groupMinMembers     Int                         @default(2)
+  groupMaxMembers     Int                         @default(5)
+  dueAt               DateTime?
+  availableFrom       DateTime?
+  availableUntil      DateTime?
+  allowLateSubmission Boolean                     @default(false)
+  latePenaltyPercent  Float?
+  maxAttempts         Int?
+  allowResubmission   Boolean                     @default(false)
+  maxResubmissions    Int?
+  rubricId            String?
+  status              AssignmentStatus            @default(DRAFT)
+  metadata            Json                        @default("{}")
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
+  deletedAt           DateTime?
+  organization        Organization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  course              Course                      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  activity            Activity?                   @relation(fields: [activityId], references: [id], onDelete: SetNull)
+  createdBy           User                        @relation("AssignmentCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  rubric              Rubric?                     @relation(fields: [rubricId], references: [id], onDelete: SetNull)
+  submissions         AssignmentSubmission[]
+  groups              AssignmentGroup[]
+  peerReviewConfig    PeerReviewConfig?
+  codeSubmissions     CodeSubmission[]
 
   @@index([organizationId, courseId])
   @@index([organizationId, status])
@@ -1752,44 +1850,44 @@ model Assignment {
 }
 
 model AssignmentSubmission {
-  id                   String                     @id @default(cuid())
-  organizationId       String
-  assignmentId         String
-  courseId             String
-  activityId           String?
-  userId               String
-  groupId              String?
-  attemptNumber        Int
-  status               AssignmentSubmissionStatus @default(DRAFT)
-  textAnswer           String?
-  linkUrl              String?
-  fileIds              Json                       @default("[]")
-  submittedAt          DateTime?
-  gradedAt             DateTime?
-  gradedById           String?
-  score                Float?
-  maxScore             Float?
-  feedback             String?
-  @@index([assignmentId])
-  @@index([userId])
-  metadata             Json                       @default("{}")
-  createdAt            DateTime                   @default(now())
-  updatedAt            DateTime                   @updatedAt
-  organization         Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  assignment           Assignment                 @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
-  course               Course                     @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  activity             Activity?                  @relation(fields: [activityId], references: [id], onDelete: SetNull)
-  user                 User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  gradedBy             User?                      @relation("AssignmentSubmissionGrader", fields: [gradedById], references: [id], onDelete: SetNull)
-  group                AssignmentGroup?           @relation(fields: [groupId], references: [id], onDelete: SetNull)
-  rubricScores         RubricScore[]
-  peerReviewMatches    PeerReviewMatch[]
-  plagiarismChecks     PlagiarismCheck[]
-  annotations          SubmissionAnnotation[]
-  showcase             ProjectShowcase?
-  portfolioEntries     PortfolioEntry[]
+  id                String                     @id @default(cuid())
+  organizationId    String
+  assignmentId      String
+  courseId          String
+  activityId        String?
+  userId            String
+  groupId           String?
+  attemptNumber     Int
+  status            AssignmentSubmissionStatus @default(DRAFT)
+  textAnswer        String?
+  linkUrl           String?
+  fileIds           Json                       @default("[]")
+  submittedAt       DateTime?
+  gradedAt          DateTime?
+  gradedById        String?
+  score             Float?
+  maxScore          Float?
+  feedback          String?
+  metadata          Json                       @default("{}")
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+  organization      Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignment        Assignment                 @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  course            Course                     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  activity          Activity?                  @relation(fields: [activityId], references: [id], onDelete: SetNull)
+  user              User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gradedBy          User?                      @relation("AssignmentSubmissionGrader", fields: [gradedById], references: [id], onDelete: SetNull)
+  group             AssignmentGroup?           @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  rubricScores      RubricScore[]
+  peerReviewMatches PeerReviewMatch[]
+  plagiarismChecks  PlagiarismCheck[]
+  annotations       SubmissionAnnotation[]
+  showcase          ProjectShowcase?
+  portfolioEntries  PortfolioEntry[]
 
   @@unique([assignmentId, userId, attemptNumber])
+  @@index([assignmentId])
+  @@index([userId])
   @@index([organizationId, assignmentId])
   @@index([organizationId, userId, courseId])
   @@index([organizationId, activityId])
@@ -1798,25 +1896,25 @@ model AssignmentSubmission {
 }
 
 model Rubric {
-  id             String            @id @default(cuid())
-  organizationId String
-  courseId       String?
-  createdById    String
-  title          String
-  description    String?
-  totalPoints    Float
-  status         RubricStatus      @default(DRAFT)
-  metadata       Json              @default("{}")
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-  deletedAt      DateTime?
-  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  course         Course?           @relation(fields: [courseId], references: [id], onDelete: SetNull)
-  createdBy      User              @relation("RubricCreator", fields: [createdById], references: [id], onDelete: Cascade)
-  assignments    Assignment[]
-  criteria       RubricCriterion[]
+  id                String                  @id @default(cuid())
+  organizationId    String
+  courseId          String?
+  createdById       String
+  title             String
+  description       String?
+  totalPoints       Float
+  status            RubricStatus            @default(DRAFT)
+  metadata          Json                    @default("{}")
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  deletedAt         DateTime?
+  organization      Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  course            Course?                 @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  createdBy         User                    @relation("RubricCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  assignments       Assignment[]
+  criteria          RubricCriterion[]
   peerReviewConfigs PeerReviewConfig[]
-  peerReviewScores PeerReviewRubricScore[]
+  peerReviewScores  PeerReviewRubricScore[]
 
   @@index([organizationId, status])
   @@index([organizationId, courseId])
@@ -1824,30 +1922,30 @@ model Rubric {
 }
 
 model RubricCriterion {
-  id          String        @id @default(cuid())
-  rubricId    String
-  title       String
-  description String?
-  maxPoints   Float
-  orderIndex  Int           @default(0)
-  metadata    Json          @default("{}")
-  rubric      Rubric        @relation(fields: [rubricId], references: [id], onDelete: Cascade)
-  levels      RubricLevel[]
-  scores      RubricScore[]
+  id               String                  @id @default(cuid())
+  rubricId         String
+  title            String
+  description      String?
+  maxPoints        Float
+  orderIndex       Int                     @default(0)
+  metadata         Json                    @default("{}")
+  rubric           Rubric                  @relation(fields: [rubricId], references: [id], onDelete: Cascade)
+  levels           RubricLevel[]
+  scores           RubricScore[]
   peerReviewScores PeerReviewRubricScore[]
 
   @@index([rubricId, orderIndex])
 }
 
 model RubricLevel {
-  id          String          @id @default(cuid())
-  criterionId String
-  title       String
-  description String?
-  points      Float
-  orderIndex  Int             @default(0)
-  criterion   RubricCriterion @relation(fields: [criterionId], references: [id], onDelete: Cascade)
-  scores      RubricScore[]
+  id               String                  @id @default(cuid())
+  criterionId      String
+  title            String
+  description      String?
+  points           Float
+  orderIndex       Int                     @default(0)
+  criterion        RubricCriterion         @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+  scores           RubricScore[]
   peerReviewScores PeerReviewRubricScore[]
 
   @@index([criterionId, orderIndex])
@@ -1872,21 +1970,21 @@ model RubricScore {
 }
 
 model CertificateTemplate {
-  id             String                    @id @default(cuid())
-  organizationId String
-  createdById    String
-  name           String
-  description    String?
-  design         Json                      @default("{}")
-  status         CertificateTemplateStatus @default(DRAFT)
-  metadata       Json                      @default("{}")
-  createdAt      DateTime                  @default(now())
-  updatedAt      DateTime                  @updatedAt
-  deletedAt      DateTime?
-  organization   Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy      User                      @relation("CertificateTemplateCreator", fields: [createdById], references: [id], onDelete: Cascade)
-  certificates   Certificate[]
-  coursesAsAutoCertificate Course[]       @relation("CourseAutoCertificateTemplate")
+  id                       String                    @id @default(cuid())
+  organizationId           String
+  createdById              String
+  name                     String
+  description              String?
+  design                   Json                      @default("{}")
+  status                   CertificateTemplateStatus @default(DRAFT)
+  metadata                 Json                      @default("{}")
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  deletedAt                DateTime?
+  organization             Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy                User                      @relation("CertificateTemplateCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  certificates             Certificate[]
+  coursesAsAutoCertificate Course[]                  @relation("CourseAutoCertificateTemplate")
 
   @@index([organizationId, status])
   @@index([createdById])
@@ -1909,7 +2007,6 @@ model Certificate {
   pdfStatus         CertificatePdfStatus @default(PENDING)
   pdfGeneratedAt    DateTime?
   pdfError          String?
-  @@index([userId])
   metadata          Json                 @default("{}")
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
@@ -1921,6 +2018,7 @@ model Certificate {
   pdfFile           File?                @relation(fields: [pdfFileId], references: [id], onDelete: SetNull)
 
   @@unique([organizationId, courseId, userId])
+  @@index([userId])
   @@index([organizationId, courseId])
   @@index([organizationId, userId])
   @@index([verificationCode])
@@ -1934,7 +2032,6 @@ model LearningGoal {
   title          String
   description    String?
   targetType     LearningGoalTargetType
-  @@index([userId])
   targetValue    Json                   @default("{}")
   progressValue  Json                   @default("{}")
   dueAt          DateTime?
@@ -1947,6 +2044,7 @@ model LearningGoal {
   user           User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   course         Course?                @relation(fields: [courseId], references: [id], onDelete: SetNull)
 
+  @@index([userId])
   @@index([organizationId, userId, status])
   @@index([organizationId, courseId])
 }
@@ -1988,7 +2086,6 @@ model ActivityProgress {
   startedAt       DateTime?
   completedAt     DateTime?
   lastAccessedAt  DateTime?
-  @@index([userId])
   metadata        Json                   @default("{}")
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
@@ -1999,6 +2096,7 @@ model ActivityProgress {
   user            User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, userId, activityId])
+  @@index([userId])
   @@index([userId, courseId])
   @@index([userId, courseId, lessonId, activityId])
   @@index([organizationId, courseId])
@@ -2012,8 +2110,6 @@ model LearningEvent {
   lessonId       String?
   activityId     String?
   eventType      String
-  @@index([userId])
-  @@index([courseId])
   metadata       Json         @default("{}")
   createdAt      DateTime     @default(now())
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -2022,6 +2118,8 @@ model LearningEvent {
   lesson         Lesson?      @relation(fields: [lessonId], references: [id], onDelete: SetNull)
   activity       Activity?    @relation(fields: [activityId], references: [id], onDelete: SetNull)
 
+  @@index([userId])
+  @@index([courseId])
   @@index([organizationId, eventType, createdAt])
   @@index([userId, courseId])
 }
@@ -2138,12 +2236,12 @@ model Notification {
   entityType     String?
   entityId       String?
   readAt         DateTime?
-  @@index([userId])
   metadata       Json         @default("{}")
   createdAt      DateTime     @default(now())
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@index([organizationId, userId, readAt, createdAt])
   @@index([organizationId, entityType, entityId])
 }
@@ -2205,30 +2303,30 @@ model AuditLog {
   severity       AuditSeverity @default(INFO)
   ipAddress      String?
   userAgent      String?
-  @@index([userId])
   metadata       Json          @default("{}")
   createdAt      DateTime      @default(now())
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   user           User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
 
+  @@index([userId])
   @@index([organizationId, createdAt])
   @@index([organizationId, action, createdAt])
   @@index([userId, createdAt])
 }
 
 model DailyCourseAggregate {
-  id                String   @id @default(cuid())
-  organizationId    String
-  courseId          String
-  date              DateTime
-  totalEnrollments  Int      @default(0)
-  activeLearners    Int      @default(0)
-  newEnrollments    Int      @default(0)
-  completions       Int      @default(0)
+  id                 String   @id @default(cuid())
+  organizationId     String
+  courseId           String
+  date               DateTime
+  totalEnrollments   Int      @default(0)
+  activeLearners     Int      @default(0)
+  newEnrollments     Int      @default(0)
+  completions        Int      @default(0)
   avgProgressPercent Float?
-  activityEvents    Int      @default(0)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  activityEvents     Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id])
   course       Course       @relation(fields: [courseId], references: [id])
@@ -2238,15 +2336,15 @@ model DailyCourseAggregate {
 }
 
 model LearnerDailyActivity {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   organizationId  String
   userId          String
   date            DateTime
-  eventCount      Int      @default(0)
-  activityMinutes Int      @default(0)
+  eventCount      Int       @default(0)
+  activityMinutes Int       @default(0)
   lastActivityAt  DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id])
   user         User         @relation(fields: [userId], references: [id])
@@ -2275,20 +2373,20 @@ enum LeaderboardPeriod {
 }
 
 model LearningPath {
-  id                  String                @id @default(cuid())
-  organizationId      String
-  title               String
-  slug                String
-  description         String?
-  thumbnailUrl        String?
-  status              LearningPathStatus    @default(DRAFT)
-  difficulty          CourseLevel?
-  durationHours       Int                   @default(0)
-  enrolledCount       Int                   @default(0)
-  createdAt           DateTime              @default(now())
-  updatedAt           DateTime              @updatedAt
+  id             String             @id @default(cuid())
+  organizationId String
+  title          String
+  slug           String
+  description    String?
+  thumbnailUrl   String?
+  status         LearningPathStatus @default(DRAFT)
+  difficulty     CourseLevel?
+  durationHours  Int                @default(0)
+  enrolledCount  Int                @default(0)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
 
-  organization Organization              @relation(fields: [organizationId], references: [id])
+  organization Organization             @relation(fields: [organizationId], references: [id])
   courses      LearningPathCourse[]
   enrollments  LearningPathEnrollment[]
 
@@ -2298,12 +2396,12 @@ model LearningPath {
 }
 
 model LearningPathCourse {
-  id              String   @id @default(cuid())
-  learningPathId  String
-  courseId        String
-  orderIndex      Int      @default(0)
-  required        Boolean  @default(true)
-  createdAt       DateTime @default(now())
+  id             String   @id @default(cuid())
+  learningPathId String
+  courseId       String
+  orderIndex     Int      @default(0)
+  required       Boolean  @default(true)
+  createdAt      DateTime @default(now())
 
   learningPath LearningPath @relation(fields: [learningPathId], references: [id], onDelete: Cascade)
   course       Course       @relation(fields: [courseId], references: [id])
@@ -2324,9 +2422,9 @@ model LearningPathEnrollment {
   createdAt       DateTime                     @default(now())
   updatedAt       DateTime                     @updatedAt
 
-  organization  Organization @relation(fields: [organizationId], references: [id])
-  learningPath  LearningPath @relation(fields: [learningPathId], references: [id])
-  user          User         @relation(fields: [userId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+  learningPath LearningPath @relation(fields: [learningPathId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
 
   @@unique([organizationId, learningPathId, userId])
   @@index([organizationId, userId])
@@ -2334,28 +2432,28 @@ model LearningPathEnrollment {
 }
 
 model Skill {
-  id              String   @id @default(cuid())
-  organizationId  String
-  name            String
-  slug            String
-  description     String?
-  category        String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  slug           String
+  description    String?
+  category       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  courseSkills  CourseSkill[]
-  userSkills    UserSkill[]
+  organization Organization  @relation(fields: [organizationId], references: [id])
+  courseSkills CourseSkill[]
+  userSkills   UserSkill[]
 
   @@unique([organizationId, slug])
   @@index([organizationId, category])
 }
 
 model CourseSkill {
-  id        String @id @default(cuid())
+  id        String   @id @default(cuid())
   courseId  String
   skillId   String
-  weight    Int    @default(10)
+  weight    Int      @default(10)
   createdAt DateTime @default(now())
 
   course Course @relation(fields: [courseId], references: [id])
@@ -2398,43 +2496,43 @@ model XpTransaction {
 }
 
 model LeaderboardSnapshot {
-  id              String           @id @default(cuid())
-  organizationId  String
-  courseId        String?
-  period          LeaderboardPeriod
-  snapshotDate    DateTime
-  rankings        Json
-  createdAt       DateTime         @default(now())
+  id             String            @id @default(cuid())
+  organizationId String
+  courseId       String?
+  period         LeaderboardPeriod
+  snapshotDate   DateTime
+  rankings       Json
+  createdAt      DateTime          @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id])
-  course       Course?       @relation(fields: [courseId], references: [id])
+  course       Course?      @relation(fields: [courseId], references: [id])
 
   @@index([organizationId, courseId, period, snapshotDate])
 }
 
 model Achievement {
-  id              String   @id @default(cuid())
-  organizationId  String
-  key             String
-  name            String
-  description     String?
-  iconUrl         String?
-  criteria        Json     @default("{}")
-  xpReward        Int      @default(0)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String   @id @default(cuid())
+  organizationId String
+  key            String
+  name           String
+  description    String?
+  iconUrl        String?
+  criteria       Json     @default("{}")
+  xpReward       Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  organization Organization   @relation(fields: [organizationId], references: [id])
+  organization Organization      @relation(fields: [organizationId], references: [id])
   users        UserAchievement[]
 
   @@unique([organizationId, key])
 }
 
 model UserAchievement {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   userId        String
   achievementId String
-  earnedAt      DateTime @default(now())
+  earnedAt      DateTime  @default(now())
   notifiedAt    DateTime?
 
   user        User        @relation(fields: [userId], references: [id])
@@ -2480,23 +2578,23 @@ enum SubscriptionStatus {
 }
 
 model Coupon {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   organizationId  String
   code            String
   description     String?
-  discountPercent Int      @default(0)
-  discountAmount  Int?     @default(0)
-  maxUses         Int?     @default(0)
-  currentUses     Int      @default(0)
-  maxPerUser      Int      @default(1)
+  discountPercent Int       @default(0)
+  discountAmount  Int?      @default(0)
+  maxUses         Int?      @default(0)
+  currentUses     Int       @default(0)
+  maxPerUser      Int       @default(1)
   courseId        String?
-  minAmount       Int?     @default(0)
+  minAmount       Int?      @default(0)
   validFrom       DateTime?
   validUntil      DateTime?
-  isActive        Boolean  @default(true)
+  isActive        Boolean   @default(true)
   createdById     String
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id])
   createdBy    User         @relation(fields: [createdById], references: [id])
@@ -2508,26 +2606,27 @@ model Coupon {
 }
 
 model Order {
-  id              String      @id @default(cuid())
-  organizationId  String
-  userId          String
-  orderNumber     String      @unique
-  status          OrderStatus @default(PENDING)
-  subtotal        Int         @default(0)
-  discountAmount  Int         @default(0)
-  total           Int         @default(0)
-  currency        String      @default("IDR")
-  couponId        String?
-  notes           String?
-  paidAt          DateTime?
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  id             String      @id @default(cuid())
+  organizationId String
+  userId         String
+  orderNumber    String      @unique
+  status         OrderStatus @default(PENDING)
+  subtotal       Int         @default(0)
+  discountAmount Int         @default(0)
+  total          Int         @default(0)
+  currency       String      @default("IDR")
+  couponId       String?
+  notes          String?
+  paidAt         DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  user         User         @relation(fields: [userId], references: [id])
-  coupon       Coupon?      @relation(fields: [couponId], references: [id])
-  items        OrderItem[]
-  payments     Payment[]
+  organization    Organization     @relation(fields: [organizationId], references: [id])
+  user            User             @relation(fields: [userId], references: [id])
+  coupon          Coupon?          @relation(fields: [couponId], references: [id])
+  items           OrderItem[]
+  payments        Payment[]
+  taxCalculations TaxCalculation[]
 
   @@index([organizationId, createdAt])
   @@index([organizationId, userId])
@@ -2536,11 +2635,11 @@ model Order {
 }
 
 model OrderItem {
-  id        String @id @default(cuid())
-  orderId   String
-  courseId  String
-  price     Int    @default(0)
-  currency  String @default("IDR")
+  id       String @id @default(cuid())
+  orderId  String
+  courseId String
+  price    Int    @default(0)
+  currency String @default("IDR")
 
   order  Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
   course Course @relation(fields: [courseId], references: [id])
@@ -2549,25 +2648,25 @@ model OrderItem {
 }
 
 model Payment {
-  id              String          @id @default(cuid())
-  organizationId  String
-  orderId         String
-  provider        PaymentProvider @default(MANUAL)
+  id                String          @id @default(cuid())
+  organizationId    String
+  orderId           String
+  provider          PaymentProvider @default(MANUAL)
   providerPaymentId String?
-  status          PaymentStatus   @default(PENDING)
-  amount          Int             @default(0)
-  currency        String          @default("IDR")
-  proofImageUrl   String?
-  bankName        String?
-  accountName     String?
-  accountNumber   String?
-  paidAt          DateTime?
-  confirmedById   String?
-  confirmedAt     DateTime?
-  notes           String?
-  metadata        Json            @default("{}")
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  status            PaymentStatus   @default(PENDING)
+  amount            Int             @default(0)
+  currency          String          @default("IDR")
+  proofImageUrl     String?
+  bankName          String?
+  accountName       String?
+  accountNumber     String?
+  paidAt            DateTime?
+  confirmedById     String?
+  confirmedAt       DateTime?
+  notes             String?
+  metadata          Json            @default("{}")
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id])
   order        Order        @relation(fields: [orderId], references: [id])
@@ -2578,40 +2677,40 @@ model Payment {
 }
 
 model SubscriptionPlan {
-  id                String               @id @default(cuid())
-  organizationId    String
-  name              String
-  description       String?
-  price             Int                  @default(0)
-  currency          String               @default("IDR")
-  interval          SubscriptionInterval @default(MONTHLY)
-  intervalCount     Int                  @default(1)
-  courseAccess      String               @default("ALL") // ALL, SELECTED
-  maxEnrollments    Int?                 @default(0) // 0 = unlimited
-  isActive          Boolean              @default(true)
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
+  id             String               @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  price          Int                  @default(0)
+  currency       String               @default("IDR")
+  interval       SubscriptionInterval @default(MONTHLY)
+  intervalCount  Int                  @default(1)
+  courseAccess   String               @default("ALL") // ALL, SELECTED
+  maxEnrollments Int?                 @default(0) // 0 = unlimited
+  isActive       Boolean              @default(true)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
 
-  organization Organization   @relation(fields: [organizationId], references: [id])
+  organization Organization       @relation(fields: [organizationId], references: [id])
   users        UserSubscription[]
 
   @@index([organizationId, isActive])
 }
 
 model UserSubscription {
-  id                String             @id @default(cuid())
-  organizationId    String
-  userId            String
-  planId            String
-  status            SubscriptionStatus @default(ACTIVE)
+  id                 String             @id @default(cuid())
+  organizationId     String
+  userId             String
+  planId             String
+  status             SubscriptionStatus @default(ACTIVE)
   currentPeriodStart DateTime?
-  currentPeriodEnd  DateTime?
-  cancelledAt       DateTime?
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  currentPeriodEnd   DateTime?
+  cancelledAt        DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
-  organization Organization    @relation(fields: [organizationId], references: [id])
-  user         User            @relation(fields: [userId], references: [id])
+  organization Organization     @relation(fields: [organizationId], references: [id])
+  user         User             @relation(fields: [userId], references: [id])
   plan         SubscriptionPlan @relation(fields: [planId], references: [id])
 
   @@unique([organizationId, userId, planId])
@@ -2626,19 +2725,19 @@ enum ApiKeyStatus {
 }
 
 model ApiKey {
-  id              String       @id @default(cuid())
-  organizationId  String
-  name            String
-  keyPrefix       String
-  keyHash         String       @unique
-  scopes          Json         @default("[]")
-  ipRestrictions  String[]
-  status          ApiKeyStatus @default(ACTIVE)
-  expiresAt       DateTime?
-  lastUsedAt      DateTime?
-  createdById     String
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  keyPrefix      String
+  keyHash        String       @unique
+  scopes         Json         @default("[]")
+  ipRestrictions String[]
+  status         ApiKeyStatus @default(ACTIVE)
+  expiresAt      DateTime?
+  lastUsedAt     DateTime?
+  createdById    String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id])
   createdBy    User         @relation(fields: [createdById], references: [id])
@@ -2668,22 +2767,22 @@ enum WebhookStatus {
 }
 
 model WebhookEndpoint {
-  id              String           @id @default(cuid())
-  organizationId  String
-  name            String
-  url             String
-  secret          String
-  events          WebhookEventType[]
-  status          WebhookStatus    @default(ACTIVE)
-  retryCount      Int              @default(3)
-  timeoutMs       Int              @default(5000)
-  description     String?
-  createdById     String
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  id             String             @id @default(cuid())
+  organizationId String
+  name           String
+  url            String
+  secret         String
+  events         WebhookEventType[]
+  status         WebhookStatus      @default(ACTIVE)
+  retryCount     Int                @default(3)
+  timeoutMs      Int                @default(5000)
+  description    String?
+  createdById    String
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  createdBy    User         @relation(fields: [createdById], references: [id])
+  organization Organization      @relation(fields: [organizationId], references: [id])
+  createdBy    User              @relation(fields: [createdById], references: [id])
   deliveries   WebhookDelivery[]
 
   @@index([organizationId, status])
@@ -2696,19 +2795,19 @@ enum WebhookDeliveryStatus {
 }
 
 model WebhookDelivery {
-  id              String                @id @default(cuid())
-  endpointId      String
-  eventType       WebhookEventType
-  payload         Json
-  status          WebhookDeliveryStatus @default(PENDING)
-  requestHeaders  Json?
-  responseStatus  Int?
-  responseBody    String?
-  durationMs      Int?
-  nextRetryAt     DateTime?
-  attempts        Int                   @default(0)
-  createdAt       DateTime              @default(now())
-  updatedAt       DateTime              @updatedAt
+  id             String                @id @default(cuid())
+  endpointId     String
+  eventType      WebhookEventType
+  payload        Json
+  status         WebhookDeliveryStatus @default(PENDING)
+  requestHeaders Json?
+  responseStatus Int?
+  responseBody   String?
+  durationMs     Int?
+  nextRetryAt    DateTime?
+  attempts       Int                   @default(0)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
 
   endpoint WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
 
@@ -2724,18 +2823,18 @@ enum ReviewStatus {
 }
 
 model CourseReview {
-  id              String       @id @default(cuid())
-  organizationId  String
-  courseId        String
-  userId          String
-  rating          Int
-  title           String?
-  body            String?
-  status          ReviewStatus @default(PENDING)
-  moderatedById   String?
-  moderatedAt     DateTime?
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  id             String       @id @default(cuid())
+  organizationId String
+  courseId       String
+  userId         String
+  rating         Int
+  title          String?
+  body           String?
+  status         ReviewStatus @default(PENDING)
+  moderatedById  String?
+  moderatedAt    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id])
   course       Course       @relation(fields: [courseId], references: [id])
@@ -2749,11 +2848,11 @@ model CourseReview {
 }
 
 model Wishlist {
-  id              String   @id @default(cuid())
-  organizationId  String
-  userId          String
-  courseId        String
-  createdAt       DateTime @default(now())
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  courseId       String
+  createdAt      DateTime @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id])
   user         User         @relation(fields: [userId], references: [id])
@@ -2764,11 +2863,11 @@ model Wishlist {
 }
 
 model FavoriteInstructor {
-  id              String   @id @default(cuid())
-  organizationId  String
-  userId          String
-  instructorId    String
-  createdAt       DateTime @default(now())
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  instructorId   String
+  createdAt      DateTime @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id])
   user         User         @relation("FavoriteInstructorOwner", fields: [userId], references: [id])
@@ -2779,11 +2878,11 @@ model FavoriteInstructor {
 }
 
 model RecentlyViewedCourse {
-  id              String   @id @default(cuid())
-  organizationId  String
-  userId          String
-  courseId        String
-  viewedAt        DateTime @default(now()) @updatedAt
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  courseId       String
+  viewedAt       DateTime @default(now()) @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id])
   user         User         @relation(fields: [userId], references: [id])
@@ -2859,8 +2958,8 @@ model H5PContent {
   updatedAt      DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id])
-  course       Course        @relation("H5PContentCourse", fields: [courseId], references: [id])
-  activity     Activity?     @relation("H5PContentActivity", fields: [activityId], references: [id])
+  course       Course       @relation("H5PContentCourse", fields: [courseId], references: [id])
+  activity     Activity?    @relation("H5PContentActivity", fields: [activityId], references: [id])
   results      H5PResult[]
 
   @@index([organizationId, courseId])
@@ -2933,9 +3032,9 @@ model Survey {
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt
 
-  organization Organization      @relation(fields: [organizationId], references: [id])
-  course       Course?           @relation("SurveyCourse", fields: [courseId], references: [id])
-  activity     Activity?         @relation("SurveyActivity", fields: [activityId], references: [id])
+  organization Organization     @relation(fields: [organizationId], references: [id])
+  course       Course?          @relation("SurveyCourse", fields: [courseId], references: [id])
+  activity     Activity?        @relation("SurveyActivity", fields: [activityId], references: [id])
   questions    SurveyQuestion[]
   responses    SurveyResponse[]
 
@@ -3044,8 +3143,8 @@ model CourseFeedback {
   submittedAt    DateTime @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id])
-  course       Course        @relation("CourseFeedbackCourse", fields: [courseId], references: [id])
-  user         User?         @relation("CourseFeedbackUser", fields: [userId], references: [id])
+  course       Course       @relation("CourseFeedbackCourse", fields: [courseId], references: [id])
+  user         User?        @relation("CourseFeedbackUser", fields: [userId], references: [id])
 
   @@index([organizationId, courseId])
   @@index([organizationId, submittedAt])
@@ -3078,18 +3177,18 @@ model PushSubscription {
 // Phase 18: Advanced assignment (group, peer review, plagiarism, portfolio, showcase)
 
 model AssignmentGroup {
-  id             String                   @id @default(cuid())
+  id             String                  @id @default(cuid())
   organizationId String
   assignmentId   String
   courseId       String
   name           String
-  maxMembers     Int                      @default(5)
-  status         String                   @default("ACTIVE")
-  createdAt      DateTime                 @default(now())
-  updatedAt      DateTime                 @updatedAt
-  organization   Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  assignment     Assignment               @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
-  course         Course                   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  maxMembers     Int                     @default(5)
+  status         String                  @default("ACTIVE")
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignment     Assignment              @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  course         Course                  @relation(fields: [courseId], references: [id], onDelete: Cascade)
   members        AssignmentGroupMember[]
   submissions    AssignmentSubmission[]
 
@@ -3098,58 +3197,58 @@ model AssignmentGroup {
 }
 
 model AssignmentGroupMember {
-  id             String                @id @default(cuid())
+  id             String          @id @default(cuid())
   organizationId String
   groupId        String
   userId         String
-  role           String                @default("member")
-  joinedAt       DateTime              @default(now())
-  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  group          AssignmentGroup       @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           String          @default("member")
+  joinedAt       DateTime        @default(now())
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  group          AssignmentGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([groupId, userId])
   @@index([organizationId, userId])
 }
 
 model PeerReviewConfig {
-  id                String              @id @default(cuid())
-  organizationId    String
-  assignmentId      String              @unique
-  reviewsRequired   Int                 @default(2)
-  reviewsToReceive  Int                 @default(2)
-  openFrom          DateTime?
-  dueAt             DateTime?
-  rubricId          String?
-  anonymize         Boolean             @default(true)
-  allowSelfReview   Boolean             @default(false)
-  status            String              @default("DRAFT")
-  metadata          Json                @default("{}")
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  organization      Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  assignment        Assignment          @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
-  rubric            Rubric?             @relation(fields: [rubricId], references: [id], onDelete: SetNull)
-  matches           PeerReviewMatch[]
+  id               String            @id @default(cuid())
+  organizationId   String
+  assignmentId     String            @unique
+  reviewsRequired  Int               @default(2)
+  reviewsToReceive Int               @default(2)
+  openFrom         DateTime?
+  dueAt            DateTime?
+  rubricId         String?
+  anonymize        Boolean           @default(true)
+  allowSelfReview  Boolean           @default(false)
+  status           String            @default("DRAFT")
+  metadata         Json              @default("{}")
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignment       Assignment        @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  rubric           Rubric?           @relation(fields: [rubricId], references: [id], onDelete: SetNull)
+  matches          PeerReviewMatch[]
 
   @@index([organizationId, status])
 }
 
 model PeerReviewMatch {
-  id                    String                  @id @default(cuid())
-  organizationId        String
-  configId              String
-  submissionId          String
-  reviewerUserId        String
-  status                PeerReviewStatus        @default(PENDING)
-  dueAt                 DateTime?
-  createdAt             DateTime                @default(now())
-  updatedAt             DateTime                @updatedAt
-  organization          Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  config                PeerReviewConfig        @relation(fields: [configId], references: [id], onDelete: Cascade)
-  submission            AssignmentSubmission    @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-  reviewer              User                    @relation("PeerReviewReviewer", fields: [reviewerUserId], references: [id], onDelete: Cascade)
-  review                PeerReview?
+  id             String               @id @default(cuid())
+  organizationId String
+  configId       String
+  submissionId   String
+  reviewerUserId String
+  status         PeerReviewStatus     @default(PENDING)
+  dueAt          DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  config         PeerReviewConfig     @relation(fields: [configId], references: [id], onDelete: Cascade)
+  submission     AssignmentSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  reviewer       User                 @relation("PeerReviewReviewer", fields: [reviewerUserId], references: [id], onDelete: Cascade)
+  review         PeerReview?
 
   @@unique([configId, submissionId, reviewerUserId])
   @@index([organizationId, reviewerUserId])
@@ -3157,107 +3256,107 @@ model PeerReviewMatch {
 }
 
 model PeerReview {
-  id              String                  @id @default(cuid())
-  organizationId  String
-  matchId         String                  @unique
-  authorId        String?
-  overallScore    Float?
-  feedback        String?
-  submittedAt     DateTime?
-  createdAt       DateTime                @default(now())
-  updatedAt       DateTime                @updatedAt
-  organization    Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  match           PeerReviewMatch         @relation(fields: [matchId], references: [id], onDelete: Cascade)
-  author          User?                   @relation("PeerReviewAuthor", fields: [authorId], references: [id], onDelete: SetNull)
-  rubricScores    PeerReviewRubricScore[]
+  id             String                  @id @default(cuid())
+  organizationId String
+  matchId        String                  @unique
+  authorId       String?
+  overallScore   Float?
+  feedback       String?
+  submittedAt    DateTime?
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  match          PeerReviewMatch         @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  author         User?                   @relation("PeerReviewAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  rubricScores   PeerReviewRubricScore[]
 
   @@index([organizationId, submittedAt])
 }
 
 model PeerReviewRubricScore {
-  id              String            @id @default(cuid())
-  organizationId  String
-  reviewId        String
-  rubricId        String
-  criterionId     String
-  levelId         String?
-  points          Float
-  feedback        String?
-  createdAt       DateTime          @default(now())
-  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  review          PeerReview        @relation(fields: [reviewId], references: [id], onDelete: Cascade)
-  rubric          Rubric            @relation(fields: [rubricId], references: [id], onDelete: Cascade)
-  criterion       RubricCriterion   @relation(fields: [criterionId], references: [id], onDelete: Cascade)
-  level           RubricLevel?      @relation(fields: [levelId], references: [id], onDelete: SetNull)
+  id             String          @id @default(cuid())
+  organizationId String
+  reviewId       String
+  rubricId       String
+  criterionId    String
+  levelId        String?
+  points         Float
+  feedback       String?
+  createdAt      DateTime        @default(now())
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  review         PeerReview      @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  rubric         Rubric          @relation(fields: [rubricId], references: [id], onDelete: Cascade)
+  criterion      RubricCriterion @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+  level          RubricLevel?    @relation(fields: [levelId], references: [id], onDelete: SetNull)
 
   @@unique([reviewId, criterionId])
   @@index([organizationId])
 }
 
 model PlagiarismCheck {
-  id              String                    @id @default(cuid())
+  id              String                @id @default(cuid())
   organizationId  String
   submissionId    String
   requesterId     String?
-  provider        String                    @default("mock")
-  status          PlagiarismCheckStatus     @default(PENDING)
+  provider        String                @default("mock")
+  status          PlagiarismCheckStatus @default(PENDING)
   similarityScore Float?
-  matchedSources  Json                      @default("[]")
+  matchedSources  Json                  @default("[]")
   reportUrl       String?
-  details         Json                      @default("{}")
+  details         Json                  @default("{}")
   errorMessage    String?
-  createdAt       DateTime                  @default(now())
-  updatedAt       DateTime                  @updatedAt
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
   completedAt     DateTime?
-  organization    Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  submission      AssignmentSubmission      @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-  requester       User?                     @relation("PlagiarismRequester", fields: [requesterId], references: [id], onDelete: SetNull)
+  organization    Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  submission      AssignmentSubmission  @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  requester       User?                 @relation("PlagiarismRequester", fields: [requesterId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, submissionId])
   @@index([organizationId, status])
 }
 
 model SubmissionAnnotation {
-  id              String                 @id @default(cuid())
-  organizationId  String
-  submissionId    String
-  authorId        String
-  startOffset     Int
-  endOffset       Int
-  selectedText    String
-  comment         String
-  resolved        Boolean                @default(false)
-  resolvedById    String?
-  resolvedAt      DateTime?
-  createdAt       DateTime               @default(now())
-  updatedAt       DateTime               @updatedAt
-  organization    Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  submission      AssignmentSubmission   @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-  author          User                   @relation("AnnotationAuthor", fields: [authorId], references: [id], onDelete: Cascade)
-  resolvedBy      User?                  @relation("AnnotationResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+  id             String               @id @default(cuid())
+  organizationId String
+  submissionId   String
+  authorId       String
+  startOffset    Int
+  endOffset      Int
+  selectedText   String
+  comment        String
+  resolved       Boolean              @default(false)
+  resolvedById   String?
+  resolvedAt     DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  submission     AssignmentSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  author         User                 @relation("AnnotationAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  resolvedBy     User?                @relation("AnnotationResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
 
   @@index([organizationId, submissionId])
 }
 
 model ProjectShowcase {
-  id              String                 @id @default(cuid())
-  organizationId  String
-  courseId        String
-  submissionId    String                 @unique
-  createdById     String
-  title           String
-  summary         String?
-  thumbnailUrl    String?
-  externalUrl     String?
-  publishedAt     DateTime?
-  featured        Boolean                @default(false)
-  viewCount       Int                    @default(0)
-  createdAt       DateTime               @default(now())
-  updatedAt       DateTime               @updatedAt
-  organization    Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  course          Course                 @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  submission      AssignmentSubmission   @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-  createdBy       User                   @relation("ProjectShowcaseCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  id               String               @id @default(cuid())
+  organizationId   String
+  courseId         String
+  submissionId     String               @unique
+  createdById      String
+  title            String
+  summary          String?
+  thumbnailUrl     String?
+  externalUrl      String?
+  publishedAt      DateTime?
+  featured         Boolean              @default(false)
+  viewCount        Int                  @default(0)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  organization     Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  course           Course               @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  submission       AssignmentSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  createdBy        User                 @relation("ProjectShowcaseCreator", fields: [createdById], references: [id], onDelete: Cascade)
   portfolioEntries PortfolioEntry[]
 
   @@index([organizationId, courseId])
@@ -3265,38 +3364,1386 @@ model ProjectShowcase {
 }
 
 model Portfolio {
-  id              String           @id @default(cuid())
-  organizationId  String
-  userId          String
-  title           String
-  description     String?
-  isPublic        Boolean          @default(false)
-  shareToken      String?          @unique
-  metadata        Json             @default("{}")
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user            User             @relation("PortfolioOwner", fields: [userId], references: [id], onDelete: Cascade)
-  entries         PortfolioEntry[]
+  id             String           @id @default(cuid())
+  organizationId String
+  userId         String
+  title          String
+  description    String?
+  isPublic       Boolean          @default(false)
+  shareToken     String?          @unique
+  metadata       Json             @default("{}")
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User             @relation("PortfolioOwner", fields: [userId], references: [id], onDelete: Cascade)
+  entries        PortfolioEntry[]
 
   @@index([organizationId, userId])
 }
 
 model PortfolioEntry {
-  id              String                 @id @default(cuid())
-  organizationId  String
-  portfolioId     String
-  submissionId    String?
-  showcaseId      String?
-  title           String
-  description     String?
-  orderIndex      Int                    @default(0)
-  createdAt       DateTime               @default(now())
-  updatedAt       DateTime               @updatedAt
-  organization    Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  portfolio       Portfolio              @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
-  submission      AssignmentSubmission?  @relation(fields: [submissionId], references: [id], onDelete: SetNull)
-  showcase        ProjectShowcase?       @relation(fields: [showcaseId], references: [id], onDelete: SetNull)
+  id             String                @id @default(cuid())
+  organizationId String
+  portfolioId    String
+  submissionId   String?
+  showcaseId     String?
+  title          String
+  description    String?
+  orderIndex     Int                   @default(0)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  portfolio      Portfolio             @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  submission     AssignmentSubmission? @relation(fields: [submissionId], references: [id], onDelete: SetNull)
+  showcase       ProjectShowcase?      @relation(fields: [showcaseId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, portfolioId])
+}
+
+// Phase 31: 3D Content Plugin
+// ThreeDAsset stores 3D model files (GLB/GLTF/FBX/OBJ) plus thumbnail metadata.
+
+model ThreeDAsset {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  format         String
+  sizeBytes      Int      @default(0)
+  url            String
+  thumbnailUrl   String?
+  uploadedBy     String
+  createdAt      DateTime @default(now())
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  uploader     User          @relation("ThreeDAssetUploader", fields: [uploadedBy], references: [id], onDelete: Cascade)
+  scenes       ThreeDScene[]
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, format])
+}
+
+// ThreeDScene defines a scene configuration (lights, camera, env, interactions).
+
+model ThreeDScene {
+  id             String   @id @default(cuid())
+  organizationId String
+  assetId        String
+  scene          Json     @default("{}")
+  version        Int      @default(1)
+  createdAt      DateTime @default(now())
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  asset        ThreeDAsset         @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  interactions ThreeDInteraction[]
+
+  @@index([organizationId, assetId])
+}
+
+// ThreeDInteraction represents an interactive hotspot on a scene.
+
+model ThreeDInteraction {
+  id        String   @id @default(cuid())
+  sceneId   String
+  name      String
+  trigger   String
+  action    Json     @default("{}")
+  createdAt DateTime @default(now())
+
+  scene ThreeDScene @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+
+  @@index([sceneId])
+}
+
+// Phase 32: Code Runner Plugin
+// User-generated code NEVER executes in the main API process; a sandbox
+// provider handles the actual execution in a separate process.
+
+model CodeExecution {
+  id             String    @id @default(cuid())
+  organizationId String
+  userId         String
+  language       String
+  code           String
+  status         String    @default("PENDING")
+  output         String?
+  error          String?
+  durationMs     Int?
+  createdAt      DateTime  @default(now())
+  completedAt    DateTime?
+
+  organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User                    @relation("CodeExecutionUser", fields: [userId], references: [id], onDelete: Cascade)
+  testCases    CodeExecutionTestCase[]
+
+  @@index([organizationId, userId])
+  @@index([organizationId, createdAt])
+}
+
+model CodeExecutionTestCase {
+  id             String  @id @default(cuid())
+  executionId    String
+  name           String
+  input          String  @default("")
+  expectedOutput String  @default("")
+  actualOutput   String?
+  passed         Boolean @default(false)
+
+  execution CodeExecution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@index([executionId])
+}
+
+model CodeSubmission {
+  id             String   @id @default(cuid())
+  organizationId String
+  assignmentId   String
+  userId         String
+  language       String
+  code           String
+  status         String   @default("SUBMITTED")
+  score          Float?
+  feedback       String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  assignment   Assignment   @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  user         User         @relation("CodeSubmissionUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, assignmentId])
+  @@index([organizationId, userId])
+}
+
+// Phase 33: Plugin Marketplace Governance
+
+model PluginListing {
+  id              String    @id @default(cuid())
+  pluginId        String
+  organizationId  String
+  name            String
+  description     String
+  longDescription String?
+  categories      Json      @default("[]")
+  screenshots     Json      @default("[]")
+  pricing         Json      @default("{}")
+  status          String    @default("DRAFT")
+  submittedAt     DateTime?
+  publishedAt     DateTime?
+  reviewedBy      String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organization  Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  reviewer      User?                @relation("PluginListingReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+  reviews       PluginReview[]
+  installations PluginInstallation[]
+
+  @@unique([pluginId, organizationId])
+  @@index([organizationId, status])
+}
+
+model PluginReview {
+  id             String   @id @default(cuid())
+  organizationId String
+  listingId      String
+  reviewerId     String
+  rating         Int
+  comment        String?
+  status         String   @default("PENDING")
+  createdAt      DateTime @default(now())
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  listing      PluginListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  reviewer     User          @relation("PluginReviewReviewer", fields: [reviewerId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, listingId])
+  @@index([organizationId, status])
+}
+
+model PluginInstallation {
+  id             String   @id @default(cuid())
+  organizationId String
+  listingId      String
+  installedAt    DateTime @default(now())
+  config         Json     @default("{}")
+  status         String   @default("ACTIVE")
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  listing      PluginListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, listingId])
+  @@index([organizationId, status])
+}
+
+model PluginPolicy {
+  id                String   @id @default(cuid())
+  organizationId    String   @unique
+  maxInstalls       Int      @default(50)
+  allowedCategories Json     @default("[]")
+  requireApproval   Boolean  @default(false)
+  updatedAt         DateTime @updatedAt
+  createdAt         DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+// Phase 34: Popout Dual Monitor
+
+model PopoutSession {
+  id             String   @id @default(cuid())
+  organizationId String
+  lessonId       String
+  userId         String
+  token          String   @unique
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+  lastSeenAt     DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation("PopoutSessionUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, userId])
+  @@index([expiresAt])
+}
+
+// Phase 36: Plugin Workspace Panels
+
+model PluginPanel {
+  id              String   @id @default(cuid())
+  organizationId  String
+  pluginId        String
+  panelKey        String
+  name            String
+  defaultSize     String   @default("md")
+  defaultPosition String   @default("right")
+  allowedRoutes   Json     @default("[]")
+  configSchema    Json     @default("{}")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, pluginId, panelKey])
+  @@index([organizationId, pluginId])
+}
+
+model UserPanelLayout {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  layoutKey      String
+  panels         Json     @default("[]")
+  updatedAt      DateTime @updatedAt
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation("UserPanelLayoutUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, layoutKey])
+  @@index([organizationId, userId])
+}
+
+// ===========================================================================
+// Phase 24: Realtime Gateway
+// ===========================================================================
+
+model RealtimeEvent {
+  id             String   @id @default(cuid())
+  organizationId String
+  channel        String
+  type           String
+  payload        Json     @default("{}")
+  actorId        String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actor        User?        @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, channel, createdAt])
+  @@index([organizationId, createdAt])
+}
+
+model RealtimeSubscription {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  channel        String
+  lastSeenAt     DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, channel])
+  @@index([organizationId, channel])
+}
+
+// ===========================================================================
+// Phase 25: Bulk Operations
+// ===========================================================================
+
+enum BulkJobType {
+  IMPORT
+  EXPORT
+  ARCHIVE
+  UNARCHIVE
+  ENROLL
+  UNENROLL
+  TAG
+  UNTAG
+}
+
+enum BulkJobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+  PARTIAL
+}
+
+enum BulkJobItemStatus {
+  PENDING
+  PROCESSED
+  FAILED
+  SKIPPED
+}
+
+model BulkJob {
+  id             String        @id @default(cuid())
+  organizationId String
+  type           BulkJobType
+  status         BulkJobStatus @default(PENDING)
+  input          Json          @default("{}")
+  result         Json          @default("{}")
+  progressTotal  Int           @default(0)
+  progressDone   Int           @default(0)
+  progressFailed Int           @default(0)
+  errorMessage   String?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdById    String
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User          @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  items        BulkJobItem[]
+
+  @@index([organizationId, status])
+  @@index([organizationId, type])
+  @@index([organizationId, createdAt])
+}
+
+model BulkJobItem {
+  id             String            @id @default(cuid())
+  organizationId String
+  jobId          String
+  entityType     String
+  entityId       String?
+  status         BulkJobItemStatus @default(PENDING)
+  error          String?
+  input          Json              @default("{}")
+  processedAt    DateTime?
+  createdAt      DateTime          @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  job          BulkJob      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@index([organizationId, status])
+}
+
+// ===========================================================================
+// Phase 27: Direct Messaging
+// ===========================================================================
+
+enum ConversationType {
+  DIRECT
+  GROUP
+}
+
+enum ConversationMemberRole {
+  MEMBER
+  ADMIN
+}
+
+model Conversation {
+  id             String           @id @default(cuid())
+  organizationId String
+  type           ConversationType @default(DIRECT)
+  createdById    String
+  name           String?
+  metadata       Json             @default("{}")
+  lastMessageAt  DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User                 @relation("ConversationCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  members      ConversationMember[]
+  messages     Message[]
+
+  @@index([organizationId, lastMessageAt])
+  @@index([organizationId, type])
+}
+
+model ConversationMember {
+  id             String                 @id @default(cuid())
+  organizationId String
+  conversationId String
+  userId         String
+  role           ConversationMemberRole @default(MEMBER)
+  joinedAt       DateTime               @default(now())
+  lastReadAt     DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([organizationId, userId])
+}
+
+model Message {
+  id              String    @id @default(cuid())
+  organizationId  String
+  conversationId  String
+  senderId        String
+  content         String
+  attachments     Json      @default("[]")
+  parentMessageId String?
+  editedAt        DateTime?
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+
+  organization  Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversation  Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender        User              @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  parentMessage Message?          @relation("MessageThread", fields: [parentMessageId], references: [id], onDelete: SetNull)
+  replies       Message[]         @relation("MessageThread")
+  reactions     MessageReaction[]
+  reads         MessageRead[]
+
+  @@index([organizationId, conversationId, createdAt])
+  @@index([organizationId, senderId])
+  @@index([parentMessageId])
+}
+
+model MessageReaction {
+  id             String   @id @default(cuid())
+  organizationId String
+  messageId      String
+  userId         String
+  emoji          String
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  message      Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@index([organizationId, messageId])
+}
+
+model MessageRead {
+  id             String   @id @default(cuid())
+  organizationId String
+  messageId      String
+  userId         String
+  readAt         DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  message      Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([organizationId, userId])
+}
+
+model UserBlock {
+  id             String   @id @default(cuid())
+  organizationId String
+  blockerId      String
+  blockedId      String
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  blocker      User         @relation("UserBlockBlocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked      User         @relation("UserBlockBlocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([organizationId, blockerId])
+}
+
+// ===========================================================================
+// Phase 21: Data Governance & Backup
+// ===========================================================================
+
+enum LegalDocumentType {
+  PRIVACY_POLICY
+  TERMS
+  COOKIE_POLICY
+  DPA
+}
+
+model LegalDocument {
+  id             String            @id @default(cuid())
+  organizationId String
+  type           LegalDocumentType
+  version        String
+  title          String
+  content        String
+  effectiveAt    DateTime
+  publishedAt    DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, type, version])
+  @@index([organizationId, type])
+}
+
+model ConsentRecord {
+  id              String            @id @default(cuid())
+  userId          String
+  organizationId  String
+  documentId      String?
+  documentType    LegalDocumentType
+  documentVersion String
+  granted         Boolean
+  ipAddress       String?
+  userAgent       String?
+  grantedAt       DateTime          @default(now())
+  user            User              @relation("ConsentRecordUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, userId])
+  @@index([organizationId, documentType])
+}
+
+model DataExportRequest {
+  id             String    @id @default(cuid())
+  userId         String
+  organizationId String
+  status         String    @default("PENDING")
+  requestedAt    DateTime  @default(now())
+  completedAt    DateTime?
+  downloadUrl    String?
+  metadata       Json      @default("{}")
+  user           User      @relation("DataExportRequestUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, userId])
+  @@index([organizationId, status])
+}
+
+model AnonymizationRequest {
+  id             String    @id @default(cuid())
+  userId         String
+  organizationId String
+  status         String    @default("PENDING")
+  requestedAt    DateTime  @default(now())
+  completedAt    DateTime?
+  reason         String?
+  user           User      @relation("AnonymizationRequestUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, userId])
+  @@index([organizationId, status])
+}
+
+model RetentionPolicy {
+  id             String       @id @default(cuid())
+  organizationId String
+  entityType     String
+  retentionDays  Int          @default(365)
+  anonymize      Boolean      @default(true)
+  description    String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, entityType])
+  @@index([organizationId])
+}
+
+enum BackupJobType {
+  FULL
+  INCREMENTAL
+}
+
+enum BackupJobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model BackupJob {
+  id             String          @id @default(cuid())
+  organizationId String
+  type           BackupJobType
+  status         BackupJobStatus @default(PENDING)
+  startedAt      DateTime?
+  completedAt    DateTime?
+  sizeBytes      BigInt?
+  location       String?
+  notes          String?
+  triggeredBy    String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@index([organizationId, createdAt])
+}
+
+model CookieConsent {
+  id             String       @id @default(cuid())
+  sessionId      String
+  organizationId String
+  necessary      Boolean      @default(true)
+  analytics      Boolean      @default(false)
+  marketing      Boolean      @default(false)
+  preferences    Boolean      @default(false)
+  grantedAt      DateTime     @default(now())
+  ipAddress      String?
+  userAgent      String?
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, sessionId])
+  @@index([organizationId, grantedAt])
+}
+
+// ===========================================================================
+// Phase 22: OAuth, Captcha, MFA
+// ===========================================================================
+
+enum OAuthProvider {
+  GOOGLE
+  MICROSOFT
+}
+
+model OAuthAccount {
+  id             String        @id @default(cuid())
+  userId         String
+  organizationId String?
+  provider       OAuthProvider
+  providerUserId String
+  email          String?
+  accessToken    String?
+  refreshToken   String?
+  expiresAt      DateTime?
+  rawProfile     Json          @default("{}")
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  user           User          @relation("OAuthAccountOwner", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
+}
+
+enum MfaFactorType {
+  TOTP
+  BACKUP_CODE
+}
+
+model MfaFactor {
+  id             String        @id @default(cuid())
+  userId         String
+  organizationId String?
+  type           MfaFactorType
+  secret         String?
+  backupCodes    Json          @default("[]")
+  verifiedAt     DateTime?
+  lastUsedAt     DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  user           User          @relation("MfaFactorOwner", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
+  @@index([userId, verifiedAt])
+}
+
+model RefreshSession {
+  id               String    @id @default(cuid())
+  userId           String
+  refreshTokenHash String    @unique
+  deviceInfo       String?
+  ipAddress        String?
+  userAgent        String?
+  lastUsedAt       DateTime?
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  user             User      @relation("RefreshSessionOwner", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([userId, revokedAt])
+}
+
+model LoginAttempt {
+  id             String   @id @default(cuid())
+  email          String
+  organizationId String?
+  userId         String?
+  success        Boolean
+  ipAddress      String?
+  userAgent      String?
+  captchaToken   String?
+  reason         String?
+  createdAt      DateTime @default(now())
+  user           User?    @relation("LoginAttemptUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([email, createdAt])
+  @@index([organizationId, createdAt])
+  @@index([ipAddress, createdAt])
+}
+
+// ===========================================================================
+// Phase 26: Moderation, Legal, Consent
+// ===========================================================================
+
+enum ModerationTargetType {
+  CONTENT
+  USER
+  COMMENT
+  COURSE
+  DISCUSSION
+}
+
+enum ModerationReportStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+model ModerationReport {
+  id             String                 @id @default(cuid())
+  organizationId String
+  reporterId     String
+  targetType     ModerationTargetType
+  targetId       String
+  reason         String
+  description    String?
+  status         ModerationReportStatus @default(OPEN)
+  reviewedById   String?
+  reviewedAt     DateTime?
+  resolution     String?
+  metadata       Json                   @default("{}")
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  organization   Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  reporter       User                   @relation("ModerationReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reviewedBy     User?                  @relation("ModerationReportReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([organizationId, targetType, targetId])
+  @@index([organizationId, createdAt])
+}
+
+enum ModerationActionType {
+  WARN
+  SUSPEND
+  BAN
+  REMOVE
+  RESTORE
+  LOCK
+}
+
+model ModerationAction {
+  id             String               @id @default(cuid())
+  organizationId String
+  actorId        String
+  targetType     ModerationTargetType
+  targetId       String
+  actionType     ModerationActionType
+  reason         String
+  notes          String?
+  expiresAt      DateTime?
+  createdAt      DateTime             @default(now())
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actor          User                 @relation("ModerationActionActor", fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, targetType, targetId])
+  @@index([organizationId, actionType])
+  @@index([organizationId, createdAt])
+}
+
+model ContentFlag {
+  id             String               @id @default(cuid())
+  organizationId String
+  flaggedById    String?
+  targetType     ModerationTargetType
+  targetId       String
+  flagType       String
+  autoDetected   Boolean              @default(false)
+  confidence     Float?
+  reason         String?
+  resolvedAt     DateTime?
+  createdAt      DateTime             @default(now())
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  flaggedBy      User?                @relation("ContentFlagFlagger", fields: [flaggedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, targetType, targetId])
+  @@index([organizationId, flagType])
+  @@index([organizationId, autoDetected])
+}
+
+model LegalAcceptanceLog {
+  id              String            @id @default(cuid())
+  userId          String
+  organizationId  String
+  documentType    LegalDocumentType
+  documentVersion String
+  acceptedAt      DateTime          @default(now())
+  ipAddress       String?
+  userAgent       String?
+  user            User              @relation("LegalAcceptanceLogUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, userId])
+  @@index([organizationId, documentType])
+}
+
+// ===========================================================================
+// Phase 19: Global Search
+// Phase 20: Localization and Help Center
+// Phase 35: Transcript Notes AI Context
+// ===========================================================================
+
+model SearchQuery {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  query          String
+  types          Json     @default("[]")
+  resultsCount   Int      @default(0)
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation("SearchQueryUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, userId])
+  @@index([organizationId, query])
+}
+
+model HelpCategory {
+  id             String   @id @default(cuid())
+  organizationId String
+  key            String
+  title          String
+  description    String?
+  icon           String?
+  orderIndex     Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  articles     HelpArticle[]
+
+  @@unique([organizationId, key])
+  @@index([organizationId, orderIndex])
+}
+
+model HelpArticle {
+  id             String    @id @default(cuid())
+  organizationId String
+  categoryId     String
+  slug           String
+  title          String
+  body           String
+  excerpt        String?
+  status         String    @default("DRAFT")
+  tags           Json      @default("[]")
+  viewCount      Int       @default(0)
+  publishedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  category     HelpCategory      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  views        HelpArticleView[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, categoryId])
+  @@index([organizationId, status])
+}
+
+model HelpArticleView {
+  id             String   @id @default(cuid())
+  organizationId String
+  articleId      String
+  userId         String?
+  viewedAt       DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  article      HelpArticle  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  user         User?        @relation("HelpArticleViewUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, articleId])
+  @@index([organizationId, viewedAt])
+}
+
+model SupportTicket {
+  id             String    @id @default(cuid())
+  organizationId String
+  userId         String
+  subject        String
+  body           String
+  category       String    @default("general")
+  priority       String    @default("NORMAL")
+  status         String    @default("OPEN")
+  assignedToId   String?
+  metadata       Json      @default("{}")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  closedAt       DateTime?
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User                 @relation("SupportTicketRequester", fields: [userId], references: [id], onDelete: Cascade)
+  assignedTo   User?                @relation("SupportTicketAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  replies      SupportTicketReply[]
+
+  @@index([organizationId, userId])
+  @@index([organizationId, status])
+  @@index([organizationId, createdAt])
+}
+
+model SupportTicketReply {
+  id             String   @id @default(cuid())
+  organizationId String
+  ticketId       String
+  authorId       String
+  body           String
+  isInternal     Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  ticket       SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author       User          @relation("SupportTicketReplyAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, ticketId])
+}
+
+model UserLocalePreference {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  locale         String   @default("en")
+  timezone       String   @default("UTC")
+  fallbackChain  Json     @default("[]")
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation("UserLocalePreferenceUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+}
+
+model OrgLocalePreference {
+  id               String   @id @default(cuid())
+  organizationId   String   @unique
+  defaultLocale    String   @default("en")
+  supportedLocales Json     @default("[\"en\"]")
+  fallbackChain    Json     @default("[\"en\"]")
+  metadata         Json     @default("{}")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model TranscriptNote {
+  id               String   @id @default(cuid())
+  organizationId   String
+  userId           String
+  lessonId         String
+  activityId       String?
+  timestampSeconds Float    @default(0)
+  content          String
+  color            String   @default("yellow")
+  tags             Json     @default("[]")
+  metadata         Json     @default("{}")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation("TranscriptNoteUser", fields: [userId], references: [id], onDelete: Cascade)
+  lesson       Lesson       @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  activity     Activity?    @relation(fields: [activityId], references: [id], onDelete: SetNull)
+  context      NoteContext?
+
+  @@index([organizationId, userId])
+  @@index([organizationId, lessonId])
+  @@index([organizationId, activityId])
+}
+
+model NoteContext {
+  id               String   @id @default(cuid())
+  organizationId   String
+  noteId           String   @unique
+  aiContextSummary String
+  relatedNotes     Json     @default("[]")
+  providerKey      String   @default("mock")
+  metadata         Json     @default("{}")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  note         TranscriptNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+}
+
+model NotesExport {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  lessonId       String?
+  format         String   @default("markdown")
+  status         String   @default("COMPLETED")
+  markdown       String   @default("")
+  count          Int      @default(0)
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation("NotesExportOrg", fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation("NotesExportUser", fields: [userId], references: [id], onDelete: Cascade)
+  lesson       Lesson?      @relation("NotesExportLesson", fields: [lessonId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, userId])
+  @@index([organizationId, lessonId])
+}
+
+// Phase 23: Timezone & cohort scheduling
+enum CohortStatus {
+  PLANNED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum CohortMemberStatus {
+  ACTIVE
+  WITHDRAWN
+  COMPLETED
+}
+
+model Cohort {
+  id             String           @id @default(cuid())
+  organizationId String
+  name           String
+  courseId       String
+  startAt        DateTime
+  endAt          DateTime
+  timezone       String           @default("UTC")
+  maxSeats       Int              @default(0)
+  status         CohortStatus     @default(PLANNED)
+  metadata       Json             @default("{}")
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  course         Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  members        CohortMember[]
+  schedule       CohortSchedule[]
+
+  @@index([organizationId, courseId])
+  @@index([organizationId, status])
+  @@index([organizationId, startAt])
+}
+
+model CohortMember {
+  id             String             @id @default(cuid())
+  organizationId String
+  cohortId       String
+  userId         String
+  status         CohortMemberStatus @default(ACTIVE)
+  joinedAt       DateTime           @default(now())
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  cohort         Cohort             @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  user           User               @relation("CohortMemberUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([cohortId, userId])
+  @@index([organizationId, userId])
+  @@index([organizationId, status])
+}
+
+model CohortSchedule {
+  id             String       @id @default(cuid())
+  organizationId String
+  cohortId       String
+  weekday        Int
+  startTime      String
+  endTime        String
+  lessonId       String?
+  meetingUrl     String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  cohort         Cohort       @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  lesson         Lesson?      @relation(fields: [lessonId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, cohortId])
+  @@index([organizationId, weekday])
+}
+
+model UserTimezonePreference {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  timezone   String   @default("UTC")
+  autoDetect Boolean  @default(false)
+  updatedAt  DateTime @updatedAt
+  createdAt  DateTime @default(now())
+  user       User     @relation("UserTimezonePreferenceUser", fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Phase 28: Proctoring
+enum ProctoringSessionStatus {
+  ACTIVE
+  COMPLETED
+  FLAGGED
+  REVIEWED
+}
+
+enum ProctoringEventType {
+  TAB_SWITCH
+  FULLSCREEN_EXIT
+  COPY_PASTE
+  LOOKING_AWAY
+  NO_FACE
+  MULTIPLE_FACES
+  PHONE_DETECTED
+  NOISE_DETECTED
+}
+
+enum ProctoringSeverity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum ProctoringFlagStatus {
+  OPEN
+  DISMISSED
+  UPHELD
+}
+
+model ProctoringSession {
+  id             String                  @id @default(cuid())
+  organizationId String
+  attemptId      String
+  attemptType    String                  @default("quiz")
+  userId         String
+  startedAt      DateTime                @default(now())
+  endedAt        DateTime?
+  status         ProctoringSessionStatus @default(ACTIVE)
+  integrityScore Float?
+  metadata       Json                    @default("{}")
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User                    @relation("ProctoringSessionUser", fields: [userId], references: [id], onDelete: Cascade)
+  events         ProctoringEvent[]
+  flags          ProctoringFlag[]
+
+  @@unique([organizationId, attemptId, attemptType])
+  @@index([organizationId, userId])
+  @@index([organizationId, status])
+}
+
+model ProctoringEvent {
+  id             String              @id @default(cuid())
+  organizationId String
+  sessionId      String
+  type           ProctoringEventType
+  severity       ProctoringSeverity  @default(LOW)
+  metadata       Json                @default("{}")
+  occurredAt     DateTime            @default(now())
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  session        ProctoringSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  flags          ProctoringFlag[]
+
+  @@index([organizationId, sessionId])
+  @@index([organizationId, type])
+}
+
+model ProctoringFlag {
+  id             String               @id @default(cuid())
+  organizationId String
+  sessionId      String
+  eventId        String?
+  status         ProctoringFlagStatus @default(OPEN)
+  notes          String?
+  reviewedBy     String?
+  reviewedAt     DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  session        ProctoringSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  event          ProctoringEvent?     @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  reviewer       User?                @relation("ProctoringFlagReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([organizationId, sessionId])
+}
+
+// Phase 29: Revenue share & payout
+enum RevenueShareScope {
+  PLATFORM
+  INSTRUCTOR
+  COURSE
+}
+
+enum PayoutPeriodStatus {
+  OPEN
+  LOCKED
+  PAID
+}
+
+enum PayoutBeneficiaryType {
+  INSTRUCTOR
+  ORG
+  PLATFORM
+}
+
+enum PayoutStatus {
+  PENDING
+  APPROVED
+  PAID
+  FAILED
+}
+
+enum PayoutMethodType {
+  BANK
+  PAYPAL
+  STRIPE
+}
+
+model RevenueShareRule {
+  id             String            @id @default(cuid())
+  organizationId String
+  scope          RevenueShareScope @default(INSTRUCTOR)
+  targetId       String?
+  percent        Float             @default(0)
+  active         Boolean           @default(true)
+  metadata       Json              @default("{}")
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, scope, active])
+}
+
+model PayoutPeriod {
+  id             String             @id @default(cuid())
+  organizationId String
+  periodStart    DateTime
+  periodEnd      DateTime
+  status         PayoutPeriodStatus @default(OPEN)
+  totalAmount    Int                @default(0)
+  currency       String             @default("USD")
+  lockedAt       DateTime?
+  paidAt         DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  payouts        Payout[]
+
+  @@index([organizationId, status])
+  @@index([organizationId, periodStart, periodEnd])
+}
+
+model Payout {
+  id              String                @id @default(cuid())
+  organizationId  String
+  periodId        String
+  beneficiaryType PayoutBeneficiaryType
+  beneficiaryId   String
+  grossAmount     Int                   @default(0)
+  feeAmount       Int                   @default(0)
+  netAmount       Int                   @default(0)
+  currency        String                @default("USD")
+  status          PayoutStatus          @default(PENDING)
+  reference       String?
+  paidAt          DateTime?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  organization    Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  period          PayoutPeriod          @relation(fields: [periodId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, periodId])
+  @@index([organizationId, status])
+  @@index([organizationId, beneficiaryType, beneficiaryId])
+}
+
+model PayoutMethod {
+  id              String                @id @default(cuid())
+  organizationId  String
+  beneficiaryType PayoutBeneficiaryType
+  beneficiaryId   String
+  type            PayoutMethodType
+  details         Json                  @default("{}")
+  verifiedAt      DateTime?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  organization    Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, beneficiaryType, beneficiaryId])
+}
+
+// Phase 30: Multi-currency & tax
+enum TaxRuleType {
+  VAT
+  GST
+  SALES_TAX
+}
+
+model TaxRegion {
+  code       String    @id
+  name       String
+  currency   String
+  taxPercent Float     @default(0)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  rules      TaxRule[]
+}
+
+model TaxRule {
+  id             String       @id @default(cuid())
+  organizationId String
+  regionCode     String
+  rate           Float        @default(0)
+  type           TaxRuleType  @default(VAT)
+  inclusive      Boolean      @default(false)
+  active         Boolean      @default(true)
+  metadata       Json         @default("{}")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  region         TaxRegion    @relation(fields: [regionCode], references: [code], onDelete: Cascade)
+
+  @@index([organizationId, regionCode, active])
+}
+
+model TaxCalculation {
+  id             String       @id @default(cuid())
+  organizationId String
+  orderId        String
+  regionCode     String
+  subtotal       Int          @default(0)
+  taxAmount      Int          @default(0)
+  total          Int          @default(0)
+  currency       String       @default("USD")
+  breakdown      Json         @default("{}")
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  order          Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, orderId])
+  @@index([organizationId, regionCode])
 }

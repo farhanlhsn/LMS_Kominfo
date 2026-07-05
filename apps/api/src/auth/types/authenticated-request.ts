@@ -6,6 +6,8 @@ export interface AuthenticatedUser {
   name: string | null;
   sessionId: string;
   activeOrganizationId: string | null;
+  isPlatformAdmin?: boolean;
+  role?: string;
 }
 
 export interface OrganizationContext {
