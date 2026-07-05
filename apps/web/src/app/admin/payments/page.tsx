@@ -1,0 +1,89 @@
+"use client";
+
+import { useState } from "react";
+import { AuthGate, PermissionGate } from "../../../components/auth/auth-gate";
+import { AppShell } from "../../../components/layout/shells";
+import { PaymentList } from "../../../components/marketplace/payment-list";
+import { PageHeader, StatCard } from "../../../components/ui/core";
+import { ApiErrorState, LoadingState } from "../../../components/ui/states";
+import { useAdminPayments } from "../../../lib/api-hooks";
+import { PERMISSIONS } from "@lms/shared";
+import { formatCurrency } from "../../../lib/marketplace";
+import { CreditCard, ListChecks, Wallet } from "lucide-react";
+import type { Payment } from "../../../lib/lms-types";
+
+export default function AdminPaymentsPage() {
+  const [status, setStatus] = useState<string>("");
+  const query = useAdminPayments({
+    ...(status ? { status } : {}),
+    limit: "20",
+  });
+
+  const payload = query.data as
+    | { data: Payment[]; meta?: { total?: number } }
+    | undefined;
+
+  const payments = payload?.data ?? [];
+  const total = payments.reduce((sum, payment) => sum + (payment.amount ?? 0), 0);
+  const currency = payments[0]?.currency ?? "USD";
+
+  return (
+    <AuthGate>
+      <PermissionGate anyOf={[PERMISSIONS.analyticsView]}>
+        <AppShell currentPath="/admin">
+          <PageHeader
+            eyebrow="Admin"
+            title="Payments"
+            description="Submitted payments awaiting confirmation."
+            actions={
+              <select
+                aria-label="Filter payments by status"
+                className="min-h-10 rounded-md border border-input bg-card px-3 text-sm text-foreground"
+                onChange={(event) => setStatus(event.target.value)}
+                value={status}
+              >
+                <option value="">All statuses</option>
+                <option value="PENDING">Pending</option>
+                <option value="PAID">Submitted</option>
+                <option value="CONFIRMED">Confirmed</option>
+                <option value="REJECTED">Rejected</option>
+                <option value="EXPIRED">Expired</option>
+              </select>
+            }
+          />
+
+          {query.loading ? (
+            <LoadingState title="Loading payments" />
+          ) : query.error ? (
+            <ApiErrorState
+              error={query.error}
+              fallbackTitle="Could not load payments"
+            />
+          ) : (
+            <>
+              <section className="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <StatCard
+                  icon={ListChecks}
+                  label="Payments on page"
+                  value={String(payments.length)}
+                />
+                <StatCard
+                  icon={Wallet}
+                  label="Amount on page"
+                  value={formatCurrency(total, currency)}
+                />
+                <StatCard
+                  icon={CreditCard}
+                  label="All-time payments"
+                  value={String(payload?.meta?.total ?? "—")}
+                />
+              </section>
+
+              <PaymentList payments={payments} />
+            </>
+          )}
+        </AppShell>
+      </PermissionGate>
+    </AuthGate>
+  );
+}

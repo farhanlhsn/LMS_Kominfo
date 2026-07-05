@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  Award,
   BookOpen,
   Building2,
   Check,
@@ -12,19 +13,32 @@ import {
   Library,
   ListChecks,
   LayoutDashboard,
+  MessageSquareQuote,
+  CircleDot,
+  ClipboardList,
+  BarChart3,
   LogOut,
   Menu,
+  Receipt,
+  RefreshCw,
   Search,
   Settings,
   ShieldCheck,
   Plug,
+  Tag,
+  Trophy,
   UserCircle,
+  Wallet,
   X,
   CalendarDays,
   Radio,
   MessageSquare,
+  KeyRound,
+  Globe,
+  Heart,
+  History,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { resolveOrganizationTheme } from "../../lib/theme";
 import type { OrganizationBranding } from "../../lib/theme";
@@ -51,6 +65,16 @@ const dashboardNav = [
   { key: "my-learning", href: "/live-classes", label: "Live classes", icon: Radio },
   { key: "my-learning", href: "/discussions", label: "Discussions", icon: MessageSquare },
   { key: "my-learning", href: "/calendar", label: "Calendar", icon: CalendarDays },
+  { key: "my-learning", href: "/learning-paths", label: "Learning Paths", icon: BookOpen },
+  { key: "my-learning", href: "/leaderboard", label: "Leaderboard", icon: Trophy },
+  { key: "my-learning", href: "/achievements", label: "Achievements", icon: Award },
+  { key: "my-learning", href: "/wishlist", label: "Wishlist", icon: Heart },
+  { key: "my-learning", href: "/favorite-instructors", label: "Favorite Instructors", icon: UserCircle },
+  { key: "my-learning", href: "/recently-viewed", label: "Recently Viewed", icon: History },
+  { key: "my-learning", href: "/orders", label: "My Orders", icon: Receipt },
+  { key: "my-learning", href: "/subscriptions", label: "Subscriptions", icon: RefreshCw },
+  { key: "my-learning", href: "/learn/surveys", label: "My Surveys", icon: ClipboardList },
+  { key: "my-learning", href: "/learn/polls", label: "Live Polls", icon: CircleDot },
   {
     key: "instructor",
     href: "/instructor/courses",
@@ -59,6 +83,21 @@ const dashboardNav = [
   },
   { key: "instructor", href: "/instructor/discussions", label: "Discussions", icon: MessageSquare },
   { key: "instructor", href: "/instructor/calendar", label: "Teaching schedule", icon: CalendarDays },
+  { key: "admin", href: "/admin", label: "Admin Dashboard", icon: LayoutDashboard },
+  { key: "admin", href: "/admin/orders", label: "Admin Orders", icon: Receipt },
+  { key: "admin", href: "/admin/payments", label: "Admin Payments", icon: Wallet },
+  { key: "admin", href: "/admin/coupons", label: "Admin Coupons", icon: Tag },
+  { key: "admin", href: "/admin/reviews", label: "Review Moderation", icon: MessageSquare },
+  { key: "admin", href: "/admin/surveys", label: "Surveys", icon: ClipboardList },
+  { key: "admin", href: "/admin/polls", label: "Polls", icon: CircleDot },
+  { key: "admin", href: "/admin/feedback", label: "Course Feedback", icon: MessageSquareQuote },
+  { key: "admin", href: "/admin/xapi", label: "xAPI Statements", icon: BarChart3 },
+  { key: "admin", href: "/admin/enterprise/branding", label: "Branding", icon: Globe },
+  { key: "admin", href: "/admin/enterprise/sso", label: "SSO Providers", icon: KeyRound },
+  { key: "admin", href: "/admin/enterprise/domains", label: "Verified Domains", icon: ShieldCheck },
+  { key: "admin", href: "/admin/enterprise/api-keys", label: "API Keys", icon: KeyRound },
+  { key: "admin", href: "/admin/enterprise/webhooks", label: "Webhooks", icon: Plug },
+  { key: "admin", href: "/admin/enterprise/login-policy", label: "Login Policy", icon: ShieldCheck },
   { key: "moderation", href: "/admin/discussions", label: "Moderation", icon: ShieldCheck },
   {
     key: "quizzes",
@@ -98,6 +137,39 @@ export function ThemeProvider({
   );
 }
 
+function useRuntimeBranding(initial?: OrganizationBranding | null) {
+  const [branding, setBranding] = useState<OrganizationBranding | null>(
+    initial ?? null,
+  );
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const { api } = await import("../../lib/api-client");
+        const next = await api.getBranding();
+        if (active) {
+          setBranding({
+            logoUrl: next.logoUrl,
+            faviconUrl: next.faviconUrl,
+            primaryColor: next.primaryColor,
+            secondaryColor: next.secondaryColor,
+            accentColor: next.accentColor,
+            radius: next.borderRadius,
+            name: next.name,
+            slug: next.slug,
+          });
+        }
+      } catch {
+        if (active) setBranding((current) => current ?? initial ?? null);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [initial]);
+  return branding;
+}
+
 export function AppShell({
   children,
   currentPath,
@@ -118,13 +190,15 @@ export function AppShell({
   backLabel?: string;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const resolvedBranding = useRuntimeBranding(branding);
 
   return (
-    <ThemeProvider branding={branding}>
+    <ThemeProvider branding={resolvedBranding}>
       <div className="min-h-screen bg-background text-foreground">
-        {!immersive ? <DashboardSidebar currentPath={currentPath} /> : null}
+        {!immersive ? <DashboardSidebar branding={resolvedBranding} currentPath={currentPath} /> : null}
         {!immersive ? (
           <MobileSidebar
+            branding={resolvedBranding}
             currentPath={currentPath}
             onClose={() => setMobileOpen(false)}
             open={mobileOpen}
@@ -132,6 +206,7 @@ export function AppShell({
         ) : null}
         <div className={immersive ? "" : "lg:pl-64"}>
           <DashboardTopbar
+            branding={resolvedBranding}
             onOpenNavigation={() => setMobileOpen(true)}
             showNavigationButton={!immersive}
             showBackButton={showBackButton}
@@ -153,23 +228,38 @@ export function AppShell({
   );
 }
 
-export function DashboardSidebar({ currentPath }: { currentPath?: string }) {
+export function DashboardSidebar({
+  currentPath,
+  branding,
+}: {
+  currentPath?: string;
+  branding?: OrganizationBranding | null;
+}) {
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-border bg-card lg:block">
-      <SidebarBrand />
+      <SidebarBrand branding={branding} />
       <DashboardNav currentPath={currentPath} />
     </aside>
   );
 }
 
-function SidebarBrand() {
+function SidebarBrand({ branding }: { branding?: OrganizationBranding | null }) {
   return (
     <div className="flex h-16 items-center gap-3 border-b border-border px-5">
-      <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
-        <BookOpen aria-hidden="true" className="h-5 w-5" />
-      </div>
+      {branding?.logoUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          alt={branding.name ?? "Organization"}
+          className="h-9 w-9 rounded-md object-contain"
+          src={branding.logoUrl}
+        />
+      ) : (
+        <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
+          <BookOpen aria-hidden="true" className="h-5 w-5" />
+        </div>
+      )}
       <div>
-        <p className="text-sm font-semibold">LMS Platform</p>
+        <p className="text-sm font-semibold">{branding?.name ?? "LMS Platform"}</p>
         <p className="text-xs text-muted-foreground">Learning workspace</p>
       </div>
     </div>
@@ -223,10 +313,12 @@ function MobileSidebar({
   currentPath,
   open,
   onClose,
+  branding,
 }: {
   currentPath?: string;
   open: boolean;
   onClose: () => void;
+  branding?: OrganizationBranding | null;
 }) {
   if (!open) return null;
 
@@ -241,10 +333,19 @@ function MobileSidebar({
       <aside className="relative h-full w-72 max-w-[85vw] border-r border-border bg-card shadow-panel">
         <div className="flex h-16 items-center justify-between border-b border-border px-5">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
-              <BookOpen aria-hidden="true" className="h-5 w-5" />
-            </div>
-            <span className="text-sm font-semibold">LMS Platform</span>
+            {branding?.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                alt={branding.name ?? "Organization"}
+                className="h-9 w-9 rounded-md object-contain"
+                src={branding.logoUrl}
+              />
+            ) : (
+              <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
+                <BookOpen aria-hidden="true" className="h-5 w-5" />
+              </div>
+            )}
+            <span className="text-sm font-semibold">{branding?.name ?? "LMS Platform"}</span>
           </div>
           <IconButton label="Close navigation" onClick={onClose}>
             <X aria-hidden="true" className="h-4 w-4" />
@@ -262,12 +363,14 @@ export function DashboardTopbar({
   showBackButton = false,
   backHref = "/",
   backLabel = "Dashboard",
+  branding,
 }: {
   onOpenNavigation?: () => void;
   showNavigationButton?: boolean;
   showBackButton?: boolean;
   backHref?: string;
   backLabel?: string;
+  branding?: OrganizationBranding | null;
 }) {
   return (
     <header className="sticky top-0 z-20 border-b border-border bg-card/95 backdrop-blur">
@@ -295,6 +398,9 @@ export function DashboardTopbar({
           <OrganizationSwitcher />
         </div>
         <div className="flex items-center gap-2">
+          <span className="hidden text-xs font-semibold uppercase tracking-wide text-muted-foreground sm:inline">
+            {branding?.name ?? "LMS Platform"}
+          </span>
           <IconButton label="Search">
             <Search aria-hidden="true" className="h-4 w-4" />
           </IconButton>

@@ -1,0 +1,44 @@
+﻿# Dependencies
+node_modules
+.pnpm
+.pnpm-store
+
+# Build output
+dist
+.next
+
+# Environment
+.env
+.env.*.local
+.env.local
+
+# IDE
+.vscode
+.idea
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# Test
+coverage
+test-results
+playwright-report
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Temp
+.tmp
+.temp
+
+# Docker
+docker-compose*.yml
+docker-compose*.yaml
+docker/*.Dockerfile

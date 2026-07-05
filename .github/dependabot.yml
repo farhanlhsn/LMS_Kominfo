@@ -1,0 +1,57 @@
+﻿# ─────────────────────────────────────────────────────────────────────────────
+# Dependabot — Automated dependency updates
+# ─────────────────────────────────────────────────────────────────────────────
+
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+      timezone: "Asia/Jakarta"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "automated"
+    groups:
+      nestjs:
+        patterns:
+          - "@nestjs/*"
+      nextjs:
+        patterns:
+          - "next"
+          - "next/*"
+      prisma:
+        patterns:
+          - "prisma"
+          - "@prisma/*"
+      aws-sdk:
+        patterns:
+          - "@aws-sdk/*"
+    ignore:
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: "docker"
+    directory: "/docker"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+      timezone: "Asia/Jakarta"
+    labels:
+      - "dependencies"
+      - "docker"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+      timezone: "Asia/Jakarta"
+    labels:
+      - "dependencies"
+      - "github-actions"

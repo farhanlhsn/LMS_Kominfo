@@ -1,17 +1,22 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState } from "react";
+import { GraduationCap, BookOpen, BarChart3, Activity } from "lucide-react";
 import { AuthGate } from "../../components/auth/auth-gate";
 import { AppShell } from "../../components/layout/shells";
 import { CourseProgressCard } from "../../components/lms/courses";
+import { MetricCard } from "../../components/analytics/charts";
 import { FilterBar, PageHeader } from "../../components/ui/core";
 import { ApiErrorState, EmptyState, LoadingState } from "../../components/ui/states";
-import { useMyEnrollments } from "../../lib/api-hooks";
+import { useMyEnrollments, useLearnerDashboard } from "../../lib/api-hooks";
 
 export default function MyLearningPage() {
   const [search, setSearch] = useState("");
-  const query = useMyEnrollments();
-  const enrollments = query.data ?? [];
+  const enrollmentsQuery = useMyEnrollments();
+  const dashboardQuery = useLearnerDashboard();
+  const enrollments = enrollmentsQuery.data ?? [];
+  const dashboard = dashboardQuery.data;
+
   const filteredEnrollments = useMemo(
     () =>
       enrollments.filter((enrollment) =>
@@ -28,8 +33,39 @@ export default function MyLearningPage() {
         <PageHeader
           eyebrow="Learner"
           title="My Learning"
-          description="Track enrollments, resume lessons, and review progress in the active organization."
+          description="Track enrollments, resume lessons, and review progress."
         />
+
+        {/* Dashboard stats */}
+        {dashboardQuery.loading ? (
+          <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-28 animate-pulse rounded-lg border border-border bg-card" />
+            ))}
+          </div>
+        ) : dashboardQuery.error ? null : dashboard ? (
+          <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricCard
+              label="Enrolled courses"
+              value={String(dashboard.totalCourses)}
+              sublabel={`${dashboard.activeEnrollments} active`}
+            />
+            <MetricCard
+              label="Completed"
+              value={String(dashboard.completedCourses)}
+              sublabel={dashboard.totalCourses > 0 ? `${Math.round((dashboard.completedCourses / dashboard.totalCourses) * 100)}% completion rate` : undefined}
+            />
+            <MetricCard
+              label="Average progress"
+              value={`${dashboard.avgProgressPercent}%`}
+            />
+            <MetricCard
+              label="30-day activity"
+              value={String(dashboard.monthlyActivityEvents)}
+              sublabel="learning events"
+            />
+          </div>
+        ) : null}
 
         <FilterBar>
           <label className="flex min-h-10 min-w-64 flex-1 items-center gap-2 rounded-md border border-input bg-card px-3 text-sm text-muted-foreground">
@@ -51,14 +87,14 @@ export default function MyLearningPage() {
           </button>
         </FilterBar>
 
-        {query.loading ? (
+        {enrollmentsQuery.loading ? (
           <div className="mt-5">
             <LoadingState title="Loading enrollments" />
           </div>
-        ) : query.error ? (
+        ) : enrollmentsQuery.error ? (
           <div className="mt-5">
             <ApiErrorState
-              error={query.error}
+              error={enrollmentsQuery.error}
               fallbackTitle="Could not load enrollments"
             />
           </div>

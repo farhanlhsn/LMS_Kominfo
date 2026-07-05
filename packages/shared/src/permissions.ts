@@ -1,4 +1,4 @@
-export const SYSTEM_ROLES = {
+﻿export const SYSTEM_ROLES = {
   superAdmin: "super_admin",
   orgAdmin: "org_admin",
   courseManager: "course_manager",
@@ -36,6 +36,8 @@ export const PERMISSIONS = {
   certificatesIssue: "certificates:issue",
   goalsManage: "goals:manage",
   pluginsConfigure: "plugins:configure",
+  analyticsView: "analytics:view",
+  analyticsExport: "analytics:export",
 } as const;
 
 export type SystemRole = (typeof SYSTEM_ROLES)[keyof typeof SYSTEM_ROLES];

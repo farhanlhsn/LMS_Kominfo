@@ -1,66 +1,99 @@
 import { describe, expect, it } from "vitest";
-import { PERMISSIONS } from "@lms/shared";
 import {
+  canManageQuizzes,
   canUseContentLibrary,
   canUseFileWorkspace,
   canUseInstructorWorkspace,
+  hasAnyPermission,
+  hasPermission,
   visibleNavigationKeys,
 } from "./authz";
-import type { AuthSession } from "./lms-types";
 
-function session(permissionKeys: string[]): AuthSession {
+function buildSession(roleKeys: string[], permissionKeys: string[] = []) {
   return {
-    accessToken: "token",
-    refreshToken: "refresh",
-    user: {
-      id: "user-1",
-      email: "user@example.com",
-      name: "User",
-    },
+    user: { id: "u", email: "u@e.c", name: "U", avatarUrl: null, role: roleKeys[0] ?? "learner", isPlatformAdmin: false, activeOrganizationId: "o" },
+    accessToken: "x",
+    refreshToken: "y",
     activeOrganization: {
-      id: "org-1",
+      id: "o",
       slug: "demo",
       name: "Demo",
+      memberId: "m",
+      roleKeys,
       permissionKeys,
-      roleKeys: [],
       isPlatformAdmin: false,
     },
-  };
+    expiresAt: Date.now() + 1000,
+  } as any;
 }
 
-describe("authz", () => {
-  it("shows learner navigation without instructor tools", () => {
-    expect(visibleNavigationKeys(session([PERMISSIONS.coursesRead]))).toEqual([
-      "dashboard",
-      "catalog",
-      "my-learning",
-    ]);
+describe("authz.hasPermission", () => {
+  it("returns true when the permission is granted", () => {
+    expect(hasPermission(buildSession([], ["courses:read"]), "courses:read")).toBe(true);
   });
 
-  it("shows instructor tools when course write permissions exist", () => {
-    const value = session([
-      PERMISSIONS.coursesRead,
-      PERMISSIONS.coursesUpdate,
-    ]);
-
-    expect(canUseInstructorWorkspace(value)).toBe(true);
-    expect(visibleNavigationKeys(value)).toContain("instructor");
+  it("returns false when the permission is missing", () => {
+    expect(hasPermission(buildSession([], ["courses:read"]), "courses:update")).toBe(false);
   });
 
-  it("splits file and library workspaces by permission", () => {
-    const value = session([
-      PERMISSIONS.filesRead,
-      PERMISSIONS.contentLibraryManage,
-    ]);
+  it("returns false when no session is provided", () => {
+    expect(hasPermission(null, "courses:read")).toBe(false);
+  });
+});
 
-    expect(canUseFileWorkspace(value)).toBe(true);
-    expect(canUseContentLibrary(value)).toBe(true);
-    expect(visibleNavigationKeys(value)).toEqual([
-      "dashboard",
-      "catalog",
-      "my-learning",
-      "files",
-      "library",
-    ]);
+describe("authz.hasAnyPermission", () => {
+  it("returns true if any permission is granted", () => {
+    expect(hasAnyPermission(buildSession([], ["courses:read"]), ["courses:read", "courses:update"])).toBe(true);
+  });
+
+  it("returns false when none of the permissions are granted", () => {
+    expect(hasAnyPermission(buildSession([], ["courses:read"]), ["billing:read"])).toBe(false);
+  });
+
+  it("returns true when no permissions are required and the session exists", () => {
+    expect(hasAnyPermission(buildSession([], []), [])).toBe(true);
+  });
+
+  it("returns false when no permissions are required and no session is provided", () => {
+    expect(hasAnyPermission(null, [])).toBe(false);
+  });
+});
+
+describe("authz.workspace capabilities", () => {
+  it("canUseInstructorWorkspace follows course permissions", () => {
+    expect(canUseInstructorWorkspace(buildSession([], ["courses:create"]))).toBe(true);
+    expect(canUseInstructorWorkspace(buildSession([], []))).toBe(false);
+  });
+
+  it("canUseFileWorkspace follows file permissions", () => {
+    expect(canUseFileWorkspace(buildSession([], ["files:read"]))).toBe(true);
+    expect(canUseFileWorkspace(buildSession([], []))).toBe(false);
+  });
+
+  it("canManageQuizzes and canUseContentLibrary follow dedicated permissions", () => {
+    expect(canManageQuizzes(buildSession([], ["quiz:manage"]))).toBe(true);
+    expect(canUseContentLibrary(buildSession([], ["content-library:manage"]))).toBe(true);
+    expect(canManageQuizzes(buildSession([], []))).toBe(false);
+  });
+});
+
+describe("authz.visibleNavigationKeys", () => {
+  it("defaults to dashboard/catalog/my-learning for learners", () => {
+    expect(visibleNavigationKeys(buildSession(["learner"]))).toEqual(["dashboard", "catalog", "my-learning"]);
+  });
+
+  it("adds instructor when courses permissions are present", () => {
+    const keys = visibleNavigationKeys(buildSession([], ["courses:create"]));
+    expect(keys).toContain("instructor");
+  });
+
+  it("adds admin and moderation for org_admin role", () => {
+    const keys = visibleNavigationKeys(buildSession(["org_admin"]));
+    expect(keys).toContain("admin");
+    expect(keys).toContain("moderation");
+  });
+
+  it("always exposes the public navigation keys even without a session", () => {
+    expect(visibleNavigationKeys(null)).toEqual(["dashboard", "catalog", "my-learning"]);
   });
 });

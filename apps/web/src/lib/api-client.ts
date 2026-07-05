@@ -43,6 +43,52 @@ import type {
   Rubric,
   TranscriptSegment,
   WorkspaceContext,
+  LearnerDashboard,
+  LearnerCourseProgress,
+  InstructorDashboard,
+  AdminOverview,
+  DailyTrend,
+  AuditLogEntry,
+  LearningPath,
+  LearningPathEnrollment,
+  Skill,
+  CourseSkill,
+  UserSkill,
+  XpTransaction,
+  LeaderboardEntry,
+  Achievement,
+  UserAchievement,
+  Order,
+  Payment,
+  Coupon,
+  SubscriptionPlan,
+  UserSubscription,
+  Branding,
+  SsoProvider,
+  LoginPolicy,
+  OrgDomain,
+  ApiKey,
+  WebhookEndpoint,
+  WebhookDelivery,
+  CourseReview,
+  WishlistItem,
+  FavoriteInstructor,
+  RecentlyViewedCourse,
+  NotesExport,
+  ScormPackage,
+  ScormAttempt,
+  H5PContent,
+  H5PResult,
+  XapiStatement,
+  XapiStateResponse,
+  Survey,
+  SurveyWithQuestions,
+  SurveyResponse as SurveyResponseEntry,
+  Poll,
+  PollResults,
+  CourseFeedbackEntry,
+  CourseFeedbackListResponse,
+  SurveyQuestion,
 } from "./lms-types";
 
 const SESSION_KEY = "lms.session.v1";
@@ -942,4 +988,258 @@ export const api = {
   createCalendarEvent: (input: Record<string, unknown>) => apiRequest<CalendarEvent>("/calendar/events", { method: "POST", body: JSON.stringify(input) }),
   updateCalendarEvent: (id: string, input: Record<string, unknown>) => apiRequest<CalendarEvent>(`/calendar/events/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(input) }),
   deleteCalendarEvent: (id: string) => apiRequest(`/calendar/events/${encodeURIComponent(id)}`, { method: "DELETE" }),
+
+  // Analytics
+  learnerDashboard: () => apiRequest<LearnerDashboard>("/analytics/learner/dashboard"),
+  learnerCourseProgress: (courseId: string) => apiRequest<LearnerCourseProgress>("/analytics/learner/progress/" + encodeURIComponent(courseId)),
+  instructorDashboard: () => apiRequest<InstructorDashboard>("/analytics/instructor/dashboard"),
+  instructorCourseRoster: (courseId: string, query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiRequest("/analytics/instructor/course/" + encodeURIComponent(courseId) + "/roster?" + q.toString()); },
+  instructorCourseEngagement: (courseId: string, query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiRequest<{ daily: { date: string; events: number }[]; totalActiveLearners: number }>("/analytics/instructor/course/" + encodeURIComponent(courseId) + "/engagement?" + q.toString()); },
+  adminOverview: () => apiRequest<AdminOverview>("/analytics/admin/overview"),
+  adminCourseMetrics: (query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiRequest("/analytics/admin/courses?" + q.toString()); },
+  adminTrends: (query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiRequest<DailyTrend[]>("/analytics/admin/trends?" + q.toString()); },
+  auditLogs: (query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiList<AuditLogEntry>("/analytics/audit-logs?" + q.toString()); },
+  recordEvent: (input: Record<string, unknown>) => apiRequest("/analytics/events", { method: "POST", body: JSON.stringify(input) }),
+  triggerAggregation: () => apiRequest("/analytics/aggregate", { method: "POST" }),
+  requestExport: (input: Record<string, unknown>) => apiRequest("/analytics/reports/export", { method: "POST", body: JSON.stringify(input) }),
+
+  // Learning Paths
+  createLearningPath: (input: Record<string, unknown>) => apiRequest<LearningPath>("/learning-paths", { method: "POST", body: JSON.stringify(input) }),
+  learningPaths: (query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiList<LearningPath>("/learning-paths?" + q.toString()); },
+  learningPath: (idOrSlug: string) => apiRequest<LearningPath>("/learning-paths/" + encodeURIComponent(idOrSlug)),
+  updateLearningPath: (id: string, input: Record<string, unknown>) => apiRequest<LearningPath>("/learning-paths/" + encodeURIComponent(id), { method: "PATCH", body: JSON.stringify(input) }),
+  deleteLearningPath: (id: string) => apiRequest("/learning-paths/" + encodeURIComponent(id), { method: "DELETE" }),
+  addCourseToPath: (id: string, input: Record<string, unknown>) => apiRequest("/learning-paths/" + encodeURIComponent(id) + "/courses", { method: "POST", body: JSON.stringify(input) }),
+  removeCourseFromPath: (id: string, courseId: string) => apiRequest("/learning-paths/" + encodeURIComponent(id) + "/courses/" + encodeURIComponent(courseId), { method: "DELETE" }),
+  enrollLearningPath: (id: string) => apiRequest<LearningPathEnrollment>("/learning-paths/" + encodeURIComponent(id) + "/enroll", { method: "POST" }),
+  myLearningPathEnrollments: () => apiRequest<LearningPathEnrollment[]>("/learning-paths/enrollments/mine"),
+
+  // Skills
+  createSkill: (input: Record<string, unknown>) => apiRequest<Skill>("/skills", { method: "POST", body: JSON.stringify(input) }),
+  skills: (category?: string) => apiRequest<Skill[]>("/skills" + (category ? "?category=" + encodeURIComponent(category) : "")),
+  setCourseSkills: (courseId: string, input: Record<string, unknown>[]) => apiRequest<CourseSkill[]>("/courses/" + encodeURIComponent(courseId) + "/skills", { method: "POST", body: JSON.stringify(input) }),
+  courseSkills: (courseId: string) => apiRequest<CourseSkill[]>("/courses/" + encodeURIComponent(courseId) + "/skills"),
+  mySkills: () => apiRequest<UserSkill[]>("/skills/mine"),
+
+  // XP & Leaderboard
+  myXpHistory: (query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiRequest("/xp/mine?" + q.toString()); },
+  leaderboard: (query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiRequest<LeaderboardEntry[]>("/leaderboard?" + q.toString()); },
+
+  // Achievements
+  achievements: () => apiRequest<Achievement[]>("/achievements"),
+  myAchievements: () => apiRequest<UserAchievement[]>("/achievements/mine"),
+  createAchievement: (input: Record<string, unknown>) => apiRequest<Achievement>("/achievements", { method: "POST", body: JSON.stringify(input) }),
+
+  // Marketplace
+  setCoursePricing: (courseId: string, input: Record<string, unknown>) => apiRequest("/courses/" + encodeURIComponent(courseId) + "/pricing", { method: "POST", body: JSON.stringify(input) }),
+  createCoupon: (input: Record<string, unknown>) => apiRequest<Coupon>("/coupons", { method: "POST", body: JSON.stringify(input) }),
+  coupons: () => apiRequest<Coupon[]>("/coupons"),
+  validateCoupon: (code: string, courseIds?: string[]) => apiRequest<Coupon>("/coupons/validate", { method: "POST", body: JSON.stringify({ code, courseIds }) }),
+  createOrder: (input: Record<string, unknown>) => apiRequest<Order>("/orders", { method: "POST", body: JSON.stringify(input) }),
+  myOrders: (query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiRequest("/orders/mine?" + q.toString()); },
+  getOrder: (id: string) => apiRequest<Order>("/orders/" + encodeURIComponent(id)),
+  adminOrders: (query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiRequest("/admin/orders?" + q.toString()); },
+  confirmPayment: (input: Record<string, unknown>) => apiRequest<Payment>("/payments/confirm", { method: "POST", body: JSON.stringify(input) }),
+  approvePayment: (input: Record<string, unknown>) => apiRequest<Payment>("/payments/approve", { method: "POST", body: JSON.stringify(input) }),
+  adminPayments: (query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiRequest("/admin/payments?" + q.toString()); },
+  subscriptionPlans: () => apiRequest<SubscriptionPlan[]>("/subscription-plans"),
+  subscribe: (planId: string) => apiRequest<UserSubscription>("/subscription-plans/" + encodeURIComponent(planId) + "/subscribe", { method: "POST" }),
+  mySubscriptions: () => apiRequest<UserSubscription[]>("/subscriptions/mine"),
+
+
+  // Enterprise
+  getBranding: () => apiRequest<Branding>("/enterprise/branding"),
+  updateBranding: (input: Record<string, unknown>) => apiRequest<Branding>("/enterprise/branding", { method: "PATCH", body: JSON.stringify(input) }),
+  ssoProviders: () => apiRequest<SsoProvider[]>("/enterprise/sso-providers"),
+  createSsoProvider: (input: Record<string, unknown>) => apiRequest<SsoProvider>("/enterprise/sso-providers", { method: "POST", body: JSON.stringify(input) }),
+  updateSsoProvider: (id: string, input: Record<string, unknown>) => apiRequest<SsoProvider>("/enterprise/sso-providers/" + encodeURIComponent(id), { method: "PATCH", body: JSON.stringify(input) }),
+  deleteSsoProvider: (id: string) => apiRequest("/enterprise/sso-providers/" + encodeURIComponent(id), { method: "DELETE" }),
+  getLoginPolicy: () => apiRequest<LoginPolicy>("/enterprise/login-policy"),
+  updateLoginPolicy: (input: Record<string, unknown>) => apiRequest<LoginPolicy>("/enterprise/login-policy", { method: "PATCH", body: JSON.stringify(input) }),
+  domains: () => apiRequest<OrgDomain[]>("/enterprise/domains"),
+  createDomain: (input: Record<string, unknown>) => apiRequest<OrgDomain>("/enterprise/domains", { method: "POST", body: JSON.stringify(input) }),
+  verifyDomain: (id: string) => apiRequest<OrgDomain>("/enterprise/domains/" + encodeURIComponent(id) + "/verify", { method: "POST" }),
+  deleteDomain: (id: string) => apiRequest("/enterprise/domains/" + encodeURIComponent(id), { method: "DELETE" }),
+  apiKeys: () => apiRequest<ApiKey[]>("/enterprise/api-keys"),
+  createApiKey: (input: Record<string, unknown>) => apiRequest<ApiKey>("/enterprise/api-keys", { method: "POST", body: JSON.stringify(input) }),
+  revokeApiKey: (id: string) => apiRequest<ApiKey>("/enterprise/api-keys/" + encodeURIComponent(id) + "/revoke", { method: "POST" }),
+  webhooks: () => apiRequest<WebhookEndpoint[]>("/enterprise/webhooks"),
+  createWebhook: (input: Record<string, unknown>) => apiRequest<WebhookEndpoint>("/enterprise/webhooks", { method: "POST", body: JSON.stringify(input) }),
+  deleteWebhook: (id: string) => apiRequest("/enterprise/webhooks/" + encodeURIComponent(id), { method: "DELETE" }),
+  webhookDeliveries: (endpointId: string, query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiRequest("/enterprise/webhooks/" + encodeURIComponent(endpointId) + "/deliveries?" + q.toString()); },
+
+  // Reviews, wishlist, favorites
+  courseReviews: (courseId: string, query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiList<CourseReview>("/courses/" + encodeURIComponent(courseId) + "/reviews?" + q.toString()); },
+  createCourseReview: (input: { courseId: string; rating: number; title?: string; body?: string }) =>
+    apiRequest("/reviews", { method: "POST", body: JSON.stringify(input) }),
+  updateCourseReview: (id: string, input: { rating?: number; title?: string; body?: string }) =>
+    apiRequest("/reviews/" + encodeURIComponent(id), { method: "PATCH", body: JSON.stringify(input) }),
+  deleteCourseReview: (id: string) =>
+    apiRequest("/reviews/" + encodeURIComponent(id), { method: "DELETE" }),
+  moderateReview: (id: string, input: { status: "APPROVED" | "REJECTED" }) =>
+    apiRequest("/admin/reviews/" + encodeURIComponent(id) + "/moderate", { method: "PATCH", body: JSON.stringify(input) }),
+  wishlist: () => apiRequest<WishlistItem[]>("/wishlist"),
+  addWishlist: (input: { courseId: string }) =>
+    apiRequest("/wishlist", { method: "POST", body: JSON.stringify(input) }),
+  removeWishlist: (courseId: string) =>
+    apiRequest("/wishlist/" + encodeURIComponent(courseId), { method: "DELETE" }),
+  favoriteInstructors: () => apiRequest<FavoriteInstructor[]>("/favorite-instructors"),
+  addFavoriteInstructor: (input: { instructorId: string }) =>
+    apiRequest("/favorite-instructors", { method: "POST", body: JSON.stringify(input) }),
+  removeFavoriteInstructor: (instructorId: string) =>
+    apiRequest("/favorite-instructors/" + encodeURIComponent(instructorId), { method: "DELETE" }),
+  trackCourseView: (courseId: string) =>
+    apiRequest("/courses/" + encodeURIComponent(courseId) + "/view", { method: "POST" }),
+  recentlyViewed: () => apiRequest<RecentlyViewedCourse[]>("/recently-viewed"),
+  adminReviews: (query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiList<CourseReview>("/admin/reviews?" + q.toString()); },
+  exportNotes: () => apiRequest<NotesExport>("/notes/export"),
+
+  // Phase 16: Experiences
+  // SCORM
+  listScormPackages: (courseId?: string) =>
+    apiRequest<ScormPackage[]>("/scorm/packages" + (courseId ? `?courseId=${encodeURIComponent(courseId)}` : "")),
+  getScormPackage: (id: string) => apiRequest<ScormPackage>(`/scorm/packages/${id}`),
+  createScormPackage: (input: Record<string, unknown>) =>
+    apiRequest<ScormPackage>("/scorm/packages", { method: "POST", body: JSON.stringify(input) }),
+  updateScormPackage: (id: string, input: Record<string, unknown>) =>
+    apiRequest<ScormPackage>(`/scorm/packages/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
+  deleteScormPackage: (id: string) =>
+    apiRequest<{ deleted: boolean }>(`/scorm/packages/${id}`, { method: "DELETE" }),
+  startScormAttempt: (packageId: string, input: Record<string, unknown> = {}) =>
+    apiRequest<ScormAttempt>(`/scorm/packages/${packageId}/attempts`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  commitScormAttempt: (packageId: string, attemptId: string, input: Record<string, unknown>) =>
+    apiRequest<ScormAttempt>(`/scorm/packages/${packageId}/attempts/${attemptId}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  listScormAttempts: (packageId: string) =>
+    apiRequest<ScormAttempt[]>(`/scorm/packages/${packageId}/attempts`),
+
+  // H5P
+  listH5PContent: (courseId?: string) =>
+    apiRequest<H5PContent[]>("/h5p/contents" + (courseId ? `?courseId=${encodeURIComponent(courseId)}` : "")),
+  getH5PContent: (id: string) => apiRequest<H5PContent>(`/h5p/contents/${id}`),
+  createH5PContent: (input: Record<string, unknown>) =>
+    apiRequest<H5PContent>("/h5p/contents", { method: "POST", body: JSON.stringify(input) }),
+  updateH5PContent: (id: string, input: Record<string, unknown>) =>
+    apiRequest<H5PContent>(`/h5p/contents/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
+  deleteH5PContent: (id: string) =>
+    apiRequest<{ deleted: boolean }>(`/h5p/contents/${id}`, { method: "DELETE" }),
+  submitH5PResult: (contentId: string, input: Record<string, unknown>) =>
+    apiRequest<H5PResult>(`/h5p/contents/${contentId}/results`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  listH5PResults: (contentId: string) =>
+    apiRequest<H5PResult[]>(`/h5p/contents/${contentId}/results`),
+
+  // xAPI
+  postXapiStatements: (statements: Array<Record<string, unknown>>) =>
+    apiRequest<{ stored: number; ids: string[] }>("/xapi/statements", {
+      method: "POST",
+      body: JSON.stringify({ statements }),
+    }),
+  listXapiStatements: (limit = 50) =>
+    apiRequest<XapiStatement[]>(`/xapi/statements?limit=${limit}`),
+  getXapiState: (activityId: string, stateId: string, agent?: string) =>
+    apiRequest<XapiStateResponse>(
+      `/xapi/state?activityId=${encodeURIComponent(activityId)}&stateId=${encodeURIComponent(stateId)}&agent=${encodeURIComponent(agent ?? "")}`,
+    ),
+  putXapiState: (input: Record<string, unknown>) =>
+    apiRequest<{ id: string }>("/xapi/state", { method: "PUT", body: JSON.stringify(input) }),
+
+  // Surveys
+  listSurveys: (query?: Record<string, string>) => {
+    const q = new URLSearchParams(query);
+    return apiRequest<Survey[]>("/surveys" + (q.toString() ? `?${q.toString()}` : ""));
+  },
+  getSurvey: (id: string) => apiRequest<SurveyWithQuestions>(`/surveys/${id}`),
+  createSurvey: (input: Record<string, unknown>) =>
+    apiRequest<Survey>("/surveys", { method: "POST", body: JSON.stringify(input) }),
+  updateSurvey: (id: string, input: Record<string, unknown>) =>
+    apiRequest<Survey>(`/surveys/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
+  deleteSurvey: (id: string) =>
+    apiRequest<{ deleted: boolean }>(`/surveys/${id}`, { method: "DELETE" }),
+  addSurveyQuestion: (surveyId: string, input: Record<string, unknown>) =>
+    apiRequest<SurveyQuestion>(`/surveys/${surveyId}/questions`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  removeSurveyQuestion: (surveyId: string, questionId: string) =>
+    apiRequest<{ deleted: boolean }>(`/surveys/${surveyId}/questions/${questionId}`, {
+      method: "DELETE",
+    }),
+  submitSurveyResponse: (surveyId: string, input: Record<string, unknown>) =>
+    apiRequest<SurveyResponseEntry>(`/surveys/${surveyId}/responses`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  listSurveyResponses: (surveyId: string) =>
+    apiRequest<SurveyResponseEntry[]>(`/surveys/${surveyId}/responses`),
+  exportSurveyResponsesUrl: (surveyId: string) =>
+    `${apiBaseUrl()}/surveys/${surveyId}/responses/export`,
+
+  // Polls
+  listPolls: (query?: Record<string, string>) => {
+    const q = new URLSearchParams(query);
+    return apiRequest<Poll[]>("/polls" + (q.toString() ? `?${q.toString()}` : ""));
+  },
+  getPoll: (id: string) => apiRequest<Poll>(`/polls/${id}`),
+  createPoll: (input: Record<string, unknown>) =>
+    apiRequest<Poll>("/polls", { method: "POST", body: JSON.stringify(input) }),
+  updatePoll: (id: string, input: Record<string, unknown>) =>
+    apiRequest<Poll>(`/polls/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
+  deletePoll: (id: string) =>
+    apiRequest<{ deleted: boolean }>(`/polls/${id}`, { method: "DELETE" }),
+  votePoll: (id: string, selected: string[]) =>
+    apiRequest<{ id: string }>(`/polls/${id}/votes`, {
+      method: "POST",
+      body: JSON.stringify({ selected }),
+    }),
+  pollResults: (id: string) => apiRequest<PollResults>(`/polls/${id}/results`),
+
+  // Course Feedback
+  submitCourseFeedback: (input: { courseId: string; rating: number; comment?: string }) =>
+    apiRequest<CourseFeedbackEntry>("/course-feedback", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  listCourseFeedback: (courseId: string) =>
+    apiRequest<CourseFeedbackListResponse>(
+      `/course-feedback?courseId=${encodeURIComponent(courseId)}`,
+    ),
+
+  // Phase 14: Push notifications
+  getPushVapidInfo: () =>
+    apiRequest<{ configured: boolean; publicKey: string | null; subject: string | null }>(
+      "/push/vapid",
+    ),
+  listPushSubscriptions: () =>
+    apiRequest<Array<{
+      id: string;
+      endpoint: string;
+      keys: { p256dh: string; auth: string };
+      userAgent: string | null;
+      expiresAt: string | null;
+      createdAt: string;
+    }>>("/push/subscriptions"),
+  subscribePush: (input: {
+    endpoint: string;
+    keys: { p256dh: string; auth: string };
+    userAgent?: string;
+    expirationTime?: number | null;
+  }) =>
+    apiRequest("/push/subscribe", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  unsubscribePush: (endpoint: string) =>
+    apiRequest("/push/unsubscribe", {
+      method: "DELETE",
+      body: JSON.stringify({ endpoint }),
+    }),
+
 };

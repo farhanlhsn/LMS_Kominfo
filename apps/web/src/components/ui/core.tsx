@@ -241,9 +241,11 @@ export function SelectFilter({
 export function Pagination({
   page,
   totalPages,
+  onPageChange,
 }: {
   page: number;
   totalPages: number;
+  onPageChange?: (page: number) => void;
 }) {
   return (
     <nav
@@ -257,6 +259,7 @@ export function Pagination({
         <button
           className="rounded-md border border-border px-3 py-2 font-medium disabled:opacity-50"
           disabled={page <= 1}
+          onClick={() => onPageChange?.(page - 1)}
           type="button"
         >
           Previous
@@ -264,6 +267,7 @@ export function Pagination({
         <button
           className="rounded-md border border-border px-3 py-2 font-medium disabled:opacity-50"
           disabled={page >= totalPages}
+          onClick={() => onPageChange?.(page + 1)}
           type="button"
         >
           Next
