@@ -18,6 +18,7 @@ RUN --mount=type=cache,id=pnpm-web,target=/root/.local/share/pnpm/store \
 
 # ── Build ─────────────────────────────────────────────────────────────────
 FROM deps AS builder
+RUN pnpm --filter @lms/shared --filter @lms/config build
 RUN pnpm --filter @lms/web build
 
 # ── Production ────────────────────────────────────────────────────────────

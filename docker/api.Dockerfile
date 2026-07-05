@@ -16,9 +16,10 @@ FROM base AS deps
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --prod=false
 RUN pnpm --filter @lms/db prisma:generate
-
 # ── Build ─────────────────────────────────────────────────────────────────
 FROM deps AS builder
+RUN pnpm --filter @lms/db prisma:generate
+RUN pnpm --filter @lms/shared --filter @lms/config build
 RUN pnpm --filter @lms/api build
 RUN pnpm deploy --filter @lms/api /app/dist/api
 
