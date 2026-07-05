@@ -1,0 +1,7 @@
+-- Compatibility shim for environments whose `_prisma_migrations` table
+-- records `20260705120000_phase_09_engagement`.
+--
+-- The actual Phase 09 engagement DDL already exists in
+-- `20260704221312_phase_09_engagement`. Keeping this migration intentionally
+-- empty preserves local history alignment without re-running the same CREATE
+-- TABLE statements on fresh databases.

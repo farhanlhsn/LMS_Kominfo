@@ -8,6 +8,11 @@ export interface OrganizationBranding {
   warningColor?: string | null;
   infoColor?: string | null;
   radius?: string | null;
+  logoUrl?: string | null;
+  faviconUrl?: string | null;
+  borderRadius?: string | null;
+  name?: string | null;
+  slug?: string | null;
 }
 
 export const defaultTheme = {

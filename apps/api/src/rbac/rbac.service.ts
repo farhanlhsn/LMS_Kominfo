@@ -24,14 +24,16 @@ export class RbacService {
           PERMISSIONS.coursesRead,
           PERMISSIONS.coursesCreate,
           PERMISSIONS.coursesUpdate,
-          PERMISSIONS.coursesPublish
+          PERMISSIONS.coursesPublish,
+          PERMISSIONS.analyticsView,
+          PERMISSIONS.analyticsExport
         ]
       ],
-      [SYSTEM_ROLES.instructor, "Instructor", [PERMISSIONS.coursesRead, PERMISSIONS.coursesUpdate]],
+      [SYSTEM_ROLES.instructor, "Instructor", [PERMISSIONS.coursesRead, PERMISSIONS.coursesUpdate, PERMISSIONS.analyticsView]],
       [SYSTEM_ROLES.assistantInstructor, "Assistant Instructor", [PERMISSIONS.coursesRead]],
       [SYSTEM_ROLES.reviewer, "Reviewer", [PERMISSIONS.coursesRead, PERMISSIONS.coursesPublish]],
       [SYSTEM_ROLES.mentor, "Mentor", [PERMISSIONS.coursesRead]],
-      [SYSTEM_ROLES.learner, "Learner", [PERMISSIONS.coursesRead]],
+      [SYSTEM_ROLES.learner, "Learner", [PERMISSIONS.coursesRead, PERMISSIONS.analyticsView]],
       [SYSTEM_ROLES.supportAdmin, "Support Admin", [PERMISSIONS.usersRead, PERMISSIONS.auditRead]],
       [SYSTEM_ROLES.financeAdmin, "Finance Admin", [PERMISSIONS.auditRead]]
     ] as const;

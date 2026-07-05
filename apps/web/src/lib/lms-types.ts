@@ -47,6 +47,9 @@ export interface Course {
   tags?: unknown;
   autoCertificate?: boolean;
   autoCertificateTemplateId?: string | null;
+  isPaid?: boolean | null;
+  price?: number | null;
+  currency?: string | null;
   category?: Category | null;
   instructors?: Array<{ user?: { name?: string | null; email?: string } }>;
   modules?: CourseModule[];
@@ -796,4 +799,558 @@ export interface CalendarEvent {
   visibility: string;
   actionUrl?: string | null;
   metadata?: { courseTitle?: string; status?: string; editable?: boolean };
+}
+
+export interface LearnerDashboard {
+  totalCourses: number;
+  activeEnrollments: number;
+  completedCourses: number;
+  avgProgressPercent: number;
+  monthlyActivityEvents: number;
+}
+
+export interface LearnerCourseProgress {
+  enrollment: Record<string, unknown> | null;
+  activityProgress: ActivityProgress[];
+  recentEvents: Record<string, unknown>[];
+  totalActivities: number;
+  completedActivities: number;
+}
+
+export interface InstructorDashboard {
+  courses: InstructorCourseMetric[];
+  totalLearners: number;
+  totalEnrollments: number;
+  avgCompletionRate: number;
+}
+
+export interface InstructorCourseMetric {
+  id: string;
+  title: string;
+  slug: string;
+  enrollments: number;
+  completedCount: number;
+  completionRate: number;
+  weeklyActivity: number;
+}
+
+export interface AdminOverview {
+  totalCourses: number;
+  activeMembers: number;
+  totalEnrollments: number;
+  completedEnrollments: number;
+  completionRate: number;
+  monthlyEvents: number;
+  recentAuditLogs: AuditLogEntry[];
+}
+
+export interface AuditLogEntry {
+  id: string;
+  organizationId: string;
+  userId: string | null;
+  action: string;
+  entityType: string | null;
+  entityId: string | null;
+  severity: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  user?: { id: string; name: string | null; email: string } | null;
+}
+
+export interface DailyTrend {
+  date: string;
+  events: number;
+  enrollments?: number;
+}
+
+export interface CourseMetric {
+  id: string;
+  title: string;
+  slug: string;
+  status: string;
+  createdAt: string;
+  enrollments: number;
+}
+
+// ── Phase 11 — Learning Path & Gamification ──────────
+
+export interface LearningPath {
+  id: string;
+  organizationId: string;
+  title: string;
+  slug: string;
+  description: string | null;
+  thumbnailUrl: string | null;
+  status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+  difficulty: string | null;
+  durationHours: number;
+  enrolledCount: number;
+  createdAt: string;
+  courses?: LearningPathCourse[];
+  _count?: { courses: number; enrollments: number };
+}
+
+export interface LearningPathCourse {
+  id: string;
+  courseId: string;
+  orderIndex: number;
+  required: boolean;
+  course: { id: string; title: string; slug: string; thumbnailUrl?: string | null; level?: string };
+}
+
+export interface LearningPathEnrollment {
+  id: string;
+  learningPathId: string;
+  userId: string;
+  status: string;
+  progressPercent: number;
+  learningPath?: LearningPath;
+}
+
+export interface Skill {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  category: string | null;
+  _count?: { courseSkills: number };
+}
+
+export interface CourseSkill {
+  id: string;
+  courseId: string;
+  skillId: string;
+  weight: number;
+  skill: Skill;
+}
+
+export interface UserSkill {
+  id: string;
+  userId: string;
+  skillId: string;
+  proficiency: number;
+  skill: Skill;
+}
+
+export interface XpTransaction {
+  id: string;
+  amount: number;
+  reason: string;
+  sourceType: string | null;
+  sourceId: string | null;
+  createdAt: string;
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  userId: string;
+  name: string;
+  totalXp: number;
+}
+
+export interface Achievement {
+  id: string;
+  key: string;
+  name: string;
+  description: string | null;
+  iconUrl: string | null;
+  xpReward: number;
+  _count?: { users: number };
+}
+
+export interface UserAchievement {
+  id: string;
+  achievementId: string;
+  earnedAt: string;
+  achievement: Achievement;
+}
+
+// ── Phase 12 — Payment & Marketplace ────────────────
+
+export interface OrderItem {
+  id: string;
+  courseId: string;
+  price: number;
+  currency: string;
+  course: { id: string; title: string; slug: string };
+}
+
+export interface Order {
+  id: string;
+  organizationId: string;
+  userId: string;
+  orderNumber: string;
+  status: string;
+  subtotal: number;
+  discountAmount: number;
+  total: number;
+  currency: string;
+  couponId: string | null;
+  notes: string | null;
+  paidAt: string | null;
+  createdAt: string;
+  items: OrderItem[];
+  payments?: Payment[];
+  _count?: { payments: number };
+  user?: { id: string; name: string | null; email: string };
+}
+
+export interface Payment {
+  id: string;
+  organizationId: string;
+  orderId: string;
+  provider: string;
+  status: string;
+  amount: number;
+  currency: string;
+  proofImageUrl: string | null;
+  bankName: string | null;
+  accountName: string | null;
+  accountNumber: string | null;
+  paidAt: string | null;
+  confirmedById: string | null;
+  notes: string | null;
+  createdAt: string;
+  order?: Order;
+}
+
+export interface Coupon {
+  id: string;
+  code: string;
+  description: string | null;
+  discountPercent: number;
+  discountAmount: number | null;
+  maxUses: number | null;
+  currentUses: number;
+  isActive: boolean;
+  validFrom: string | null;
+  validUntil: string | null;
+}
+
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  currency: string;
+  interval: string;
+  intervalCount: number;
+  courseAccess: string;
+  maxEnrollments: number | null;
+  isActive: boolean;
+}
+
+export interface UserSubscription {
+  id: string;
+  planId: string;
+  status: string;
+  currentPeriodStart: string | null;
+  currentPeriodEnd: string | null;
+  plan: SubscriptionPlan;
+}
+
+// ── Phase 13 — Enterprise SSO, API Keys, Webhooks ────
+
+export interface Branding {
+  logoUrl: string | null;
+  faviconUrl: string | null;
+  primaryColor: string;
+  secondaryColor: string;
+  accentColor: string;
+  borderRadius: string;
+  name: string;
+  slug: string;
+}
+
+export interface SsoProvider {
+  id: string;
+  type: string;
+  name: string;
+  issuer: string;
+  enabled: boolean;
+  callbackUrl: string;
+  _count?: { identities: number; domains: number };
+}
+
+export interface LoginPolicy {
+  id: string;
+  allowPasswordLogin: boolean;
+  allowSocialLogin: boolean;
+  allowSsoLogin: boolean;
+  requireSsoForVerifiedDomains: boolean;
+  jitProvisioningEnabled: boolean;
+  inviteOnly: boolean;
+  mfaRequired: boolean;
+  sessionTtlMinutes: number;
+}
+
+export interface OrgDomain {
+  id: string;
+  domain: string;
+  verificationStatus: string;
+  verifiedAt: string | null;
+  enforceSso: boolean;
+  autoJoinEnabled: boolean;
+  ssoProvider?: { id: string; name: string } | null;
+}
+
+export interface ApiKey {
+  id: string;
+  name: string;
+  keyPrefix: string;
+  scopes: string[];
+  status: string;
+  expiresAt: string | null;
+  lastUsedAt: string | null;
+  createdAt: string;
+  rawKey?: string;
+}
+
+export interface WebhookEndpoint {
+  id: string;
+  name: string;
+  url: string;
+  events: string[];
+  status: string;
+  description: string | null;
+  _count?: { deliveries: number };
+}
+
+export interface WebhookDelivery {
+  id: string;
+  eventType: string;
+  status: string;
+  responseStatus: number | null;
+  attempts: number;
+  createdAt: string;
+}
+
+// ── Phase 15 — Reviews, Wishlist, Favorites ─────────
+
+export interface CourseReview {
+  id: string;
+  courseId: string;
+  userId: string;
+  rating: number;
+  title: string | null;
+  body: string | null;
+  status: string;
+  createdAt: string;
+  user?: { id: string; name: string | null };
+  course?: { id: string; title: string; slug: string };
+}
+
+export interface WishlistItem {
+  id: string;
+  courseId: string;
+  createdAt: string;
+  course: { id: string; title: string; slug: string; thumbnailUrl?: string | null; level?: string };
+}
+
+export interface FavoriteInstructor {
+  id: string;
+  instructorId: string;
+  instructor: { id: string; name: string | null; email: string };
+}
+
+export interface RecentlyViewedCourse {
+  id: string;
+  courseId: string;
+  viewedAt: string;
+  course: { id: string; title: string; slug: string; thumbnailUrl?: string | null; level?: string };
+}
+
+export interface NotesExport {
+  markdown: string;
+  count: number;
+  format: string;
+}
+
+// Phase 16: Experiences (SCORM, H5P, xAPI, Survey, Poll, Feedback)
+
+export interface ScormPackage {
+  id: string;
+  courseId: string;
+  activityId?: string | null;
+  title: string;
+  version: string;
+  manifest?: Record<string, unknown>;
+  fileId?: string | null;
+  entryUrl?: string | null;
+  status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ScormAttempt {
+  id: string;
+  packageId: string;
+  userId: string;
+  status: "NOT_STARTED" | "IN_PROGRESS" | "SUSPENDED" | "COMPLETED";
+  scoreRaw?: number | null;
+  scoreMin?: number | null;
+  scoreMax?: number | null;
+  completion: "INCOMPLETE" | "COMPLETED" | "NOT_ATTEMPTED" | "UNKNOWN";
+  success: "PASSED" | "FAILED" | "UNKNOWN";
+  sessionId?: string | null;
+  cmiData?: Record<string, unknown>;
+  startedAt: string;
+  finishedAt?: string | null;
+  updatedAt: string;
+}
+
+export interface H5PContent {
+  id: string;
+  courseId: string;
+  activityId?: string | null;
+  library: string;
+  title: string;
+  params?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+  fileId?: string | null;
+  status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface H5PResult {
+  id: string;
+  contentId: string;
+  userId: string;
+  score?: number | null;
+  maxScore?: number | null;
+  completion: "INCOMPLETE" | "COMPLETED";
+  success: "PASSED" | "FAILED" | "UNKNOWN";
+  raw?: Record<string, unknown>;
+  submittedAt: string;
+}
+
+export interface XapiStatement {
+  id: string;
+  actor: Record<string, unknown>;
+  verb: Record<string, unknown>;
+  object: Record<string, unknown>;
+  result?: Record<string, unknown> | null;
+  context?: Record<string, unknown> | null;
+  authority?: Record<string, unknown> | null;
+  timestamp?: string | null;
+  stored: string;
+}
+
+export interface XapiStateResponse {
+  state: Record<string, unknown> | null;
+}
+
+export type SurveyQuestionType =
+  | "SHORT_TEXT"
+  | "LONG_TEXT"
+  | "SINGLE_CHOICE"
+  | "MULTI_CHOICE"
+  | "RATING"
+  | "SCALE"
+  | "YES_NO";
+
+export interface SurveyQuestion {
+  id: string;
+  surveyId: string;
+  type: SurveyQuestionType;
+  prompt: string;
+  helpText?: string | null;
+  required: boolean;
+  orderIndex: number;
+  options: Array<{ id: string; label: string; value?: string }>;
+  scale?: { min: number; max: number; minLabel?: string; maxLabel?: string } | null;
+  createdAt: string;
+}
+
+export interface Survey {
+  id: string;
+  courseId?: string | null;
+  activityId?: string | null;
+  title: string;
+  description?: string | null;
+  status: "DRAFT" | "PUBLISHED" | "CLOSED";
+  anonymous: boolean;
+  allowMultipleSubmissions: boolean;
+  closesAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  questions?: SurveyQuestion[];
+  _count?: { questions?: number; responses?: number };
+}
+
+export interface SurveyAnswerRecord {
+  id: string;
+  responseId: string;
+  questionId: string;
+  value: unknown;
+  textValue?: string | null;
+}
+
+export interface SurveyResponse {
+  id: string;
+  surveyId: string;
+  userId?: string | null;
+  submittedAt: string;
+  metadata?: Record<string, unknown>;
+  answers?: SurveyAnswerRecord[];
+  user?: { id: string; name?: string | null; email: string } | null;
+}
+
+export interface SurveyWithQuestions extends Survey {
+  questions: SurveyQuestion[];
+}
+
+export interface PollOption {
+  id: string;
+  label: string;
+}
+
+export interface Poll {
+  id: string;
+  courseId?: string | null;
+  activityId?: string | null;
+  question: string;
+  options: PollOption[];
+  allowMultiple: boolean;
+  anonymous: boolean;
+  closesAt?: string | null;
+  status: "DRAFT" | "ACTIVE" | "CLOSED";
+  createdAt: string;
+  updatedAt: string;
+  _count?: { votes?: number };
+}
+
+export interface PollVote {
+  id: string;
+  pollId: string;
+  userId?: string | null;
+  selected: string[];
+  votedAt: string;
+}
+
+export interface PollResults {
+  poll: Poll;
+  totalVotes: number;
+  options: Array<{ id: string; label: string; votes: number }>;
+}
+
+export interface CourseFeedbackEntry {
+  id: string;
+  courseId: string;
+  userId?: string | null;
+  rating: number;
+  comment?: string | null;
+  metadata?: Record<string, unknown>;
+  submittedAt: string;
+  user?: { id: string; name?: string | null; email: string } | null;
+}
+
+export interface CourseFeedbackListResponse {
+  data: CourseFeedbackEntry[];
+  average: number;
+  totalFeedback: number;
+  meta: ApiMeta;
 }

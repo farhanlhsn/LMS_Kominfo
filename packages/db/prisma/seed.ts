@@ -374,6 +374,54 @@ async function main() {
   });
 
   console.log(`Seeded ${email} and organization ${organizationSlug}.`);
+
+  // Phase 10: Seed sample analytics events
+  const demoCourse10 = await prisma.course.findFirst({ where: { organizationId: org.id } });
+  if (demoCourse10) {
+    const learners10 = await prisma.enrollment.findMany({ where: { organizationId: org.id, courseId: demoCourse10.id }, take: 3 });
+    const eventTypes = ['activity.started','activity.completed','video.watched','quiz.attempted','resource.viewed'];
+    const now10 = new Date();
+    for (let day = 0; day < 14; day++) {
+      for (const enrollment of learners10) {
+        const count = Math.floor(Math.random() * 5) + 1;
+        for (let i = 0; i < count; i++) {
+          const d = new Date(now10);
+          d.setDate(d.getDate() - day); d.setHours(Math.floor(Math.random() * 12) + 8, Math.floor(Math.random() * 60));
+          await prisma.learningEvent.create({
+            data: { organizationId: org.id, userId: enrollment.userId, courseId: demoCourse10.id,
+              eventType: eventTypes[Math.floor(Math.random() * eventTypes.length)], metadata: { source: 'seed' }, createdAt: d },
+          });
+        }
+      }
+    }
+    console.log('Seeded ' + learners10.length * 14 + ' sample learning events.');
+  }
+
+  // Phase 11: Seed skills, learning paths, achievements, XP
+  const courses11 = await prisma.course.findMany({ where: { organizationId: org.id, deletedAt: null }, take: 3 });
+  if (courses11.length > 0) {
+    const skillData = [{name:'JavaScript',category:'Programming'},{name:'Python',category:'Programming'},{name:'Data Analysis',category:'Data Science'},{name:'Machine Learning',category:'Data Science'},{name:'UI Design',category:'Design'},{name:'Project Management',category:'Professional'}];
+    for (const s of skillData) {
+      await prisma.skill.upsert({ where: { organizationId_slug: { organizationId: org.id, slug: s.name.toLowerCase().replace(/[^a-z0-9]+/g,'-') } }, update: { name: s.name, category: s.category }, create: { organizationId: org.id, name: s.name, slug: s.name.toLowerCase().replace(/[^a-z0-9]+/g,'-'), category: s.category } });
+    }
+    console.log('Seeded ' + skillData.length + ' skills.');
+
+    await prisma.learningPath.upsert({ where: { organizationId_slug: { organizationId: org.id, slug: 'full-stack-development' } }, update: {}, create: { organizationId: org.id, title: 'Full Stack Development', slug: 'full-stack-development', description: 'Become a full-stack developer with this comprehensive program.', status: 'PUBLISHED', durationHours: 120 } });
+    const lp = await prisma.learningPath.findFirst({ where: { organizationId: org.id, slug: 'full-stack-development' } });
+    if (lp) { for (let i = 0; i < courses11.length; i++) { await prisma.learningPathCourse.upsert({ where: { learningPathId_courseId: { learningPathId: lp.id, courseId: courses11[i].id } }, update: {}, create: { learningPathId: lp.id, courseId: courses11[i].id, orderIndex: i } }); } }
+    console.log('Seeded learning path with ' + courses11.length + ' courses.');
+
+    const aDefs = [{key:'first_course',name:'First Steps',description:'Complete your first course',xpReward:100,criteria:{}},{key:'xp_collector',name:'XP Collector',description:'Earn 500 XP',xpReward:200,criteria:{minXp:500}},{key:'xp_master',name:'XP Master',description:'Earn 2000 XP',xpReward:500,criteria:{minXp:2000}}];
+    for (const a of aDefs) {
+      await prisma.achievement.upsert({ where: { organizationId_key: { organizationId: org.id, key: a.key } }, update: { name: a.name, xpReward: a.xpReward }, create: { organizationId: org.id, key: a.key, name: a.name, description: a.description, xpReward: a.xpReward, criteria: a.criteria } });
+    }
+    console.log('Seeded ' + aDefs.length + ' achievements.');
+
+    const eu = await prisma.enrollment.findMany({ where: { organizationId: org.id }, select: { userId: true }, distinct: ['userId'] });
+    for (const u of eu.slice(0,5)) { await prisma.xpTransaction.create({ data: { organizationId: org.id, userId: u.userId, amount: Math.floor(Math.random() * 500) + 100, reason: 'Seed XP', sourceType: 'seed' } }); }
+    console.log('Seeded XP for ' + Math.min(eu.length, 5) + ' learners.');
+  }
+
 }
 
 async function seedPluginFoundation(input: {

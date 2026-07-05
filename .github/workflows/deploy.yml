@@ -1,0 +1,85 @@
+﻿# ─────────────────────────────────────────────────────────────────────────────
+# Deploy — Deploy to production/staging via SSH + Docker Compose
+# ─────────────────────────────────────────────────────────────────────────────
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Deployment target"
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+
+  push:
+    branches: [main]
+    # Only deploy when Docker publish completes successfully
+    # Use workflow_run in practice; here we rely on manual trigger or post-Docker
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_OWNER: ${{ github.repository_owner }}
+
+jobs:
+  deploy:
+    name: Deploy to ${{ inputs.environment || 'staging' }}
+    runs-on: ubuntu-24.04
+    environment: ${{ inputs.environment || 'staging' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set env variables
+        id: vars
+        run: |
+          BRANCH="${GITHUB_REF#refs/heads/}"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Render Docker Compose for deployment
+        env:
+          API_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/lms-api:${{ steps.vars.outputs.short_sha }}
+          WEB_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/lms-web:${{ steps.vars.outputs.short_sha }}
+          DEPLOY_ENV: ${{ inputs.environment || 'staging' }}
+        run: |
+          envsubst < docker/docker-compose.deploy.yml > docker-compose.deploy.yml
+
+      - name: Copy files to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          port: ${{ secrets.DEPLOY_PORT || '22' }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          source: "docker-compose.deploy.yml,.env.${{ inputs.environment || 'staging' }}"
+          target: /opt/lms/
+          strip_components: 0
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          port: ${{ secrets.DEPLOY_PORT || '22' }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/lms
+
+            # Pull new images
+            docker compose -f docker-compose.deploy.yml pull
+
+            # Run migrations
+            docker compose -f docker-compose.deploy.yml run --rm api sh -c "pnpm db:deploy && pnpm db:seed"
+
+            # Restart services
+            docker compose -f docker-compose.deploy.yml up -d --remove-orphans
+
+            # Clean up old images
+            docker image prune -af --filter "until=24h"
+
+            echo "Deploy complete: $(date)"

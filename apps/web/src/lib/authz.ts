@@ -5,6 +5,7 @@ export type NavigationKey =
   | "dashboard"
   | "catalog"
   | "my-learning"
+  | "admin"
   | "instructor"
   | "quizzes"
   | "files"
@@ -61,13 +62,17 @@ export function canConfigurePlugins(session: AuthSession | null) {
 
 export function visibleNavigationKeys(session: AuthSession | null) {
   const keys: NavigationKey[] = ["dashboard", "catalog", "my-learning"];
+  const canAccessAdminArea = Boolean(
+    session?.activeOrganization.isPlatformAdmin ||
+      session?.activeOrganization.roleKeys?.includes("org_admin"),
+  );
 
   if (canUseInstructorWorkspace(session)) keys.push("instructor");
   if (canManageQuizzes(session)) keys.push("quizzes");
   if (canUseFileWorkspace(session)) keys.push("files");
   if (canUseContentLibrary(session)) keys.push("library");
   if (canConfigurePlugins(session)) keys.push("plugins");
-  if (session?.activeOrganization.isPlatformAdmin || session?.activeOrganization.roleKeys?.includes("org_admin")) keys.push("moderation");
+  if (canAccessAdminArea) keys.push("admin", "moderation");
 
   return keys;
 }

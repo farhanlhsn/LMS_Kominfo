@@ -386,6 +386,11 @@ model User {
   certificates                Certificate[]                 @relation("CertificateLearner")
   revokedCertificates         Certificate[]                 @relation("CertificateRevoker")
   learningGoals               LearningGoal[]
+  learningPathEnrollments     LearningPathEnrollment[]
+  userSkills                  UserSkill[]
+  xpTransactions              XpTransaction[]
+  userAchievements            UserAchievement[]
+  learnerDailyActivities      LearnerDailyActivity[]
   aiConversations             AiConversation[]
   aiUsageLogs                 AiUsageLog[]
   discussionThreads           DiscussionThread[]           @relation("DiscussionThreadAuthor")
@@ -395,6 +400,24 @@ model User {
   notificationPreferences     NotificationPreference[]
   discussionReports           DiscussionReport[]           @relation("DiscussionReportReporter")
   calendarEventsCreated       CalendarEvent[]               @relation("CalendarEventCreator")
+  createdCoupons              Coupon[]
+  orders                      Order[]
+  confirmedPayments           Payment[]
+  subscriptions               UserSubscription[]
+  createdApiKeys              ApiKey[]
+  createdWebhookEndpoints     WebhookEndpoint[]
+  authoredCourseReviews       CourseReview[]               @relation("CourseReviewAuthor")
+  moderatedCourseReviews      CourseReview[]               @relation("ReviewModerator")
+  wishlists                   Wishlist[]
+  favoriteInstructorSelections FavoriteInstructor[]        @relation("FavoriteInstructorOwner")
+  favoritedByUsers            FavoriteInstructor[]         @relation("FavoriteInstructorUser")
+  recentlyViewedCourses       RecentlyViewedCourse[]
+  scormAttempts               ScormAttempt[]               @relation("ScormAttemptUser")
+  h5pResults                  H5PResult[]                  @relation("H5PResultUser")
+  surveyResponses             SurveyResponse[]             @relation("SurveyResponseUser")
+  pollVotes                   PollVote[]                   @relation("PollVoteUser")
+  courseFeedbackSubmissions   CourseFeedback[]             @relation("CourseFeedbackUser")
+  pushSubscriptions           PushSubscription[]            @relation("PushSubscriptionUser")
 
   @@index([status])
   @@index([createdAt])
@@ -406,6 +429,12 @@ model Organization {
   slug                       String                        @unique
   timezone                   String                        @default("UTC")
   status                     OrganizationStatus            @default(ACTIVE)
+  logoUrl                    String?
+  faviconUrl                 String?
+  primaryColor               String?
+  secondaryColor             String?
+  accentColor                String?
+  borderRadius               String?
   createdAt                  DateTime                      @default(now())
   updatedAt                  DateTime                      @updatedAt
   members                    OrganizationMember[]
@@ -442,6 +471,14 @@ model Organization {
   certificateTemplates       CertificateTemplate[]
   certificates               Certificate[]
   learningGoals              LearningGoal[]
+  learningPaths              LearningPath[]
+  learningPathEnrollments    LearningPathEnrollment[]
+  skills                     Skill[]
+  xpTransactions             XpTransaction[]
+  leaderboardSnapshots       LeaderboardSnapshot[]
+  achievements               Achievement[]
+  dailyCourseAggregates      DailyCourseAggregate[]
+  learnerDailyActivities     LearnerDailyActivity[]
   aiDocumentChunks           AiDocumentChunk[]
   aiCanonicalQuestions       AiCanonicalQuestion[]
   aiClassificationPrototypes AiClassificationPrototype[]
@@ -456,6 +493,29 @@ model Organization {
   notificationPreferences    NotificationPreference[]
   discussionReports          DiscussionReport[]
   calendarEvents             CalendarEvent[]
+  coupons                    Coupon[]
+  orders                     Order[]
+  payments                   Payment[]
+  subscriptionPlans          SubscriptionPlan[]
+  userSubscriptions          UserSubscription[]
+  apiKeys                    ApiKey[]
+  webhookEndpoints           WebhookEndpoint[]
+  courseReviews              CourseReview[]
+  wishlists                  Wishlist[]
+  favoriteInstructors        FavoriteInstructor[]
+  recentlyViewedCourses      RecentlyViewedCourse[]
+  scormPackages              ScormPackage[]
+  scormAttempts              ScormAttempt[]
+  h5pContents                H5PContent[]
+  h5pResults                 H5PResult[]
+  xapiStatements             XapiStatement[]
+  xapiActivityStates         XapiActivityState[]
+  surveys                    Survey[]
+  surveyResponses            SurveyResponse[]
+  polls                        Poll[]
+  pollVotes                    PollVote[]
+  courseFeedback               CourseFeedback[]
+  pushSubscriptions            PushSubscription[]
 
   @@index([status])
   @@index([createdAt])
@@ -674,6 +734,9 @@ model Course {
   tags                  Json                   @default("[]")
   metadata              Json                   @default("{}")
   autoCertificate       Boolean                @default(false)
+  isPaid                Boolean                @default(false)
+  price                 Int?
+  currency              String                 @default("IDR")
   autoCertificateTemplateId String?
   publishedAt           DateTime?
   archivedAt            DateTime?
@@ -702,9 +765,23 @@ model Course {
   rubrics               Rubric[]
   certificates          Certificate[]
   learningGoals         LearningGoal[]
+  learningPathCourses   LearningPathCourse[]
+  courseSkills          CourseSkill[]
+  leaderboardSnapshots  LeaderboardSnapshot[]
+  dailyCourseAggregates DailyCourseAggregate[]
   discussionThreads     DiscussionThread[]
   liveClasses           LiveClass[]
   calendarEvents        CalendarEvent[]
+  coupons               Coupon[]
+  orderItems            OrderItem[]
+  courseReviews         CourseReview[]
+  wishlists             Wishlist[]
+  recentlyViewedCourses RecentlyViewedCourse[]
+  scormPackages         ScormPackage[]      @relation("ScormPackageCourse")
+  h5pContents           H5PContent[]        @relation("H5PContentCourse")
+  surveys               Survey[]            @relation("SurveyCourse")
+  polls                 Poll[]              @relation("PollCourse")
+  courseFeedback        CourseFeedback[]    @relation("CourseFeedbackCourse")
 
   @@unique([organizationId, slug])
   @@index([organizationId, status])
@@ -809,6 +886,10 @@ model Activity {
   learnerNotes            LearnerNote[]
   learnerBookmarks        LearnerBookmark[]
   transcriptSegments      TranscriptSegment[]
+  scormPackages           ScormPackage[]   @relation("ScormPackageActivity")
+  h5pContents             H5PContent[]     @relation("H5PContentActivity")
+  surveys                 Survey[]         @relation("SurveyActivity")
+  polls                   Poll[]           @relation("PollActivity")
   quiz                    Quiz?
   quizAttempts            QuizAttempt[]
   assignment              Assignment?
@@ -825,6 +906,7 @@ model ActivityContent {
   id             String   @id @default(cuid())
   organizationId String
   activityId     String   @unique
+  @@index([activityId])
   body           Json     @default("{}")
   content        Json     @default("{}")
   textContent    String?
@@ -1046,6 +1128,7 @@ model LessonWorkspaceState {
   rightPanelCollapsed  Boolean             @default(false)
   lastVideoTimeSeconds Float?
   lastOpenedAt         DateTime            @default(now())
+  @@index([userId])
   metadata             Json                @default("{}")
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
@@ -1071,6 +1154,7 @@ model LearnerNote {
   selectedText     String?
   content          String
   visibility       LearnerNoteVisibility @default(PRIVATE)
+  @@index([userId])
   metadata         Json                  @default("{}")
   createdAt        DateTime              @default(now())
   updatedAt        DateTime              @updatedAt
@@ -1096,6 +1180,7 @@ model LearnerBookmark {
   videoTimeSeconds Float?
   title            String?
   note             String?
+  @@index([userId])
   metadata         Json         @default("{}")
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
@@ -1268,6 +1353,8 @@ model QuizAttempt {
   maxScore       Float             @default(0)
   percentage     Float             @default(0)
   passed         Boolean           @default(false)
+  @@index([quizId])
+  @@index([userId])
   metadata       Json              @default("{}")
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
@@ -1546,6 +1633,8 @@ model AssignmentSubmission {
   score          Float?
   maxScore       Float?
   feedback       String?
+  @@index([assignmentId])
+  @@index([userId])
   metadata       Json                       @default("{}")
   createdAt      DateTime                   @default(now())
   updatedAt      DateTime                   @updatedAt
@@ -1672,6 +1761,7 @@ model Certificate {
   pdfStatus         CertificatePdfStatus @default(PENDING)
   pdfGeneratedAt    DateTime?
   pdfError          String?
+  @@index([userId])
   metadata          Json                 @default("{}")
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
@@ -1696,6 +1786,7 @@ model LearningGoal {
   title          String
   description    String?
   targetType     LearningGoalTargetType
+  @@index([userId])
   targetValue    Json                   @default("{}")
   progressValue  Json                   @default("{}")
   dueAt          DateTime?
@@ -1732,6 +1823,8 @@ model Enrollment {
   @@unique([organizationId, courseId, userId])
   @@index([userId, courseId])
   @@index([organizationId, status])
+  @@index([courseId])
+  @@index([userId])
 }
 
 model ActivityProgress {
@@ -1747,6 +1840,7 @@ model ActivityProgress {
   startedAt       DateTime?
   completedAt     DateTime?
   lastAccessedAt  DateTime?
+  @@index([userId])
   metadata        Json                   @default("{}")
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
@@ -1770,6 +1864,8 @@ model LearningEvent {
   lessonId       String?
   activityId     String?
   eventType      String
+  @@index([userId])
+  @@index([courseId])
   metadata       Json         @default("{}")
   createdAt      DateTime     @default(now())
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -1809,6 +1905,7 @@ model DiscussionThread {
   @@index([organizationId, lessonId])
   @@index([organizationId, activityId])
   @@index([authorId])
+  @@index([courseId])
 }
 
 model DiscussionReply {
@@ -1832,6 +1929,7 @@ model DiscussionReply {
   @@index([organizationId, threadId, createdAt])
   @@index([parentReplyId])
   @@index([authorId])
+  @@index([threadId])
 }
 
 model LiveClass {
@@ -1892,6 +1990,7 @@ model Notification {
   entityType     String?
   entityId       String?
   readAt         DateTime?
+  @@index([userId])
   metadata       Json         @default("{}")
   createdAt      DateTime     @default(now())
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -1958,6 +2057,7 @@ model AuditLog {
   severity       AuditSeverity @default(INFO)
   ipAddress      String?
   userAgent      String?
+  @@index([userId])
   metadata       Json          @default("{}")
   createdAt      DateTime      @default(now())
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
@@ -1966,4 +2066,863 @@ model AuditLog {
   @@index([organizationId, createdAt])
   @@index([organizationId, action, createdAt])
   @@index([userId, createdAt])
+}
+
+model DailyCourseAggregate {
+  id                String   @id @default(cuid())
+  organizationId    String
+  courseId          String
+  date              DateTime
+  totalEnrollments  Int      @default(0)
+  activeLearners    Int      @default(0)
+  newEnrollments    Int      @default(0)
+  completions       Int      @default(0)
+  avgProgressPercent Float?
+  activityEvents    Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  course       Course       @relation(fields: [courseId], references: [id])
+
+  @@unique([organizationId, courseId, date])
+  @@index([organizationId, courseId, date])
+}
+
+model LearnerDailyActivity {
+  id              String   @id @default(cuid())
+  organizationId  String
+  userId          String
+  date            DateTime
+  eventCount      Int      @default(0)
+  activityMinutes Int      @default(0)
+  lastActivityAt  DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@unique([organizationId, userId, date])
+  @@index([organizationId, userId, date])
+}
+
+enum LearningPathStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum LearningPathEnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  DROPPED
+}
+
+enum LeaderboardPeriod {
+  DAILY
+  WEEKLY
+  MONTHLY
+  ALL_TIME
+}
+
+model LearningPath {
+  id                  String                @id @default(cuid())
+  organizationId      String
+  title               String
+  slug                String
+  description         String?
+  thumbnailUrl        String?
+  status              LearningPathStatus    @default(DRAFT)
+  difficulty          CourseLevel?
+  durationHours       Int                   @default(0)
+  enrolledCount       Int                   @default(0)
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  organization Organization              @relation(fields: [organizationId], references: [id])
+  courses      LearningPathCourse[]
+  enrollments  LearningPathEnrollment[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, status])
+  @@index([organizationId, createdAt])
+}
+
+model LearningPathCourse {
+  id              String   @id @default(cuid())
+  learningPathId  String
+  courseId        String
+  orderIndex      Int      @default(0)
+  required        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  learningPath LearningPath @relation(fields: [learningPathId], references: [id], onDelete: Cascade)
+  course       Course       @relation(fields: [courseId], references: [id])
+
+  @@unique([learningPathId, courseId])
+  @@index([learningPathId, orderIndex])
+}
+
+model LearningPathEnrollment {
+  id              String                       @id @default(cuid())
+  organizationId  String
+  learningPathId  String
+  userId          String
+  status          LearningPathEnrollmentStatus @default(ACTIVE)
+  progressPercent Int                          @default(0)
+  enrolledAt      DateTime                     @default(now())
+  completedAt     DateTime?
+  createdAt       DateTime                     @default(now())
+  updatedAt       DateTime                     @updatedAt
+
+  organization  Organization @relation(fields: [organizationId], references: [id])
+  learningPath  LearningPath @relation(fields: [learningPathId], references: [id])
+  user          User         @relation(fields: [userId], references: [id])
+
+  @@unique([organizationId, learningPathId, userId])
+  @@index([organizationId, userId])
+  @@index([organizationId, learningPathId])
+}
+
+model Skill {
+  id              String   @id @default(cuid())
+  organizationId  String
+  name            String
+  slug            String
+  description     String?
+  category        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  courseSkills  CourseSkill[]
+  userSkills    UserSkill[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, category])
+}
+
+model CourseSkill {
+  id        String @id @default(cuid())
+  courseId  String
+  skillId   String
+  weight    Int    @default(10)
+  createdAt DateTime @default(now())
+
+  course Course @relation(fields: [courseId], references: [id])
+  skill  Skill  @relation(fields: [skillId], references: [id])
+
+  @@unique([courseId, skillId])
+}
+
+model UserSkill {
+  id          String   @id @default(cuid())
+  userId      String
+  skillId     String
+  proficiency Int      @default(0)
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id])
+  skill Skill @relation(fields: [skillId], references: [id])
+
+  @@unique([userId, skillId])
+  @@index([skillId, proficiency])
+  @@index([userId])
+}
+
+model XpTransaction {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  amount         Int
+  reason         String
+  sourceType     String?
+  sourceId       String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@index([organizationId, userId, createdAt])
+  @@index([organizationId, createdAt])
+}
+
+model LeaderboardSnapshot {
+  id              String           @id @default(cuid())
+  organizationId  String
+  courseId        String?
+  period          LeaderboardPeriod
+  snapshotDate    DateTime
+  rankings        Json
+  createdAt       DateTime         @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  course       Course?       @relation(fields: [courseId], references: [id])
+
+  @@index([organizationId, courseId, period, snapshotDate])
+}
+
+model Achievement {
+  id              String   @id @default(cuid())
+  organizationId  String
+  key             String
+  name            String
+  description     String?
+  iconUrl         String?
+  criteria        Json     @default("{}")
+  xpReward        Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization   @relation(fields: [organizationId], references: [id])
+  users        UserAchievement[]
+
+  @@unique([organizationId, key])
+}
+
+model UserAchievement {
+  id            String   @id @default(cuid())
+  userId        String
+  achievementId String
+  earnedAt      DateTime @default(now())
+  notifiedAt    DateTime?
+
+  user        User        @relation(fields: [userId], references: [id])
+  achievement Achievement @relation(fields: [achievementId], references: [id])
+
+  @@unique([userId, achievementId])
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  EXPIRED
+  REFUNDED
+}
+
+enum PaymentProvider {
+  MANUAL
+  MIDTRANS
+  XENDIT
+  STRIPE
+}
+
+enum SubscriptionInterval {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  EXPIRED
+  PAUSED
+}
+
+model Coupon {
+  id              String   @id @default(cuid())
+  organizationId  String
+  code            String
+  description     String?
+  discountPercent Int      @default(0)
+  discountAmount  Int?     @default(0)
+  maxUses         Int?     @default(0)
+  currentUses     Int      @default(0)
+  maxPerUser      Int      @default(1)
+  courseId        String?
+  minAmount       Int?     @default(0)
+  validFrom       DateTime?
+  validUntil      DateTime?
+  isActive        Boolean  @default(true)
+  createdById     String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  createdBy    User         @relation(fields: [createdById], references: [id])
+  course       Course?      @relation(fields: [courseId], references: [id])
+  orders       Order[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, isActive])
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  organizationId  String
+  userId          String
+  orderNumber     String      @unique
+  status          OrderStatus @default(PENDING)
+  subtotal        Int         @default(0)
+  discountAmount  Int         @default(0)
+  total           Int         @default(0)
+  currency        String      @default("IDR")
+  couponId        String?
+  notes           String?
+  paidAt          DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+  coupon       Coupon?      @relation(fields: [couponId], references: [id])
+  items        OrderItem[]
+  payments     Payment[]
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, userId])
+  @@index([organizationId, status])
+  @@index([userId])
+}
+
+model OrderItem {
+  id        String @id @default(cuid())
+  orderId   String
+  courseId  String
+  price     Int    @default(0)
+  currency  String @default("IDR")
+
+  order  Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id])
+
+  @@unique([orderId, courseId])
+}
+
+model Payment {
+  id              String          @id @default(cuid())
+  organizationId  String
+  orderId         String
+  provider        PaymentProvider @default(MANUAL)
+  providerPaymentId String?
+  status          PaymentStatus   @default(PENDING)
+  amount          Int             @default(0)
+  currency        String          @default("IDR")
+  proofImageUrl   String?
+  bankName        String?
+  accountName     String?
+  accountNumber   String?
+  paidAt          DateTime?
+  confirmedById   String?
+  confirmedAt     DateTime?
+  notes           String?
+  metadata        Json            @default("{}")
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  order        Order        @relation(fields: [orderId], references: [id])
+  confirmedBy  User?        @relation(fields: [confirmedById], references: [id])
+
+  @@index([organizationId, status])
+  @@index([orderId])
+}
+
+model SubscriptionPlan {
+  id                String               @id @default(cuid())
+  organizationId    String
+  name              String
+  description       String?
+  price             Int                  @default(0)
+  currency          String               @default("IDR")
+  interval          SubscriptionInterval @default(MONTHLY)
+  intervalCount     Int                  @default(1)
+  courseAccess      String               @default("ALL") // ALL, SELECTED
+  maxEnrollments    Int?                 @default(0) // 0 = unlimited
+  isActive          Boolean              @default(true)
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  organization Organization   @relation(fields: [organizationId], references: [id])
+  users        UserSubscription[]
+
+  @@index([organizationId, isActive])
+}
+
+model UserSubscription {
+  id                String             @id @default(cuid())
+  organizationId    String
+  userId            String
+  planId            String
+  status            SubscriptionStatus @default(ACTIVE)
+  currentPeriodStart DateTime?
+  currentPeriodEnd  DateTime?
+  cancelledAt       DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  organization Organization    @relation(fields: [organizationId], references: [id])
+  user         User            @relation(fields: [userId], references: [id])
+  plan         SubscriptionPlan @relation(fields: [planId], references: [id])
+
+  @@unique([organizationId, userId, planId])
+  @@index([organizationId, userId])
+  @@index([organizationId, status])
+}
+
+enum ApiKeyStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+model ApiKey {
+  id              String       @id @default(cuid())
+  organizationId  String
+  name            String
+  keyPrefix       String
+  keyHash         String       @unique
+  scopes          Json         @default("[]")
+  ipRestrictions  String[]
+  status          ApiKeyStatus @default(ACTIVE)
+  expiresAt       DateTime?
+  lastUsedAt      DateTime?
+  createdById     String
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  createdBy    User         @relation(fields: [createdById], references: [id])
+
+  @@index([organizationId, status])
+  @@index([keyHash])
+}
+
+enum WebhookEventType {
+  COURSE_CREATED
+  COURSE_UPDATED
+  COURSE_PUBLISHED
+  ENROLLMENT_CREATED
+  ENROLLMENT_COMPLETED
+  USER_REGISTERED
+  PAYMENT_RECEIVED
+  ORDER_COMPLETED
+  CERTIFICATE_ISSUED
+  QUIZ_ATTEMPTED
+  ASSIGNMENT_SUBMITTED
+}
+
+enum WebhookStatus {
+  ACTIVE
+  DISABLED
+  FAILING
+}
+
+model WebhookEndpoint {
+  id              String           @id @default(cuid())
+  organizationId  String
+  name            String
+  url             String
+  secret          String
+  events          WebhookEventType[]
+  status          WebhookStatus    @default(ACTIVE)
+  retryCount      Int              @default(3)
+  timeoutMs       Int              @default(5000)
+  description     String?
+  createdById     String
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  createdBy    User         @relation(fields: [createdById], references: [id])
+  deliveries   WebhookDelivery[]
+
+  @@index([organizationId, status])
+}
+
+enum WebhookDeliveryStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+model WebhookDelivery {
+  id              String                @id @default(cuid())
+  endpointId      String
+  eventType       WebhookEventType
+  payload         Json
+  status          WebhookDeliveryStatus @default(PENDING)
+  requestHeaders  Json?
+  responseStatus  Int?
+  responseBody    String?
+  durationMs      Int?
+  nextRetryAt     DateTime?
+  attempts        Int                   @default(0)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  endpoint WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@index([endpointId, createdAt])
+  @@index([endpointId, status])
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  FLAGGED
+}
+
+model CourseReview {
+  id              String       @id @default(cuid())
+  organizationId  String
+  courseId        String
+  userId          String
+  rating          Int
+  title           String?
+  body            String?
+  status          ReviewStatus @default(PENDING)
+  moderatedById   String?
+  moderatedAt     DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  course       Course       @relation(fields: [courseId], references: [id])
+  user         User         @relation("CourseReviewAuthor", fields: [userId], references: [id])
+  moderatedBy  User?        @relation("ReviewModerator", fields: [moderatedById], references: [id])
+
+  @@unique([organizationId, courseId, userId])
+  @@index([organizationId, courseId, status])
+  @@index([organizationId, courseId, rating])
+  @@index([organizationId, status])
+}
+
+model Wishlist {
+  id              String   @id @default(cuid())
+  organizationId  String
+  userId          String
+  courseId        String
+  createdAt       DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+  course       Course       @relation(fields: [courseId], references: [id])
+
+  @@unique([organizationId, userId, courseId])
+  @@index([organizationId, userId])
+}
+
+model FavoriteInstructor {
+  id              String   @id @default(cuid())
+  organizationId  String
+  userId          String
+  instructorId    String
+  createdAt       DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation("FavoriteInstructorOwner", fields: [userId], references: [id])
+  instructor   User         @relation("FavoriteInstructorUser", fields: [instructorId], references: [id])
+
+  @@unique([organizationId, userId, instructorId])
+  @@index([organizationId, instructorId])
+}
+
+model RecentlyViewedCourse {
+  id              String   @id @default(cuid())
+  organizationId  String
+  userId          String
+  courseId        String
+  viewedAt        DateTime @default(now()) @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+  course       Course       @relation(fields: [courseId], references: [id])
+
+  @@unique([organizationId, userId, courseId])
+  @@index([organizationId, userId, viewedAt])
+}
+
+// Phase 16: SCORM, H5P, xAPI, Survey, Polling, Course Feedback
+
+model ScormPackage {
+  id             String   @id @default(cuid())
+  organizationId String
+  courseId       String
+  activityId     String?
+  title          String
+  version        String   @default("1.2")
+  manifest       Json     @default("{}")
+  fileId         String?
+  entryUrl       String?
+  status         String   @default("DRAFT")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization   @relation(fields: [organizationId], references: [id])
+  course       Course         @relation("ScormPackageCourse", fields: [courseId], references: [id])
+  activity     Activity?      @relation("ScormPackageActivity", fields: [activityId], references: [id])
+  attempts     ScormAttempt[]
+
+  @@index([organizationId, courseId])
+  @@index([organizationId, activityId])
+}
+
+model ScormAttempt {
+  id             String    @id @default(cuid())
+  organizationId String
+  packageId      String
+  userId         String
+  status         String    @default("NOT_STARTED")
+  scoreRaw       Float?
+  scoreMin       Float?
+  scoreMax       Float?
+  completion     String    @default("INCOMPLETE")
+  success        String    @default("UNKNOWN")
+  sessionId      String?
+  cmiData        Json      @default("{}")
+  startedAt      DateTime  @default(now())
+  finishedAt     DateTime?
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  package      ScormPackage @relation(fields: [packageId], references: [id])
+  user         User         @relation("ScormAttemptUser", fields: [userId], references: [id])
+
+  @@unique([organizationId, packageId, userId, sessionId])
+  @@index([organizationId, packageId])
+  @@index([organizationId, userId])
+}
+
+model H5PContent {
+  id             String   @id @default(cuid())
+  organizationId String
+  courseId       String
+  activityId     String?
+  library        String
+  title          String
+  params         Json     @default("{}")
+  metadata       Json     @default("{}")
+  fileId         String?
+  status         String   @default("DRAFT")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  course       Course        @relation("H5PContentCourse", fields: [courseId], references: [id])
+  activity     Activity?     @relation("H5PContentActivity", fields: [activityId], references: [id])
+  results      H5PResult[]
+
+  @@index([organizationId, courseId])
+  @@index([organizationId, activityId])
+}
+
+model H5PResult {
+  id             String   @id @default(cuid())
+  organizationId String
+  contentId      String
+  userId         String
+  score          Float?
+  maxScore       Float?
+  completion     String   @default("INCOMPLETE")
+  success        String   @default("UNKNOWN")
+  raw            Json     @default("{}")
+  submittedAt    DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  content      H5PContent   @relation(fields: [contentId], references: [id])
+  user         User         @relation("H5PResultUser", fields: [userId], references: [id])
+
+  @@index([organizationId, contentId])
+  @@index([organizationId, userId])
+}
+
+model XapiStatement {
+  id             String    @id @default(cuid())
+  organizationId String
+  actor          Json
+  verb           Json
+  object         Json
+  result         Json?
+  context        Json?
+  authority      Json?
+  timestamp      DateTime?
+  stored         DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, stored])
+  @@index([organizationId, timestamp])
+}
+
+model XapiActivityState {
+  id             String   @id @default(cuid())
+  organizationId String
+  activityId     String
+  agent          Json
+  stateId        String
+  state          Json
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, activityId, agent, stateId])
+}
+
+model Survey {
+  id                       String    @id @default(cuid())
+  organizationId           String
+  courseId                 String?
+  activityId               String?
+  title                    String
+  description              String?
+  status                   String    @default("DRAFT")
+  anonymous                Boolean   @default(false)
+  allowMultipleSubmissions Boolean   @default(false)
+  closesAt                 DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id])
+  course       Course?           @relation("SurveyCourse", fields: [courseId], references: [id])
+  activity     Activity?         @relation("SurveyActivity", fields: [activityId], references: [id])
+  questions    SurveyQuestion[]
+  responses    SurveyResponse[]
+
+  @@index([organizationId, courseId])
+  @@index([organizationId, activityId])
+  @@index([organizationId, status])
+}
+
+model SurveyQuestion {
+  id         String   @id @default(cuid())
+  surveyId   String
+  type       String
+  prompt     String
+  helpText   String?
+  required   Boolean  @default(false)
+  orderIndex Int      @default(0)
+  options    Json     @default("[]")
+  scale      Json?
+  createdAt  DateTime @default(now())
+
+  survey  Survey         @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  answers SurveyAnswer[]
+
+  @@index([surveyId, orderIndex])
+}
+
+model SurveyResponse {
+  id             String   @id @default(cuid())
+  organizationId String
+  surveyId       String
+  userId         String?
+  submittedAt    DateTime @default(now())
+  metadata       Json     @default("{}")
+
+  organization Organization   @relation(fields: [organizationId], references: [id])
+  survey       Survey         @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+  user         User?          @relation("SurveyResponseUser", fields: [userId], references: [id])
+  answers      SurveyAnswer[]
+
+  @@index([organizationId, surveyId])
+  @@index([organizationId, surveyId, userId])
+}
+
+model SurveyAnswer {
+  id         String  @id @default(cuid())
+  responseId String
+  questionId String
+  value      Json
+  textValue  String?
+
+  response SurveyResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
+  question SurveyQuestion @relation(fields: [questionId], references: [id])
+
+  @@index([responseId])
+  @@index([questionId])
+}
+
+model Poll {
+  id             String    @id @default(cuid())
+  organizationId String
+  courseId       String?
+  activityId     String?
+  question       String
+  options        Json      @default("[]")
+  allowMultiple  Boolean   @default(false)
+  anonymous      Boolean   @default(false)
+  closesAt       DateTime?
+  status         String    @default("ACTIVE")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  course       Course?      @relation("PollCourse", fields: [courseId], references: [id])
+  activity     Activity?    @relation("PollActivity", fields: [activityId], references: [id])
+  votes        PollVote[]
+
+  @@index([organizationId, courseId])
+  @@index([organizationId, activityId])
+  @@index([organizationId, status])
+}
+
+model PollVote {
+  id             String   @id @default(cuid())
+  organizationId String
+  pollId         String
+  userId         String?
+  selected       Json
+  votedAt        DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  poll         Poll         @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  user         User?        @relation("PollVoteUser", fields: [userId], references: [id])
+
+  @@unique([organizationId, pollId, userId])
+  @@index([organizationId, pollId])
+}
+
+model CourseFeedback {
+  id             String   @id @default(cuid())
+  organizationId String
+  courseId       String
+  userId         String?
+  rating         Int
+  comment        String?
+  metadata       Json     @default("{}")
+  submittedAt    DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  course       Course        @relation("CourseFeedbackCourse", fields: [courseId], references: [id])
+  user         User?         @relation("CourseFeedbackUser", fields: [userId], references: [id])
+
+  @@index([organizationId, courseId])
+  @@index([organizationId, submittedAt])
+}
+
+// Phase 14: Web Push subscriptions
+
+model PushSubscription {
+  id             String    @id @default(cuid())
+  organizationId String
+  userId         String
+  endpoint       String
+  p256dh         String
+  auth           String
+  userAgent      String?
+  metadata       Json      @default("{}")
+  expiresAt      DateTime?
+  lastUsedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation("PushSubscriptionUser", fields: [userId], references: [id])
+
+  @@unique([userId, endpoint])
+  @@index([organizationId, userId])
+  @@index([expiresAt])
 }

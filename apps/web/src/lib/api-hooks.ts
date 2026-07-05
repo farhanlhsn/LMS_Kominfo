@@ -10,26 +10,44 @@ import {
 } from "./api-client";
 import type {
   ActivityContentResponse,
+  AdminOverview,
+  Achievement,
   AiStatus,
   AiTutorResponse,
+  ApiKey,
   Assignment,
   AssignmentSubmission,
+  AuditLogEntry,
   AuthSession,
+  Branding,
   Certificate,
   CertificateTemplate,
   CertificateVerification,
+  Coupon,
   ContentLibraryItem,
   Course,
+  DailyTrend,
   Enrollment,
+  FavoriteInstructor,
   FileAsset,
+  InstructorDashboard,
+  LeaderboardEntry,
   LearnerBookmark,
   LearnerAssignmentResponse,
+  LearnerCourseProgress,
+  LearnerDashboard,
   LearningGoal,
+  LearningPath,
+  LearningPathEnrollment,
   LearnerNote,
   LearningCourseResponse,
   LearningWorkspacePreference,
   Lesson,
   LessonWorkspaceState,
+  LoginPolicy,
+  NotesExport,
+  Order,
+  OrgDomain,
   Plugin,
   PluginActivityType,
   PluginExecutionLog,
@@ -37,11 +55,33 @@ import type {
   QuestionBank,
   Quiz,
   QuizAttempt,
+  RecentlyViewedCourse,
   LearnerQuizResponse,
   TranscriptSegment,
   WorkspaceContext,
   Rubric,
+  Skill,
+  SsoProvider,
+  SubscriptionPlan,
+  UserAchievement,
+  UserSkill,
+  UserSubscription,
+  WebhookEndpoint,
+  WishlistItem,
+  ScormPackage,
+  ScormAttempt,
+  H5PContent,
+  H5PResult,
+  XapiStatement,
+  Survey,
+  SurveyWithQuestions,
+  Poll,
+  PollResults,
+  CourseFeedbackListResponse,
+  CourseFeedbackEntry,
+  SurveyResponse as SurveyResponseEntry,
 } from "./lms-types";
+import type { ListResponse } from "./api-client";
 
 export interface QueryState<T> {
   data: T | null;
@@ -668,4 +708,383 @@ export function useUpdateLearningGoal() {
       api.updateLearningGoal(goalId, input),
     [],
   );
+}
+
+// ── Analytics hooks ──────────────────────────────────
+
+export function useLearnerDashboard() {
+  return useApiQuery<LearnerDashboard>(async () => {
+    return api.learnerDashboard();
+  }, []);
+}
+
+export function useLearnerCourseProgress(courseId: string | null) {
+  return useApiQuery<LearnerCourseProgress>(async () => {
+    if (!courseId) throw new Error("Course id is required");
+    return api.learnerCourseProgress(courseId);
+  }, [courseId]);
+}
+
+export function useInstructorDashboard() {
+  return useApiQuery<InstructorDashboard>(async () => {
+    return api.instructorDashboard();
+  }, []);
+}
+
+export function useAdminOverview() {
+  return useApiQuery<AdminOverview>(async () => {
+    return api.adminOverview();
+  }, []);
+}
+
+export function useAdminCourseMetrics(query?: Record<string, string>) {
+  return useApiQuery(async () => {
+    const result = await api.adminCourseMetrics(query);
+    return result;
+  }, [JSON.stringify(query)]);
+}
+
+export function useAdminTrends(query?: Record<string, string>) {
+  return useApiQuery<DailyTrend[]>(async () => {
+    return api.adminTrends(query);
+  }, [JSON.stringify(query)]);
+}
+
+export function useAuditLogs(query?: Record<string, string>) {
+  return useApiQuery<ListResponse<AuditLogEntry>>(async () => {
+    return api.auditLogs(query);
+  }, [JSON.stringify(query)]);
+}
+
+export function useInstructorCourseRoster(courseId: string | null, query?: Record<string, string>) {
+  return useApiQuery(async () => {
+    if (!courseId) throw new Error("Course id is required");
+    const result = await api.instructorCourseRoster(courseId, query);
+    return result;
+  }, [courseId, JSON.stringify(query)]);
+}
+
+export function useInstructorCourseEngagement(courseId: string | null, query?: Record<string, string>) {
+  return useApiQuery(async () => {
+    if (!courseId) throw new Error("Course id is required");
+    return api.instructorCourseEngagement(courseId, query);
+  }, [courseId, JSON.stringify(query)]);
+}
+
+// ── Phase 11 — Learning Path & Gamification hooks ──
+
+export function useLearningPaths(query?: Record<string, string>) {
+  return useApiQuery<ListResponse<LearningPath>>(async () => {
+    return api.learningPaths(query);
+  }, [JSON.stringify(query)]);
+}
+
+export function useLearningPath(idOrSlug: string | null) {
+  return useApiQuery<LearningPath>(async () => {
+    if (!idOrSlug) throw new Error("Learning path identifier is required");
+    return api.learningPath(idOrSlug);
+  }, [idOrSlug]);
+}
+
+export function useMyLearningPathEnrollments() {
+  return useApiQuery<LearningPathEnrollment[]>(async () => {
+    return api.myLearningPathEnrollments();
+  }, []);
+}
+
+export function useSkills(category?: string) {
+  return useApiQuery<Skill[]>(async () => {
+    return api.skills(category);
+  }, [category]);
+}
+
+export function useMySkills() {
+  return useApiQuery<UserSkill[]>(async () => {
+    return api.mySkills();
+  }, []);
+}
+
+export function useMyXpHistory(query?: Record<string, string>) {
+  return useApiQuery(async () => {
+    const result = await api.myXpHistory(query);
+    return result;
+  }, [JSON.stringify(query)]);
+}
+
+export function useLeaderboard(query?: Record<string, string>) {
+  return useApiQuery<LeaderboardEntry[]>(async () => {
+    return api.leaderboard(query);
+  }, [JSON.stringify(query)]);
+}
+
+export function useAchievements() {
+  return useApiQuery<Achievement[]>(async () => {
+    return api.achievements();
+  }, []);
+}
+
+export function useMyAchievements() {
+  return useApiQuery<UserAchievement[]>(async () => {
+    return api.myAchievements();
+  }, []);
+}
+
+// ── Phase 12 — Marketplace hooks ────────────────────
+
+export function useMyOrders(query?: Record<string, string>) {
+  return useApiQuery(async () => {
+    const result = await api.myOrders(query);
+    return result;
+  }, [JSON.stringify(query)]);
+}
+
+export function useOrder(id: string | null) {
+  return useApiQuery<Order>(async () => {
+    if (!id) throw new Error("Order id is required");
+    return api.getOrder(id);
+  }, [id]);
+}
+
+export function useCoupons() {
+  return useApiQuery<Coupon[]>(async () => {
+    return api.coupons();
+  }, []);
+}
+
+export function useSubscriptionPlans() {
+  return useApiQuery<SubscriptionPlan[]>(async () => {
+    return api.subscriptionPlans();
+  }, []);
+}
+
+export function useMySubscriptions() {
+  return useApiQuery<UserSubscription[]>(async () => {
+    return api.mySubscriptions();
+  }, []);
+}
+
+export function useAdminOrders(query?: Record<string, string>) {
+  return useApiQuery(async () => {
+    const result = await api.adminOrders(query);
+    return result;
+  }, [JSON.stringify(query)]);
+}
+
+export function useAdminPayments(query?: Record<string, string>) {
+  return useApiQuery(async () => {
+    const result = await api.adminPayments(query);
+    return result;
+  }, [JSON.stringify(query)]);
+}
+
+// ── Phase 13 — Enterprise hooks ─────────────────────
+
+export function useBranding() {
+  return useApiQuery<Branding>(async () => {
+    return api.getBranding();
+  }, []);
+}
+
+export function useSsoProviders() {
+  return useApiQuery<SsoProvider[]>(async () => {
+    return api.ssoProviders();
+  }, []);
+}
+
+export function useLoginPolicy() {
+  return useApiQuery<LoginPolicy>(async () => {
+    return api.getLoginPolicy();
+  }, []);
+}
+
+export function useDomains() {
+  return useApiQuery<OrgDomain[]>(async () => {
+    return api.domains();
+  }, []);
+}
+
+export function useApiKeys() {
+  return useApiQuery<ApiKey[]>(async () => {
+    return api.apiKeys();
+  }, []);
+}
+
+export function useWebhooks() {
+  return useApiQuery<WebhookEndpoint[]>(async () => {
+    return api.webhooks();
+  }, []);
+}
+
+export function useWebhookDeliveries(endpointId: string | null, query?: Record<string, string>) {
+  return useApiQuery(async () => {
+    if (!endpointId) throw new Error("Endpoint id is required");
+    const result = await api.webhookDeliveries(endpointId, query);
+    return result;
+  }, [endpointId, JSON.stringify(query)]);
+}
+
+// ── Phase 15 — Reviews, Wishlist, Favorites hooks ──
+
+export function useCourseReviews(courseId: string | null, query?: Record<string, string>) {
+  return useApiQuery(async () => {
+    if (!courseId) throw new Error("Course id is required");
+    const result = await api.courseReviews(courseId, query);
+    return result;
+  }, [courseId, JSON.stringify(query)]);
+}
+
+export function useWishlist() {
+  return useApiQuery<WishlistItem[]>(async () => {
+    return api.wishlist();
+  }, []);
+}
+
+export function useFavoriteInstructors() {
+  return useApiQuery<FavoriteInstructor[]>(async () => {
+    return api.favoriteInstructors();
+  }, []);
+}
+
+export function useRecentlyViewed() {
+  return useApiQuery<RecentlyViewedCourse[]>(async () => {
+    return api.recentlyViewed();
+  }, []);
+}
+
+export function useAdminReviews(query?: Record<string, string>) {
+  return useApiQuery(async () => {
+    const result = await api.adminReviews(query);
+    return result;
+  }, [JSON.stringify(query)]);
+}
+
+export function useExportNotes() {
+  return useApiQuery<NotesExport>(async () => {
+    return api.exportNotes();
+  }, []);
+}
+
+// ── Phase 16: Experiences ──
+export function useScormPackages(courseId?: string) {
+  return useApiQuery<ScormPackage[]>(() => api.listScormPackages(courseId), [courseId]);
+}
+export function useScormPackage(id: string | null) {
+  return useApiQuery<ScormPackage | null>(async () => {
+    if (!id) return null;
+    return api.getScormPackage(id);
+  }, [id]);
+}
+export function useStartScormAttempt() {
+  return useCallback(
+    (packageId: string, input: Record<string, unknown> = {}) =>
+      api.startScormAttempt(packageId, input),
+    [],
+  );
+}
+export function useCommitScormAttempt() {
+  return useCallback(
+    (packageId: string, attemptId: string, input: Record<string, unknown>) =>
+      api.commitScormAttempt(packageId, attemptId, input),
+    [],
+  );
+}
+
+export function useH5PContent(courseId?: string) {
+  return useApiQuery<H5PContent[]>(() => api.listH5PContent(courseId), [courseId]);
+}
+export function useSubmitH5PResult() {
+  return useCallback(
+    (contentId: string, input: Record<string, unknown>) =>
+      api.submitH5PResult(contentId, input),
+    [],
+  );
+}
+
+export function useXapiStatements(limit = 50) {
+  return useApiQuery<XapiStatement[]>(() => api.listXapiStatements(limit), [limit]);
+}
+export function usePostXapiStatements() {
+  return useCallback(
+    (statements: Array<Record<string, unknown>>) => api.postXapiStatements(statements),
+    [],
+  );
+}
+
+export function useSurveys(query?: Record<string, string>) {
+  return useApiQuery<Survey[]>(() => api.listSurveys(query), [JSON.stringify(query)]);
+}
+export function useSurvey(id: string | null) {
+  return useApiQuery<SurveyWithQuestions | null>(async () => {
+    if (!id) return null;
+    return api.getSurvey(id);
+  }, [id]);
+}
+export function useCreateSurvey() {
+  return useCallback((input: Record<string, unknown>) => api.createSurvey(input), []);
+}
+export function useUpdateSurvey() {
+  return useCallback((id: string, input: Record<string, unknown>) => api.updateSurvey(id, input), []);
+}
+export function useDeleteSurvey() {
+  return useCallback((id: string) => api.deleteSurvey(id), []);
+}
+export function useAddSurveyQuestion() {
+  return useCallback(
+    (surveyId: string, input: Record<string, unknown>) => api.addSurveyQuestion(surveyId, input),
+    [],
+  );
+}
+export function useRemoveSurveyQuestion() {
+  return useCallback(
+    (surveyId: string, questionId: string) => api.removeSurveyQuestion(surveyId, questionId),
+    [],
+  );
+}
+export function useSubmitSurveyResponse() {
+  return useCallback(
+    (surveyId: string, input: Record<string, unknown>) => api.submitSurveyResponse(surveyId, input),
+    [],
+  );
+}
+export function useSurveyResponses(surveyId: string | null) {
+  return useApiQuery<SurveyResponseEntry[]>(async () => {
+    if (!surveyId) return [];
+    return api.listSurveyResponses(surveyId);
+  }, [surveyId]);
+}
+
+export function usePolls(query?: Record<string, string>) {
+  return useApiQuery<Poll[]>(() => api.listPolls(query), [JSON.stringify(query)]);
+}
+export function useCreatePoll() {
+  return useCallback((input: Record<string, unknown>) => api.createPoll(input), []);
+}
+export function useUpdatePoll() {
+  return useCallback((id: string, input: Record<string, unknown>) => api.updatePoll(id, input), []);
+}
+export function useDeletePoll() {
+  return useCallback((id: string) => api.deletePoll(id), []);
+}
+export function useVotePoll() {
+  return useCallback((id: string, selected: string[]) => api.votePoll(id, selected), []);
+}
+export function usePollResults(id: string | null) {
+  return useApiQuery<PollResults | null>(async () => {
+    if (!id) return null;
+    return api.pollResults(id);
+  }, [id]);
+}
+
+export function useSubmitCourseFeedback() {
+  return useCallback(
+    (input: { courseId: string; rating: number; comment?: string }) =>
+      api.submitCourseFeedback(input),
+    [],
+  );
+}
+export function useCourseFeedback(courseId: string | null) {
+  return useApiQuery<CourseFeedbackListResponse | null>(async () => {
+    if (!courseId) return null;
+    return api.listCourseFeedback(courseId);
+  }, [courseId]);
 }
