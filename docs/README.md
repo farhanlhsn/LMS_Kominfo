@@ -1,4 +1,4 @@
-# LMS Documentation Index
+﻿# LMS Documentation Index
 
 Use this folder as the source of truth for Codex. Do not paste the full context on every task. Read only the relevant files for the feature being implemented.
 
@@ -40,6 +40,18 @@ Important phase docs:
 - `phase-03-implementation.md` - file, video, rich content, content library, and processing queue notes for Phase 03
 - `phase-03-2-app-flow-hardening.md` - app flow hardening before Phase 04
 - `phase-04-implementation.md` - internal plugin registry, plugin APIs, admin UI, and activity renderer foundation notes for Phase 04
+- `phase-05-implementation.md` - learning workspace panels, notes, bookmarks, transcript, and popout notes for Phase 05
+- `phase-06-implementation.md` - quiz engine, question bank, attempt, auto-grading, and result notes for Phase 06
+- `phase-07-implementation.md` - assignment, rubric grading, certificate templates and issuing, learner goals notes for Phase 07
+- `phase-08-implementation.md` - AI tutor, RAG pipeline, document extraction, embedding, and chat notes for Phase 08
+- `phase-09-implementation.md` - discussions, live classes, notifications, and calendar notes for Phase 09
+- `phase-10-implementation.md` - analytics, admin reporting, audit log viewer, and daily aggregation notes for Phase 10
+- `phase-11-implementation.md` - learning paths, skills, XP, leaderboard, and achievements notes for Phase 11
+- `phase-12-implementation.md` - payment, orders, subscriptions, coupons, and marketplace notes for Phase 12
+- `phase-13-implementation.md` - enterprise SSO, API keys, webhooks, branding, and domain verification notes for Phase 13
+- `phase-14-implementation.md` - PWA, push notifications, performance hardening, and signed URL notes for Phase 14
+- `phase-15-implementation.md` - reviews, wishlist, favorite instructors, and recently viewed notes for Phase 15
+- `phase-16-implementation.md` - SCORM, H5P, xAPI, survey, poll, and course feedback notes for Phase 16
 
 Recommended initial order:
 
