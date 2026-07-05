@@ -46,6 +46,31 @@ describe("AnalyticsService", () => {
       const result = await service.getInstructorDashboard(org, "instructor-a");
       expect(result).toMatchObject({ totalLearners: 0, totalEnrollments: 0 });
     });
+
+    it("aggregates weekly activity without per-course counts", async () => {
+      const { service, prisma } = setup({
+        course: {
+          findFirst: vi.fn().mockResolvedValue({ id: "course-a", organizationId: "org-a" }),
+          findMany: vi.fn().mockResolvedValue([
+            { id: "course-a", title: "Course A", slug: "course-a" },
+          ]),
+          count: vi.fn().mockResolvedValue(1),
+        },
+        courseInstructor: {
+          findFirst: vi.fn().mockResolvedValue(null),
+          findMany: vi.fn().mockResolvedValue([{ courseId: "course-a" }]),
+        },
+        learningEvent: {
+          create: vi.fn().mockResolvedValue({ id: "evt-a" }),
+          findMany: vi.fn().mockResolvedValue([]),
+          count: vi.fn().mockResolvedValue(0),
+          groupBy: vi.fn().mockResolvedValue([{ courseId: "course-a", _count: { id: 7 } }]),
+        },
+      });
+      const result = await service.getInstructorDashboard(org, "instructor-a");
+      expect(result.courses[0]).toMatchObject({ weeklyActivity: 7 });
+      expect(prisma.learningEvent.count).not.toHaveBeenCalled();
+    });
   });
 
   describe("getAdminOverview", () => {
@@ -84,6 +109,52 @@ describe("AnalyticsService", () => {
     it("rejects access to non-existent course", async () => {
       const { service, prisma } = setup({ course: { findFirst: vi.fn().mockResolvedValue(null) } });
       await expect(service.getLearnerCourseProgress(org, "user-a", "course-other-org")).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe("runDailyAggregation", () => {
+    it("uses grouped learner activity without per-learner findFirst queries", async () => {
+      const { service, prisma } = setup({
+        course: {
+          findFirst: vi.fn().mockResolvedValue({ id: "course-a", organizationId: "org-a" }),
+          findMany: vi.fn().mockResolvedValue([{ id: "course-a" }]),
+          count: vi.fn().mockResolvedValue(1),
+        },
+        enrollment: {
+          findUnique: vi.fn().mockResolvedValue({ status: "ACTIVE" }),
+          findMany: vi.fn().mockResolvedValue([
+            {
+              courseId: "course-a",
+              status: "COMPLETED",
+              enrolledAt: new Date(),
+              progressPercent: 100,
+            },
+          ]),
+          count: vi.fn().mockResolvedValue(1),
+        },
+        learningEvent: {
+          create: vi.fn().mockResolvedValue({ id: "evt-a" }),
+          findMany: vi.fn().mockResolvedValue([]),
+          count: vi.fn().mockResolvedValue(5),
+          groupBy: vi
+            .fn()
+            .mockResolvedValueOnce([{ courseId: "course-a", _count: { id: 5 } }])
+            .mockResolvedValueOnce([
+              { courseId: "course-a", userId: "user-a", _count: { id: 5 } },
+            ])
+            .mockResolvedValueOnce([
+              {
+                userId: "user-a",
+                _count: { id: 5 },
+                _max: { createdAt: new Date() },
+              },
+            ]),
+        },
+      });
+      const result = await service.runDailyAggregation("org-a");
+      expect(result).toMatchObject({ coursesProcessed: 1, learnersProcessed: 1 });
+      expect(prisma.dailyCourseAggregate.upsert).toHaveBeenCalledTimes(1);
+      expect(prisma.learnerDailyActivity.upsert).toHaveBeenCalledTimes(1);
     });
   });
 });

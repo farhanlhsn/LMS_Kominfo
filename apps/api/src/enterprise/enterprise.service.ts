@@ -16,6 +16,26 @@ export class EnterpriseService {
 
   private keyPrefix() { return "lms_" + crypto.randomBytes(4).toString("hex"); }
 
+  private encryptionKey() {
+    const secret =
+      process.env.ENTERPRISE_SECRET_KEY ??
+      process.env.JWT_REFRESH_SECRET ??
+      process.env.JWT_ACCESS_SECRET ??
+      "dev-enterprise-secret";
+    return crypto.createHash("sha256").update(secret).digest();
+  }
+
+  private encryptSecret(secret: string) {
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv("aes-256-gcm", this.encryptionKey(), iv);
+    const encrypted = Buffer.concat([
+      cipher.update(secret, "utf8"),
+      cipher.final(),
+    ]);
+    const tag = cipher.getAuthTag();
+    return `enc:v1:${iv.toString("base64url")}:${tag.toString("base64url")}:${encrypted.toString("base64url")}`;
+  }
+
   // ── Branding ─────────────────────────────────────────
 
   private defaultBranding(name: string, slug: string) {
@@ -71,7 +91,18 @@ export class EnterpriseService {
   // ── SSO Providers ────────────────────────────────────
 
   async listProviders(org: OrganizationContext) {
-    return this.prisma.ssoProvider.findMany({ where: { organizationId: org.id }, include: { _count: { select: { identities: true, domains: true } } } });
+    return this.prisma.ssoProvider.findMany({
+      where: { organizationId: org.id },
+      select: {
+        id: true,
+        type: true,
+        name: true,
+        issuer: true,
+        enabled: true,
+        callbackUrl: true,
+        _count: { select: { identities: true, domains: true } },
+      },
+    });
   }
 
   async createProvider(org: OrganizationContext, dto: CreateSsoProviderDto) {
@@ -83,10 +114,20 @@ export class EnterpriseService {
         issuer: dto.issuer,
         entityId: dto.entityId,
         clientId: dto.clientId,
-        clientSecretEncrypted: dto.clientSecret, // TODO: encrypt
+        clientSecretEncrypted: dto.clientSecret
+          ? this.encryptSecret(dto.clientSecret)
+          : null,
         metadataUrl: dto.metadataUrl,
         callbackUrl: dto.callbackUrl ?? "",
         enabled: dto.enabled ?? false,
+      },
+      select: {
+        id: true,
+        type: true,
+        name: true,
+        issuer: true,
+        enabled: true,
+        callbackUrl: true,
       },
     });
   }
@@ -94,7 +135,24 @@ export class EnterpriseService {
   async updateProvider(org: OrganizationContext, id: string, dto: UpdateSsoProviderDto) {
     const p = await this.prisma.ssoProvider.findFirst({ where: { id, organizationId: org.id } });
     if (!p) throw new NotFoundException("SSO provider not found");
-    return this.prisma.ssoProvider.update({ where: { id }, data: dto as any });
+    const { clientSecret, ...rest } = dto;
+    return this.prisma.ssoProvider.update({
+      where: { id },
+      data: {
+        ...rest,
+        ...(clientSecret !== undefined
+          ? { clientSecretEncrypted: clientSecret ? this.encryptSecret(clientSecret) : null }
+          : {}),
+      } as any,
+      select: {
+        id: true,
+        type: true,
+        name: true,
+        issuer: true,
+        enabled: true,
+        callbackUrl: true,
+      },
+    });
   }
 
   async deleteProvider(org: OrganizationContext, id: string) {
@@ -181,26 +239,51 @@ export class EnterpriseService {
   // ── Webhooks ─────────────────────────────────────────
 
   async createWebhook(org: OrganizationContext, userId: string, dto: CreateWebhookDto) {
-    const secret = crypto.randomBytes(24).toString("hex");
-    return this.prisma.webhookEndpoint.create({
+    const rawSecret = crypto.randomBytes(24).toString("hex");
+    const record = await this.prisma.webhookEndpoint.create({
       data: {
         organizationId: org.id,
         name: dto.name,
         url: dto.url,
-        secret,
+        secret: this.encryptSecret(rawSecret),
         events: dto.events as any,
         retryCount: dto.retryCount ?? 3,
         timeoutMs: dto.timeoutMs ?? 5000,
         description: dto.description,
         createdById: userId,
       },
+      select: {
+        id: true,
+        organizationId: true,
+        name: true,
+        url: true,
+        events: true,
+        status: true,
+        retryCount: true,
+        timeoutMs: true,
+        description: true,
+        createdById: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
+    return { ...record, rawSecret };
   }
 
   async listWebhooks(org: OrganizationContext) {
     return this.prisma.webhookEndpoint.findMany({
       where: { organizationId: org.id },
-      include: { _count: { select: { deliveries: true } } },
+      select: {
+        id: true,
+        name: true,
+        url: true,
+        events: true,
+        status: true,
+        description: true,
+        createdAt: true,
+        updatedAt: true,
+        _count: { select: { deliveries: true } },
+      },
       orderBy: { createdAt: "desc" },
     });
   }

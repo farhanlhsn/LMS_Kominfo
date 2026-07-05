@@ -1,4 +1,4 @@
-﻿import { Injectable, NestMiddleware } from "@nestjs/common";
+import { Injectable, NestMiddleware } from "@nestjs/common";
 import type { NextFunction, Request, Response } from "express";
 
 @Injectable()
@@ -20,15 +20,16 @@ export class SecurityHeadersMiddleware implements NestMiddleware {
     response.setHeader(
       "Content-Security-Policy",
       [
-        "default-src 'self'",
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-        "style-src 'self' 'unsafe-inline'",
-        "img-src 'self' data: blob: https:",
-        "font-src 'self' data:",
+        "default-src 'none'",
+        "script-src 'none'",
+        "style-src 'none'",
+        "img-src 'self' data: https:",
+        "font-src 'none'",
         "connect-src 'self' https:",
-        "frame-src 'none'",
+        "frame-ancestors 'none'",
         "object-src 'none'",
-        "base-uri 'self'",
+        "base-uri 'none'",
+        "form-action 'none'",
       ].join("; ")
     );
 

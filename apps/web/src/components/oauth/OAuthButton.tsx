@@ -29,15 +29,26 @@ export function OAuthButton({ provider, onCode, onStart, label, className }: OAu
       onStart?.(provider);
       const redirectUri = typeof window !== "undefined" ? window.location.origin : undefined;
       const { data } = await api.startOAuth(provider, redirectUri);
+      const stateKey = `oauth.pending.${provider}`;
       if (typeof window !== "undefined") {
         // Real implementation would redirect the browser to the provider.
         // For the mock flow we surface the authorization URL and simulate a
         // successful callback with a stable test code.
-        window.sessionStorage.setItem(`oauth.pending.${provider}`, data.state);
+        window.sessionStorage.setItem(stateKey, data.state);
       }
       // The mock provider just expects a code, so we use a known string.
       const mockCode = `mock-${provider.toLowerCase()}-${Date.now()}`;
-      const callback = await api.finishOAuth(provider, mockCode);
+      const state =
+        typeof window !== "undefined"
+          ? window.sessionStorage.getItem(stateKey)
+          : null;
+      if (!state) {
+        throw new Error("OAuth state is missing");
+      }
+      const callback = await api.finishOAuth(provider, mockCode, state);
+      if (typeof window !== "undefined") {
+        window.sessionStorage.removeItem(stateKey);
+      }
       if ("code" in callback.data) {
         onCode?.(mockCode);
       } else {

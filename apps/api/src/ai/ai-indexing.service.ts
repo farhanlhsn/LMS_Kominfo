@@ -20,6 +20,23 @@ interface IndexableDocument {
   metadata?: Record<string, unknown>;
 }
 
+type IndexedActivity = Prisma.ActivityGetPayload<{
+  include: {
+    lesson: { select: { id: true; title: true } };
+    activityContent: { include: { file: true } };
+    transcriptSegments: true;
+  };
+}>;
+
+type ExistingIndexedDocument = {
+  id: string;
+  activityId: string;
+  sourceType: string;
+  fileId: string | null;
+  contentHash: string;
+  status: string;
+};
+
 @Injectable()
 export class AiIndexingService {
   constructor(
@@ -37,12 +54,40 @@ export class AiIndexingService {
     await this.ensureCanManageCourse(organization, userId, courseId);
     const activities = await this.prisma.activity.findMany({
       where: { organizationId: organization.id, courseId, isPublished: true },
-      select: { id: true },
+      include: {
+        lesson: { select: { id: true, title: true } },
+        activityContent: { include: { file: true } },
+        transcriptSegments: {
+          orderBy: [{ orderIndex: "asc" }, { startSeconds: "asc" }],
+        },
+      },
       orderBy: { orderIndex: "asc" },
     });
+    const existingDocuments = activities.length
+      ? await this.prisma.aiDocument.findMany({
+          where: {
+            organizationId: organization.id,
+            courseId,
+            activityId: { in: activities.map((activity) => activity.id) },
+            deletedAt: null,
+          },
+          select: {
+            id: true,
+            activityId: true,
+            sourceType: true,
+            fileId: true,
+            contentHash: true,
+            status: true,
+          },
+        })
+      : [];
+    const existingDocumentMap =
+      this.buildExistingDocumentMap(existingDocuments);
     const results = [];
     for (const activity of activities) {
-      results.push(await this.indexActivity(organization.id, activity.id));
+      results.push(
+        await this.indexResolvedActivity(activity, existingDocumentMap),
+      );
     }
     await this.prisma.auditLog.create({
       data: {
@@ -63,17 +108,34 @@ export class AiIndexingService {
   }
 
   async indexActivity(organizationId: string, activityId: string) {
-    const activity = await this.prisma.activity.findFirst({
-      where: { id: activityId, organizationId },
-      include: {
-        lesson: { select: { id: true, title: true } },
-        activityContent: { include: { file: true } },
-        transcriptSegments: {
-          orderBy: [{ orderIndex: "asc" }, { startSeconds: "asc" }],
-        },
+    const activity = await this.findActivityForIndexing(organizationId, activityId);
+    if (!activity) throw new NotFoundException("Activity not found");
+    const existingDocuments = await this.prisma.aiDocument.findMany({
+      where: {
+        organizationId,
+        activityId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        activityId: true,
+        sourceType: true,
+        fileId: true,
+        contentHash: true,
+        status: true,
       },
     });
-    if (!activity) throw new NotFoundException("Activity not found");
+    const existingDocumentMap =
+      this.buildExistingDocumentMap(existingDocuments);
+    return this.indexResolvedActivity(activity, existingDocumentMap);
+  }
+
+  private async indexResolvedActivity(
+    activity: IndexedActivity,
+    existingDocuments: Map<string, ExistingIndexedDocument>,
+  ) {
+    const organizationId = activity.organizationId;
+    const activityId = activity.id;
     if (
       activity.activityTypeKey === "core.quiz" ||
       activity.activityTypeKey === "core.assignment"
@@ -144,6 +206,10 @@ export class AiIndexingService {
         courseId: activity.courseId,
         lessonId: activity.lessonId,
         activityId,
+        existingDocument:
+          existingDocuments.get(
+            this.documentKey(activity.id, document.sourceType, document.fileId ?? null),
+          ) ?? null,
         ...document,
       });
     }
@@ -179,20 +245,13 @@ export class AiIndexingService {
       courseId: string;
       lessonId: string;
       activityId: string;
+      existingDocument?: ExistingIndexedDocument | null;
     } & IndexableDocument,
   ): Promise<number> {
     const contentHash = createHash("sha256")
       .update(input.rawText)
       .digest("hex");
-    const existing = await this.prisma.aiDocument.findFirst({
-      where: {
-        organizationId: input.organizationId,
-        sourceType: input.sourceType,
-        activityId: input.activityId,
-        fileId: input.fileId ?? null,
-        deletedAt: null,
-      },
-    });
+    const existing = input.existingDocument ?? null;
     const document = existing
       ? await this.prisma.aiDocument.update({
           where: { id: existing.id },
@@ -321,5 +380,56 @@ export class AiIndexingService {
     if (!instructor)
       throw new ForbiddenException("Insufficient course permissions");
     return course;
+  }
+
+  private documentKey(
+    activityId: string,
+    sourceType: string,
+    fileId: string | null,
+  ) {
+    return `${activityId}:${sourceType}:${fileId ?? "null"}`;
+  }
+
+  private buildExistingDocumentMap(
+    documents: Array<{
+      id: string;
+      activityId: string | null;
+      sourceType: string;
+      fileId: string | null;
+      contentHash: string;
+      status: string;
+    }>,
+  ) {
+    const mapped = new Map<string, ExistingIndexedDocument>();
+    for (const document of documents) {
+      if (!document.activityId) {
+        continue;
+      }
+      mapped.set(
+        this.documentKey(
+          document.activityId,
+          document.sourceType,
+          document.fileId ?? null,
+        ),
+        {
+          ...document,
+          activityId: document.activityId,
+        },
+      );
+    }
+    return mapped;
+  }
+
+  private findActivityForIndexing(organizationId: string, activityId: string) {
+    return this.prisma.activity.findFirst({
+      where: { id: activityId, organizationId },
+      include: {
+        lesson: { select: { id: true, title: true } },
+        activityContent: { include: { file: true } },
+        transcriptSegments: {
+          orderBy: [{ orderIndex: "asc" }, { startSeconds: "asc" }],
+        },
+      },
+    });
   }
 }

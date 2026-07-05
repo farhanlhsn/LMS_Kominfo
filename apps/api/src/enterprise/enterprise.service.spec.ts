@@ -52,8 +52,12 @@ describe("EnterpriseService", () => {
   describe("SSO Providers", () => {
     it("creates SSO provider", async () => {
       const { service, prisma } = setup();
-      await service.createProvider(org, { type: "SAML", name: "Azure AD", issuer: "https://sts.windows.net/", callbackUrl: "https://lms/callback" });
-      expect(prisma.ssoProvider.create).toHaveBeenCalled();
+      await service.createProvider(org, { type: "SAML", name: "Azure AD", issuer: "https://sts.windows.net/", clientSecret: "top-secret", callbackUrl: "https://lms/callback" });
+      expect(prisma.ssoProvider.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({
+          clientSecretEncrypted: expect.stringMatching(/^enc:v1:/),
+        }),
+      }));
     });
 
     it("rejects cross-tenant delete", async () => {
@@ -80,14 +84,27 @@ describe("EnterpriseService", () => {
   describe("Webhooks", () => {
     it("creates webhook with secret", async () => {
       const { service, prisma } = setup();
-      await service.createWebhook(org, "admin-a", { name: "Test Webhook", url: "https://hook.example.com", events: ["COURSE_CREATED"] });
-      expect(prisma.webhookEndpoint.create).toHaveBeenCalled();
+      const result = await service.createWebhook(org, "admin-a", { name: "Test Webhook", url: "https://hook.example.com", events: ["COURSE_CREATED"] });
+      expect(result.rawSecret).toBeDefined();
+      expect(prisma.webhookEndpoint.create).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({
+          secret: expect.stringMatching(/^enc:v1:/),
+        }),
+      }));
     });
 
     it("paginates webhook deliveries", async () => {
       const { service } = setup();
       const result = await service.getWebhookDeliveries(org, "wh-a", { page: 1, limit: 20 });
       expect(result.meta.total).toBe(0);
+    });
+
+    it("does not expose secret when listing webhooks", async () => {
+      const { service, prisma } = setup();
+      await service.listWebhooks(org);
+      expect(prisma.webhookEndpoint.findMany).toHaveBeenCalledWith(expect.objectContaining({
+        select: expect.not.objectContaining({ secret: true }),
+      }));
     });
   });
 

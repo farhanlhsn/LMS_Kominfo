@@ -1,3 +1,4 @@
+import { ForbiddenException } from "@nestjs/common";
 import { describe, expect, it, vi } from "vitest";
 import { PushController } from "./push.controller";
 
@@ -93,11 +94,18 @@ describe("PushController", () => {
 
   it("sends push to a specific user", async () => {
     const { controller, push } = setup();
-    const response = await controller.send(createRequest(), "u-2", {
+    const response = await controller.send(createRequest(), "u-1", {
       title: "Hi",
       body: "Body",
     } as any);
-    expect(push.sendToUser).toHaveBeenCalledWith("u-2", { title: "Hi", body: "Body" });
+    expect(push.sendToUser).toHaveBeenCalledWith("org-a", "u-1", { title: "Hi", body: "Body" });
     expect(response).toEqual({ data: { attempted: 0, delivered: 0, failed: 0, removed: 0 } });
+  });
+
+  it("blocks sending push to another user without org permissions", async () => {
+    const { controller } = setup();
+    await expect(
+      controller.send(createRequest(), "u-2", { title: "Hi" } as any),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

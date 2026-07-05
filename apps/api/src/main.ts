@@ -17,10 +17,31 @@ import { ResponseInterceptor } from "./common/interceptors/response.interceptor"
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const port = Number(process.env.API_PORT ?? DEFAULT_PORTS.api);
+  const allowedOrigins = new Set(
+    [
+      process.env.PUBLIC_APP_URL,
+      process.env.NEXT_PUBLIC_APP_URL,
+      ...(process.env.CORS_ALLOWED_ORIGINS ?? "")
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean),
+      "http://localhost:3000",
+      "http://127.0.0.1:3000",
+    ].filter((value): value is string => Boolean(value)),
+  );
 
   app.setGlobalPrefix(API_VERSION_PREFIX);
   app.enableCors({
-    origin: true,
+    origin: (
+      origin: string | undefined,
+      callback: (error: Error | null, allow?: boolean) => void,
+    ) => {
+      if (!origin || allowedOrigins.has(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error("Origin is not allowed by CORS"));
+    },
     credentials: true
   });
   app.useGlobalPipes(

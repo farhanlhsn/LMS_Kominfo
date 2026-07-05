@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { Prisma } from "@lms/db";
 import { PrismaService } from "../prisma/prisma.service";
 import type { OrganizationContext } from "../auth/types/authenticated-request";
@@ -41,11 +42,12 @@ export class OAuthService {
     provider: ProviderKey,
     redirectUri?: string,
   ): Promise<{ authorizeUrl: string; state: string }> {
-    const state = this.generateState();
+    const normalizedRedirectUri = this.normalizeRedirectUri(redirectUri);
+    const state = this.generateState(provider, normalizedRedirectUri);
     // Real OIDC would build a vendor-specific URL. We mock it so the
     // frontend can complete the round trip.
     const authorizeUrl = `https://accounts.mock/${provider.toLowerCase()}/authorize?client_id=lms&state=${state}&redirect_uri=${encodeURIComponent(
-      redirectUri ?? "http://localhost:3000/oauth/callback",
+      normalizedRedirectUri,
     )}`;
     return { authorizeUrl, state };
   }
@@ -54,10 +56,12 @@ export class OAuthService {
     provider: ProviderKey,
     code: string,
     organizationId?: string,
+    state?: string,
   ) {
     if (!code || code.length < 4) {
       throw new BadRequestException("Invalid OAuth code");
     }
+    this.verifyState(provider, state);
     const mock = MOCK_OAUTH_PROFILES[provider](code);
     const existing = await this.prisma.oAuthAccount.findUnique({
       where: {
@@ -148,7 +152,106 @@ export class OAuthService {
     return { id: account.id };
   }
 
-  private generateState() {
-    return Math.random().toString(36).slice(2, 14);
+  private normalizeRedirectUri(redirectUri?: string) {
+    const fallback =
+      process.env.PUBLIC_APP_URL ??
+      process.env.NEXT_PUBLIC_APP_URL ??
+      "http://localhost:3000";
+    const resolved = redirectUri ?? fallback;
+
+    let parsed: URL;
+    try {
+      parsed = new URL(resolved);
+    } catch {
+      throw new BadRequestException("Invalid redirect URI");
+    }
+
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      throw new BadRequestException("Redirect URI must use HTTP or HTTPS");
+    }
+    if (parsed.username || parsed.password) {
+      throw new BadRequestException("Redirect URI must not include credentials");
+    }
+
+    const allowedOrigins = new Set(
+      [
+        process.env.PUBLIC_APP_URL,
+        process.env.NEXT_PUBLIC_APP_URL,
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+      ].filter((value): value is string => Boolean(value)),
+    );
+    if (!allowedOrigins.has(parsed.origin)) {
+      throw new BadRequestException("Redirect URI origin is not allowlisted");
+    }
+
+    return parsed.toString();
+  }
+
+  private generateState(provider: ProviderKey, redirectUri: string) {
+    const payload = Buffer.from(
+      JSON.stringify({
+        provider,
+        redirectUri,
+        issuedAt: Date.now(),
+      }),
+      "utf8",
+    ).toString("base64url");
+    const signature = createHmac("sha256", this.stateSecret())
+      .update(payload)
+      .digest("base64url");
+    return `v1.${payload}.${signature}`;
+  }
+
+  private verifyState(provider: ProviderKey, state?: string) {
+    if (!state) {
+      throw new BadRequestException("Missing OAuth state");
+    }
+    const [version, payload, signature] = state.split(".");
+    if (version !== "v1" || !payload || !signature) {
+      throw new BadRequestException("Invalid OAuth state");
+    }
+
+    const expectedSignature = createHmac("sha256", this.stateSecret())
+      .update(payload)
+      .digest("base64url");
+    if (
+      expectedSignature.length !== signature.length ||
+      !timingSafeEqual(
+        Buffer.from(signature, "utf8"),
+        Buffer.from(expectedSignature, "utf8"),
+      )
+    ) {
+      throw new BadRequestException("Invalid OAuth state");
+    }
+
+    const decoded = JSON.parse(
+      Buffer.from(payload, "base64url").toString("utf8"),
+    ) as {
+      provider?: ProviderKey;
+      redirectUri?: string;
+      issuedAt?: number;
+    };
+    if (decoded.provider !== provider) {
+      throw new BadRequestException("OAuth state provider mismatch");
+    }
+    if (!decoded.redirectUri) {
+      throw new BadRequestException("OAuth state is incomplete");
+    }
+    this.normalizeRedirectUri(decoded.redirectUri);
+    if (
+      typeof decoded.issuedAt !== "number" ||
+      Date.now() - decoded.issuedAt > 10 * 60 * 1000
+    ) {
+      throw new BadRequestException("OAuth state has expired");
+    }
+  }
+
+  private stateSecret() {
+    return (
+      process.env.JWT_REFRESH_SECRET ??
+      process.env.JWT_ACCESS_SECRET ??
+      "dev-oauth-state-secret"
+    );
   }
 }

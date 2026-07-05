@@ -60,6 +60,10 @@ export class FilesService {
     const key = `${organization.id}/${new Date().getFullYear()}/${randomUUID()}-${this.safeFilename(file.originalname)}`;
     const checksum = createHash("sha256").update(file.buffer).digest("hex");
     const purpose = dto.purpose ?? this.purposeFromMime(file.mimetype);
+    const folderId = await this.ensureFolderInOrganization(
+      organization.id,
+      dto.folderId,
+    );
 
     await this.storage.uploadFile({
       bucket,
@@ -76,7 +80,7 @@ export class FilesService {
       data: {
         organizationId: organization.id,
         ownerId: user.id,
-        folderId: dto.folderId,
+        folderId,
         bucket,
         key,
         filename: this.safeFilename(file.originalname),
@@ -263,12 +267,16 @@ export class FilesService {
     userId: string,
     dto: CreateFolderDto,
   ) {
+    const parentId = await this.ensureFolderInOrganization(
+      organization.id,
+      dto.parentId,
+    );
     return this.prisma.folder.create({
       data: {
         organizationId: organization.id,
         createdById: userId,
         name: dto.name,
-        parentId: dto.parentId,
+        parentId,
       },
     });
   }
@@ -328,6 +336,23 @@ export class FilesService {
 
   private safeFilename(filename: string) {
     return filename.replace(/[^a-zA-Z0-9._-]/g, "-").toLowerCase();
+  }
+
+  private async ensureFolderInOrganization(
+    organizationId: string,
+    folderId?: string,
+  ) {
+    if (!folderId) {
+      return null;
+    }
+    const folder = await this.prisma.folder.findFirst({
+      where: { id: folderId, organizationId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!folder) {
+      throw new BadRequestException("Folder does not belong to the active organization");
+    }
+    return folder.id;
   }
 
   private async audit(

@@ -14,21 +14,32 @@ export class SessionService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async listSessions(userId: string) {
-    return this.prisma.refreshSession.findMany({
+    const sessions = await this.prisma.userSession.findMany({
       where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
       orderBy: { lastUsedAt: "desc" },
     });
+    return sessions.map((session) => ({
+      id: session.id,
+      userId: session.userId,
+      deviceInfo: null,
+      ipAddress: session.ipAddress,
+      userAgent: session.userAgent,
+      lastUsedAt: session.lastUsedAt,
+      expiresAt: session.expiresAt,
+      revokedAt: session.revokedAt,
+      createdAt: session.createdAt,
+    }));
   }
 
   async listAllSessions(userId: string) {
-    return this.prisma.refreshSession.findMany({
+    return this.prisma.userSession.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
     });
   }
 
   async revokeSession(user: AuthenticatedUser, sessionId: string) {
-    const session = await this.prisma.refreshSession.findFirst({
+    const session = await this.prisma.userSession.findFirst({
       where: { id: sessionId, userId: user.id },
     });
     if (!session) {
@@ -37,7 +48,7 @@ export class SessionService {
     if (session.id === user.sessionId) {
       throw new ForbiddenException("Use sign-out to revoke the current session");
     }
-    await this.prisma.refreshSession.update({
+    await this.prisma.userSession.update({
       where: { id: session.id },
       data: { revokedAt: new Date() },
     });
@@ -45,7 +56,7 @@ export class SessionService {
   }
 
   async revokeAll(user: AuthenticatedUser) {
-    const result = await this.prisma.refreshSession.updateMany({
+    const result = await this.prisma.userSession.updateMany({
       where: { userId: user.id, revokedAt: null, NOT: { id: user.sessionId } },
       data: { revokedAt: new Date() },
     });
@@ -62,26 +73,27 @@ export class SessionService {
       expiresAt: Date;
     },
   ) {
-    const active = await this.prisma.refreshSession.findMany({
+    const active = await this.prisma.userSession.findMany({
       where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
       orderBy: { createdAt: "asc" },
     });
     if (active.length >= MAX_SESSIONS_PER_USER) {
       const overflow = active.length - MAX_SESSIONS_PER_USER + 1;
       const oldest = active.slice(0, overflow);
-      await this.prisma.refreshSession.updateMany({
+      await this.prisma.userSession.updateMany({
         where: { id: { in: oldest.map((s) => s.id) } },
         data: { revokedAt: new Date() },
       });
     }
-    return this.prisma.refreshSession.create({
+    return this.prisma.userSession.create({
       data: {
         userId,
-        refreshTokenHash: input.refreshTokenHash,
-        deviceInfo: input.deviceInfo,
+        tokenHash: input.refreshTokenHash,
+        activeOrganizationId: null,
         ipAddress: input.ipAddress,
         userAgent: input.userAgent,
         expiresAt: input.expiresAt,
+        lastUsedAt: new Date(),
       },
     });
   }

@@ -1839,6 +1839,7 @@ export const api = {
   finishOAuth: (
     provider: OAuthProvider,
     code: string,
+    state: string,
   ) =>
     apiRequest<{
       data:
@@ -1846,7 +1847,7 @@ export const api = {
         | { profile: { provider: OAuthProvider; providerUserId: string; email: string; name: string; raw: Record<string, unknown> } };
     }>(`/auth/oauth/${provider.toLowerCase()}/callback`, {
       method: "POST",
-      body: JSON.stringify({ code }),
+      body: JSON.stringify({ code, state }),
     }),
   listOAuthAccounts: () =>
     apiRequest<{ data: OAuthAccount[] }>("/auth/oauth/accounts"),

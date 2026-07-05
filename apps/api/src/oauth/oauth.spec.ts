@@ -96,7 +96,7 @@ describe("OAuthService", () => {
   it("builds a provider start URL with state", async () => {
     const prisma: any = buildOauthPrisma();
     const service = new OAuthService(prisma);
-    const { authorizeUrl, state } = await service.start("GOOGLE");
+    const { authorizeUrl, state } = await service.start("GOOGLE", "http://localhost:3000");
     expect(authorizeUrl).toContain("accounts.mock/google");
     expect(state).toBeTruthy();
   });
@@ -110,7 +110,8 @@ describe("OAuthService", () => {
       email: "abc@example.com",
       raw: {},
     });
-    const result = await service.callback("GOOGLE", "abcd", "org-1");
+    const { state } = await service.start("GOOGLE", "http://localhost:3000");
+    const result = await service.callback("GOOGLE", "abcd", "org-1", state);
     expect(result.linked).toBe(true);
     expect(result.account!.userId).toBe(user.id);
   });
@@ -118,7 +119,8 @@ describe("OAuthService", () => {
   it("returns a fresh profile for a new code", async () => {
     const prisma: any = buildOauthPrisma();
     const service = new OAuthService(prisma);
-    const result = await service.callback("MICROSOFT", "xyzw", "org-1");
+    const { state } = await service.start("MICROSOFT", "http://localhost:3000");
+    const result = await service.callback("MICROSOFT", "xyzw", "org-1", state);
     expect(result.profile).toBeDefined();
     expect(result.profile!.provider).toBe("MICROSOFT");
     expect(result.linked).toBeUndefined();
@@ -127,7 +129,16 @@ describe("OAuthService", () => {
   it("rejects empty callback codes", async () => {
     const prisma: any = buildOauthPrisma();
     const service = new OAuthService(prisma);
-    await expect(service.callback("GOOGLE", "", "org-1")).rejects.toBeInstanceOf(BadRequestException);
+    const { state } = await service.start("GOOGLE", "http://localhost:3000");
+    await expect(service.callback("GOOGLE", "", "org-1", state)).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it("rejects callback without matching state", async () => {
+    const prisma: any = buildOauthPrisma();
+    const service = new OAuthService(prisma);
+    await expect(
+      service.callback("GOOGLE", "abcd", "org-1", undefined),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });
 
@@ -230,7 +241,7 @@ describe("SessionService", () => {
   function buildPrisma() {
     const sessions: any[] = [];
     return {
-      refreshSession: {
+      userSession: {
         findMany: vi.fn(async ({ where }: any) => {
           return sessions.filter((s) => {
             if (where?.userId && s.userId !== where.userId) return false;
@@ -267,7 +278,12 @@ describe("SessionService", () => {
           return { count };
         }),
         create: vi.fn(async (args: any) => {
-          const created = { id: `s-${sessions.length + 1}`, ...args.data };
+          const created = {
+            id: `s-${sessions.length + 1}`,
+            createdAt: new Date(),
+            revokedAt: null,
+            ...args.data,
+          };
           sessions.push(created);
           return created;
         }),

@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Inject,
   Param,
@@ -9,6 +10,7 @@ import {
   Req,
   UseGuards,
 } from "@nestjs/common";
+import { PERMISSIONS } from "@lms/shared";
 import type { AuthenticatedRequest } from "../auth/types/authenticated-request";
 import { JwtAuthGuard } from "../rbac/guards/jwt-auth.guard";
 import { OrganizationContextGuard } from "../rbac/guards/organization-context.guard";
@@ -56,6 +58,12 @@ export class PushController {
     @Param("userId") userId: string,
     @Body() payload: PushPayload,
   ) {
-    return { data: await this.push.sendToUser(userId, payload) };
+    const canManagePush =
+      req.organization?.isPlatformAdmin ||
+      req.organization?.permissionKeys.includes(PERMISSIONS.organizationsManage);
+    if (userId !== req.user.id && !canManagePush) {
+      throw new ForbiddenException("Insufficient permissions to send push notifications");
+    }
+    return { data: await this.push.sendToUser(req.organization!.id, userId, payload) };
   }
 }

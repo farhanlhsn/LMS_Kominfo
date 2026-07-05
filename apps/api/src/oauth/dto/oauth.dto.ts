@@ -4,6 +4,7 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  IsUrl,
   Length,
   Min,
   MinLength,
@@ -16,12 +17,8 @@ export type OAuthProviderValue = (typeof OAUTH_PROVIDERS)[number];
 
 export class OAuthStartDto {
   @IsOptional()
-  @IsString()
+  @IsUrl({ require_tld: false, require_protocol: true })
   redirectUri?: string;
-
-  @IsOptional()
-  @IsString()
-  state?: string;
 }
 
 export class OAuthCallbackDto {

@@ -17,6 +17,9 @@ function createService(overrides: Partial<Record<string, unknown>> = {}) {
     file: {
       create: vi.fn(),
     },
+    folder: {
+      findFirst: vi.fn().mockResolvedValue(null),
+    },
     auditLog: {
       create: vi.fn().mockResolvedValue({ id: "audit_1" }),
     },
@@ -81,5 +84,48 @@ describe("FilesService", () => {
       undefined,
     );
     expect(storage.getSignedUrl).toHaveBeenCalledWith("bucket", "key", 600);
+  });
+
+  it("rejects upload into a folder from another organization", async () => {
+    const { service } = createService({
+      folder: {
+        findFirst: vi.fn().mockResolvedValue(null),
+      },
+    });
+
+    await expect(
+      service.upload(
+        organization,
+        {
+          id: "user_1",
+          email: "user@example.com",
+          name: "User",
+          sessionId: "session_1",
+          activeOrganizationId: organization.id,
+        } as any,
+        {
+          originalname: "lesson.pdf",
+          mimetype: "application/pdf",
+          size: 16,
+          buffer: Buffer.from("content"),
+        } as Express.Multer.File,
+        { folderId: "folder-other-org" } as any,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it("rejects folder creation under a parent from another organization", async () => {
+    const { service } = createService({
+      folder: {
+        findFirst: vi.fn().mockResolvedValue(null),
+      },
+    });
+
+    await expect(
+      service.createFolder(organization as any, "user_1", {
+        name: "Child",
+        parentId: "folder-other-org",
+      } as any),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });

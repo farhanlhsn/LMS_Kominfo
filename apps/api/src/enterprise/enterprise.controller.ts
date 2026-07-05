@@ -1,4 +1,4 @@
-﻿import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Inject, UseGuards, Req } from "@nestjs/common";
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Inject, UseGuards, Req } from "@nestjs/common";
 import { PERMISSIONS } from "@lms/shared";
 import type { AuthenticatedRequest } from "../auth/types/authenticated-request";
 import { JwtAuthGuard } from "../rbac/guards/jwt-auth.guard";
@@ -9,7 +9,7 @@ import { EnterpriseService } from "./enterprise.service";
 import type { UpdateBrandingDto, CreateSsoProviderDto, UpdateSsoProviderDto, UpdateLoginPolicyDto, CreateDomainDto, CreateApiKeyDto, CreateWebhookDto, EnterpriseQueryDto } from "./dto/enterprise.dto";
 
 @Controller("api/v1/enterprise")
-@UseGuards(JwtAuthGuard, OrganizationContextGuard)
+@UseGuards(JwtAuthGuard, OrganizationContextGuard, PermissionsGuard)
 export class EnterpriseController {
   constructor(
     @Inject(EnterpriseService) private readonly enterprise: EnterpriseService

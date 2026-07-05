@@ -60,11 +60,21 @@ describe("PushService", () => {
   it("subscribes a user and returns a record", async () => {
     const { service, prisma } = setup();
     const result = await service.subscribe("org-1", "user-a", {
-      endpoint: "https://push.example.com",
+      endpoint: "https://push.example.com/send",
       keys: { p256dh: "pp", auth: "aa" },
     });
     expect(result.userId).toBe("user-a");
     expect(prisma.pushSubscription.upsert).toHaveBeenCalled();
+  });
+
+  it("rejects private push endpoints", async () => {
+    const { service } = setup();
+    await expect(
+      service.subscribe("org-1", "user-a", {
+        endpoint: "https://localhost/push",
+        keys: { p256dh: "pp", auth: "aa" },
+      }),
+    ).rejects.toBeInstanceOf(Error);
   });
 
   it("rejects subscription with missing fields", async () => {
@@ -110,7 +120,7 @@ describe("PushService", () => {
 
   it("sendToUser returns empty result when no subscriptions", async () => {
     const { service } = setup();
-    const result = await service.sendToUser("u1", { title: "Hi" });
+    const result = await service.sendToUser("org-1", "u1", { title: "Hi" });
     expect(result).toEqual({ attempted: 0, delivered: 0, failed: 0, removed: 0 });
   });
 
@@ -133,7 +143,7 @@ describe("PushService", () => {
     // Override the default delete mock so the .delete call here is recorded.
     const deleteMock = vi.fn().mockResolvedValue({ id: "expired" });
     prisma.pushSubscription.delete = deleteMock as any;
-    const result = await service.sendToUser("u1", { title: "Hi" });
+    const result = await service.sendToUser("org-1", "u1", { title: "Hi" });
     expect(result.removed).toBe(1);
     expect(deleteMock).toHaveBeenCalled();
   });
@@ -157,8 +167,8 @@ describe("PushService", () => {
     });
     const fetchMock = vi.fn().mockResolvedValue({ status: 201 });
     globalThis.fetch = fetchMock as any;
-    const result = await service.sendToUser("u1", { title: "Hi", body: "There" });
-    expect(fetchMock).toHaveBeenCalledWith("https://push.example.com", expect.any(Object));
+    const result = await service.sendToUser("org-1", "u1", { title: "Hi", body: "There" });
+    expect(fetchMock).toHaveBeenCalledWith("https://push.example.com/", expect.any(Object));
     expect(result.delivered).toBe(1);
   });
 
@@ -179,7 +189,7 @@ describe("PushService", () => {
       },
     });
     globalThis.fetch = vi.fn().mockResolvedValue({ status: 500 }) as any;
-    const result = await service.sendToUser("u1", { title: "Hi" });
+    const result = await service.sendToUser("org-1", "u1", { title: "Hi" });
     expect(result.failed).toBe(1);
   });
 

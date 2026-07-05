@@ -29,7 +29,8 @@ describe("SecurityHeadersMiddleware", () => {
     expect(response.headers["X-Frame-Options"]).toBe("DENY");
     expect(response.headers["Referrer-Policy"]).toBe("strict-origin-when-cross-origin");
     expect(response.headers["Permissions-Policy"]).toContain("camera=()");
-    expect(response.headers["Content-Security-Policy"]).toContain("default-src 'self'");
+    expect(response.headers["Content-Security-Policy"]).toContain("default-src 'none'");
+    expect(response.headers["Content-Security-Policy"]).toContain("script-src 'none'");
     expect(response.headers["Strict-Transport-Security"]).toBeUndefined();
   });
 

@@ -61,7 +61,7 @@ export class OAuthController {
     @ActiveOrganization() org: OrganizationContext | undefined,
   ) {
     const normalized = this.normalizeProvider(provider);
-    return this.service.callback(normalized, dto.code, org?.id);
+    return this.service.callback(normalized, dto.code, org?.id, dto.state);
   }
 }
 
