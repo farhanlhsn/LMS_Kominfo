@@ -6,6 +6,9 @@ import { EmptyState } from "../../../components/ui/states";
 import { CheckSquare } from "lucide-react";
 import { useSubmitSurveyResponse, useSurveys } from "../../../lib/api-hooks";
 
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "../../../components/ui/card";
+import { Button } from "../../../components/ui/button";
+
 export default function LearnerSurveysPage() {
   const query = useSurveys();
   const submit = useSubmitSurveyResponse();
@@ -100,96 +103,103 @@ function SurveyCard({
   };
 
   return (
-    <article className="rounded-lg border border-border bg-card p-5 shadow-subtle">
-      <div className="flex items-start justify-between gap-2">
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0 pb-4">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">{survey.title}</h2>
+          <CardTitle className="leading-tight">{survey.title}</CardTitle>
           {survey.description ? (
-            <p className="mt-1 text-sm text-muted-foreground">{survey.description}</p>
+            <p className="mt-1.5 text-sm text-muted-foreground">{survey.description}</p>
           ) : null}
         </div>
         <StatusBadge
           value={survey.status}
           tone={isOpen ? "success" : "neutral"}
         />
-      </div>
+      </CardHeader>
+      <CardContent>
+        {questions.length === 0 ? (
+          <div className="rounded-lg border border-dashed p-6 text-center">
+            <p className="text-sm text-muted-foreground">This survey has no questions yet.</p>
+          </div>
+        ) : (
+          <ol className="space-y-6">
+            {questions.map((q, idx) => (
+              <li key={q.id}>
+                <p className="text-sm font-semibold text-foreground">
+                  {idx + 1}. {q.prompt}{" "}
+                  {q.required ? <span className="text-destructive">*</span> : null}
+                </p>
+                <div className="mt-3">
+                  {q.type === "SINGLE_CHOICE" || q.type === "YES_NO" ? (
+                    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                      {(q.options.length > 0
+                        ? q.options
+                        : [{ id: "yes", label: "Yes" }, { id: "no", label: "No" }]
+                      ).map((opt) => (
+                        <label
+                          key={opt.id}
+                          className={`flex cursor-pointer items-center gap-3 rounded-md border px-4 py-3 text-sm transition-colors hover:bg-muted/50 ${
+                            answers[q.id] === opt.label ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border bg-card"
+                          }`}
+                        >
+                          <input
+                            checked={answers[q.id] === opt.label}
+                            name={`q-${q.id}`}
+                            className="h-4 w-4 text-primary focus:ring-primary accent-primary"
+                            onChange={() => setAnswers((prev) => ({ ...prev, [q.id]: opt.label }))}
+                            type="radio"
+                          />
+                          <span className="font-medium">{opt.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  ) : q.type === "RATING" || q.type === "SCALE" ? (
+                    <div className="flex gap-2">
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <button
+                          key={n}
+                          className={`flex h-10 w-10 items-center justify-center rounded-md border text-sm transition-colors ${
+                            answers[q.id] === String(n)
+                              ? "border-primary bg-primary font-bold text-primary-foreground shadow-sm"
+                              : "border-border bg-card hover:bg-muted text-foreground"
+                          }`}
+                          onClick={() => setAnswers((prev) => ({ ...prev, [q.id]: String(n) }))}
+                          type="button"
+                        >
+                          {n}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <textarea
+                      className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
+                      placeholder="Type your answer here..."
+                      onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
+                      value={answers[q.id] ?? ""}
+                    />
+                  )}
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
 
-      {questions.length === 0 ? (
-        <p className="mt-3 text-sm text-muted-foreground">This survey has no questions yet.</p>
-      ) : (
-        <ol className="mt-4 space-y-3">
-          {questions.map((q, idx) => (
-            <li key={q.id} className="rounded-md border border-border bg-background p-3">
-              <p className="text-sm font-medium text-foreground">
-                {idx + 1}. {q.prompt}{" "}
-                {q.required ? <span className="text-destructive">*</span> : null}
-              </p>
-              <div className="mt-2">
-                {q.type === "SINGLE_CHOICE" || q.type === "YES_NO" ? (
-                  <div className="flex flex-wrap gap-2">
-                    {(q.options.length > 0
-                      ? q.options
-                      : [{ id: "yes", label: "Yes" }, { id: "no", label: "No" }]
-                    ).map((opt) => (
-                      <label
-                        key={opt.id}
-                        className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm"
-                      >
-                        <input
-                          checked={answers[q.id] === opt.label}
-                          name={`q-${q.id}`}
-                          onChange={() => setAnswers((prev) => ({ ...prev, [q.id]: opt.label }))}
-                          type="radio"
-                        />
-                        {opt.label}
-                      </label>
-                    ))}
-                  </div>
-                ) : q.type === "RATING" || q.type === "SCALE" ? (
-                  <div className="flex gap-1">
-                    {[1, 2, 3, 4, 5].map((n) => (
-                      <button
-                        key={n}
-                        className={`rounded-md border px-3 py-1 text-sm ${
-                          answers[q.id] === String(n)
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "border-border bg-card"
-                        }`}
-                        onClick={() => setAnswers((prev) => ({ ...prev, [q.id]: String(n) }))}
-                        type="button"
-                      >
-                        {n}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <textarea
-                    className="min-h-20 w-full rounded-md border border-input bg-card px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-                    onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
-                    value={answers[q.id] ?? ""}
-                  />
-                )}
-              </div>
-            </li>
-          ))}
-        </ol>
-      )}
-
-      {error ? <p className="mt-2 text-xs text-destructive">{error}</p> : null}
-      {submitted ? (
-        <p className="mt-2 text-xs text-success">Response submitted. Thank you!</p>
-      ) : null}
-
-      <div className="mt-4 flex justify-end">
-        <button
-          className="rounded-md border border-primary bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+        {error ? <p className="mt-4 text-sm font-medium text-destructive">{error}</p> : null}
+        {submitted ? (
+          <div className="mt-4 rounded-md bg-success/10 p-3 text-sm font-medium text-success">
+            Response submitted successfully. Thank you for your feedback!
+          </div>
+        ) : null}
+      </CardContent>
+      <CardFooter className="pt-0">
+        <Button
           disabled={!isOpen || submitting || questions.length === 0 || submitted}
           onClick={handleSubmit}
-          type="button"
+          className="w-full sm:w-auto"
         >
           {submitting ? "Submitting…" : submitted ? "Submitted" : "Submit response"}
-        </button>
-      </div>
-    </article>
+        </Button>
+      </CardFooter>
+    </Card>
   );
 }

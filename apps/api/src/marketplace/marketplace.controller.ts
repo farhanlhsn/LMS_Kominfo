@@ -1,4 +1,4 @@
-﻿import { Controller, Get, Post, Body, Param, Query, Inject, UseGuards, Req } from "@nestjs/common";
+import { Controller, Get, Post, Body, Param, Query, Inject, UseGuards, Req } from "@nestjs/common";
 import { PERMISSIONS } from "@lms/shared";
 import type { AuthenticatedRequest } from "../auth/types/authenticated-request";
 import { JwtAuthGuard } from "../rbac/guards/jwt-auth.guard";
@@ -8,7 +8,7 @@ import { Permissions } from "../rbac/decorators/permissions.decorator";
 import { MarketplaceService } from "./marketplace.service";
 import type { SetCoursePricingDto, CreateCouponDto, CreateOrderDto, ConfirmPaymentDto, ApprovePaymentDto, CreateSubscriptionPlanDto, MarketplaceQueryDto } from "./dto/marketplace.dto";
 
-@Controller("api/v1")
+@Controller()
 @UseGuards(JwtAuthGuard, OrganizationContextGuard)
 export class MarketplaceController {
   constructor(

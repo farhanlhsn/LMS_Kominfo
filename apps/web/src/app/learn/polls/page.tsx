@@ -7,6 +7,9 @@ import { EmptyState } from "../../../components/ui/states";
 import { PollResultsView } from "../../../components/experiences/experiences-views";
 import { usePollResults, usePolls, useVotePoll } from "../../../lib/api-hooks";
 
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "../../../components/ui/card";
+import { Button } from "../../../components/ui/button";
+
 export default function LearnerPollsPage() {
   const query = usePolls();
   const polls = (query.data ?? []) as Array<{
@@ -93,49 +96,49 @@ function PollCard({
   };
 
   return (
-    <article className="rounded-lg border border-border bg-card p-5 shadow-subtle">
-      <div className="flex items-start justify-between gap-2">
-        <h2 className="text-lg font-semibold text-foreground">{poll.question}</h2>
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0 pb-2">
+        <CardTitle className="text-lg leading-tight">{poll.question}</CardTitle>
         <StatusBadge value={poll.status} tone={isActive ? "success" : "neutral"} />
-      </div>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {poll.options.map((opt) => {
-          const active = selected.includes(opt.id);
-          return (
-            <button
-              key={opt.id}
-              className={`rounded-md border px-4 py-2 text-sm ${
-                active
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border bg-card text-foreground"
-              }`}
-              onClick={() => toggle(opt.id)}
-              type="button"
-            >
-              {opt.label}
-            </button>
-          );
-        })}
-      </div>
-      {error ? <p className="mt-2 text-xs text-destructive">{error}</p> : null}
-      <div className="mt-3 flex justify-end">
-        <button
-          className="rounded-md border border-primary bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50"
-          disabled={!isActive || voted}
-          onClick={handleVote}
-          type="button"
-        >
-          {voted ? "Vote recorded" : "Submit vote"}
-        </button>
-      </div>
-      {voted ? (
-        <div className="mt-4">
-          <h3 className="text-sm font-semibold">Live results</h3>
-          <div className="mt-2">
+      </CardHeader>
+      <CardContent>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {poll.options.map((opt) => {
+            const active = selected.includes(opt.id);
+            return (
+              <button
+                key={opt.id}
+                className={`rounded-full border px-4 py-2 text-sm transition-colors ${
+                  active
+                    ? "border-primary bg-primary font-medium text-primary-foreground shadow-sm"
+                    : "border-border bg-background text-foreground hover:bg-muted"
+                }`}
+                onClick={() => toggle(opt.id)}
+                type="button"
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        {error ? <p className="mt-3 text-sm font-medium text-destructive">{error}</p> : null}
+        
+        {voted ? (
+          <div className="mt-6 rounded-lg border bg-muted/50 p-4">
+            <h3 className="mb-3 text-sm font-semibold">Live results</h3>
             <PollResultsView results={results.data ?? null} />
           </div>
-        </div>
-      ) : null}
-    </article>
+        ) : null}
+      </CardContent>
+      <CardFooter className="pt-0">
+        <Button
+          disabled={!isActive || voted}
+          onClick={handleVote}
+          className="w-full sm:w-auto"
+        >
+          {voted ? "Vote recorded" : "Submit vote"}
+        </Button>
+      </CardFooter>
+    </Card>
   );
 }
