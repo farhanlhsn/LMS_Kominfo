@@ -32,6 +32,10 @@ WORKDIR /app
 RUN addgroup -S lms && adduser -S lms -G lms
 
 COPY --from=builder --chown=lms:lms /app/dist/api/node_modules ./node_modules
+# pnpm deploy omits the generated Prisma client artifacts for transitive
+# workspace deps in this repo setup. Overlay the builder store so the
+# generated @prisma/client payload is present at runtime.
+COPY --from=builder --chown=lms:lms /app/node_modules/.pnpm ./node_modules/.pnpm
 COPY --from=builder --chown=lms:lms /app/dist/api/dist ./dist
 COPY --from=builder --chown=lms:lms /app/dist/api/package.json ./package.json
 
