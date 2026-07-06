@@ -28,8 +28,8 @@ WORKDIR /app
 RUN addgroup -S lms && adduser -S lms -G lms
 
 COPY --from=builder --chown=lms:lms /app/apps/web/.next/standalone ./
-COPY --from=builder --chown=lms:lms /app/apps/web/.next/static ./.next/static
-COPY --from=builder --chown=lms:lms /app/apps/web/public ./public
+COPY --from=builder --chown=lms:lms /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=builder --chown=lms:lms /app/apps/web/public ./apps/web/public
 
 USER lms
 EXPOSE 3000
@@ -38,4 +38,4 @@ HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
     CMD node -e "require('http').get('http://localhost:3000',(r)=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))"
 
 ENV HOSTNAME="0.0.0.0"
-CMD ["node", "server.js"]
+CMD ["node", "apps/web/server.js"]

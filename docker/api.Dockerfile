@@ -32,7 +32,7 @@ WORKDIR /app
 RUN addgroup -S lms && adduser -S lms -G lms
 
 COPY --from=builder --chown=lms:lms /app/dist/api/node_modules ./node_modules
-COPY --from=builder --chown=lms:lms /app/dist/api ./dist
+COPY --from=builder --chown=lms:lms /app/dist/api/dist ./dist
 COPY --from=builder --chown=lms:lms /app/dist/api/package.json ./package.json
 
 # Prisma schema is kept for operational tasks; generated client should already
