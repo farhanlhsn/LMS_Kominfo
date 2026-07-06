@@ -1,4 +1,4 @@
-﻿import { Inject, Injectable, NotFoundException, ForbiddenException, BadRequestException } from "@nestjs/common";
+import { Inject, Injectable, NotFoundException, ForbiddenException, BadRequestException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import type { OrganizationContext } from "../auth/types/authenticated-request";
 import type { CreateReviewDto, ModerateReviewDto, AddWishlistDto, FavoriteInstructorDto, ReviewQueryDto } from "./dto/reviews.dto";
@@ -98,6 +98,13 @@ export class ReviewsService {
   // ── Wishlist ────────────────────────────────────────
 
   async addWishlist(org: OrganizationContext, userId: string, dto: AddWishlistDto) {
+    const course = await this.prisma.course.findFirst({
+      where: { id: dto.courseId, organizationId: org.id },
+      select: { id: true },
+    });
+    if (!course) {
+      throw new NotFoundException("Course not found");
+    }
     return this.prisma.wishlist.upsert({
       where: { organizationId_userId_courseId: { organizationId: org.id, userId, courseId: dto.courseId } },
       update: {},
@@ -148,6 +155,13 @@ export class ReviewsService {
   // ── Recently Viewed ─────────────────────────────────
 
   async trackView(org: OrganizationContext, userId: string, courseId: string) {
+    const course = await this.prisma.course.findFirst({
+      where: { id: courseId, organizationId: org.id },
+      select: { id: true },
+    });
+    if (!course) {
+      throw new NotFoundException("Course not found");
+    }
     return this.prisma.recentlyViewedCourse.upsert({
       where: { organizationId_userId_courseId: { organizationId: org.id, userId, courseId } },
       update: { viewedAt: new Date() },
