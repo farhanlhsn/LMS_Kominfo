@@ -35,9 +35,9 @@ COPY --from=builder --chown=lms:lms /app/dist/api/node_modules ./node_modules
 COPY --from=builder --chown=lms:lms /app/dist/api ./dist
 COPY --from=builder --chown=lms:lms /app/dist/api/package.json ./package.json
 
-# Prisma client (needed at runtime)
+# Prisma schema is kept for operational tasks; generated client should already
+# be included inside the deployed node_modules copied above.
 COPY --from=builder --chown=lms:lms /app/packages/db/prisma ./prisma
-COPY --from=builder --chown=lms:lms /app/packages/db/node_modules/.prisma ./node_modules/.prisma
 
 USER lms
 EXPOSE 4000
