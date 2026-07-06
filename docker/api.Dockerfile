@@ -21,7 +21,7 @@ RUN pnpm exec prisma generate --schema=./packages/db/prisma/schema.prisma
 # ── Build ─────────────────────────────────────────────────────────────────
 FROM deps AS builder
 RUN pnpm exec prisma generate --schema=./packages/db/prisma/schema.prisma
-RUN pnpm --filter @lms/shared --filter @lms/config build
+RUN pnpm --filter @lms/shared --filter @lms/config --filter @lms/db build
 RUN pnpm --filter @lms/api build
 RUN pnpm deploy --filter @lms/api /app/dist/api
 
