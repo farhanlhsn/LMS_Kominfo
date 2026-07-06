@@ -23,7 +23,7 @@ FROM deps AS builder
 RUN pnpm exec prisma generate --schema=./packages/db/prisma/schema.prisma
 RUN pnpm --filter @lms/shared --filter @lms/config --filter @lms/db build
 RUN pnpm --filter @lms/api build
-RUN pnpm deploy --filter @lms/api /app/dist/api
+RUN pnpm deploy --legacy --filter @lms/api /app/dist/api
 
 # ── Production ────────────────────────────────────────────────────────────
 FROM node:24-alpine AS production
