@@ -38,6 +38,7 @@ COPY --from=builder --chown=lms:lms /app/dist/api/node_modules ./node_modules
 COPY --from=builder --chown=lms:lms /app/node_modules/.pnpm ./node_modules/.pnpm
 COPY --from=builder --chown=lms:lms /app/dist/api/dist ./dist
 COPY --from=builder --chown=lms:lms /app/dist/api/package.json ./package.json
+COPY --chown=lms:lms docker/api-entrypoint.sh ./api-entrypoint.sh
 
 # Prisma schema is kept for operational tasks; generated client should already
 # be included inside the deployed node_modules copied above.
@@ -49,4 +50,6 @@ EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
     CMD node -e "require('http').get('http://localhost:4000/api/v1/health',(r)=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))"
 
-CMD ["node", "dist/main.js"]
+RUN chmod +x /app/api-entrypoint.sh
+
+CMD ["sh", "/app/api-entrypoint.sh"]
