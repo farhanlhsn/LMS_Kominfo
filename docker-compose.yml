@@ -48,6 +48,8 @@ services:
       S3_BUCKET: ${S3_BUCKET:-lms-local}
       S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-minio}
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-minio_password}
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
     depends_on:
       postgres:
         condition: service_healthy
