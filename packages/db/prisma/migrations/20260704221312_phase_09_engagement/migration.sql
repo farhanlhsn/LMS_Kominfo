@@ -184,10 +184,82 @@ ALTER TABLE "NotificationPreference" ADD CONSTRAINT "NotificationPreference_orga
 ALTER TABLE "NotificationPreference" ADD CONSTRAINT "NotificationPreference_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- RenameIndex
-ALTER INDEX "AiAnswerCache_organizationId_courseId_canonicalKey_contextHash_" RENAME TO "AiAnswerCache_organizationId_courseId_canonicalKey_contextH_key";
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = current_schema()
+      AND c.relkind = 'i'
+      AND c.relname = 'AiAnswerCache_organizationId_courseId_canonicalKey_contextHash_'
+  ) THEN
+    IF EXISTS (
+      SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = current_schema()
+        AND c.relkind = 'i'
+        AND c.relname = 'AiAnswerCache_organizationId_courseId_canonicalKey_contextH_key'
+    ) THEN
+      DROP INDEX "AiAnswerCache_organizationId_courseId_canonicalKey_contextHash_";
+    ELSE
+      ALTER INDEX "AiAnswerCache_organizationId_courseId_canonicalKey_contextHash_" RENAME TO "AiAnswerCache_organizationId_courseId_canonicalKey_contextH_key";
+    END IF;
+  END IF;
+END
+$$;
 
 -- RenameIndex
-ALTER INDEX "AiClassificationPrototype_organizationId_courseId_label_status_" RENAME TO "AiClassificationPrototype_organizationId_courseId_label_sta_idx";
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = current_schema()
+      AND c.relkind = 'i'
+      AND c.relname = 'AiClassificationPrototype_organizationId_courseId_label_status_'
+  ) THEN
+    IF EXISTS (
+      SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = current_schema()
+        AND c.relkind = 'i'
+        AND c.relname = 'AiClassificationPrototype_organizationId_courseId_label_sta_idx'
+    ) THEN
+      DROP INDEX "AiClassificationPrototype_organizationId_courseId_label_status_";
+    ELSE
+      ALTER INDEX "AiClassificationPrototype_organizationId_courseId_label_status_" RENAME TO "AiClassificationPrototype_organizationId_courseId_label_sta_idx";
+    END IF;
+  END IF;
+END
+$$;
 
 -- RenameIndex
-ALTER INDEX "AiClassificationPrototype_status_embeddingProvider_embeddingMod" RENAME TO "AiClassificationPrototype_status_embeddingProvider_embeddin_idx";
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = current_schema()
+      AND c.relkind = 'i'
+      AND c.relname = 'AiClassificationPrototype_status_embeddingProvider_embeddingMod'
+  ) THEN
+    IF EXISTS (
+      SELECT 1
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = current_schema()
+        AND c.relkind = 'i'
+        AND c.relname = 'AiClassificationPrototype_status_embeddingProvider_embeddin_idx'
+    ) THEN
+      DROP INDEX "AiClassificationPrototype_status_embeddingProvider_embeddingMod";
+    ELSE
+      ALTER INDEX "AiClassificationPrototype_status_embeddingProvider_embeddingMod" RENAME TO "AiClassificationPrototype_status_embeddingProvider_embeddin_idx";
+    END IF;
+  END IF;
+END
+$$;
