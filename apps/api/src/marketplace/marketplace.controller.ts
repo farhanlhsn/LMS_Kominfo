@@ -6,7 +6,7 @@ import { OrganizationContextGuard } from "../rbac/guards/organization-context.gu
 import { PermissionsGuard } from "../rbac/guards/permissions.guard";
 import { Permissions } from "../rbac/decorators/permissions.decorator";
 import { MarketplaceService } from "./marketplace.service";
-import type { SetCoursePricingDto, CreateCouponDto, CreateOrderDto, ConfirmPaymentDto, ApprovePaymentDto, CreateSubscriptionPlanDto, MarketplaceQueryDto } from "./dto/marketplace.dto";
+import { SetCoursePricingDto, CreateCouponDto, CreateOrderDto, ConfirmPaymentDto, ApprovePaymentDto, CreateSubscriptionPlanDto, MarketplaceQueryDto } from "./dto/marketplace.dto";
 
 @Controller()
 @UseGuards(JwtAuthGuard, OrganizationContextGuard)

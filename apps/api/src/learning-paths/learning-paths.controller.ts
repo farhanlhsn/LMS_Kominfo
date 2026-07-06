@@ -6,7 +6,7 @@ import { OrganizationContextGuard } from "../rbac/guards/organization-context.gu
 import { PermissionsGuard } from "../rbac/guards/permissions.guard";
 import { Permissions } from "../rbac/decorators/permissions.decorator";
 import { LearningPathsService } from "./learning-paths.service";
-import type { CreateLearningPathDto, UpdateLearningPathDto, AddCourseToPathDto, LearningPathQueryDto } from "./dto/learning-path.dto";
+import { CreateLearningPathDto, UpdateLearningPathDto, AddCourseToPathDto, LearningPathQueryDto } from "./dto/learning-path.dto";
 
 @Controller("learning-paths")
 @UseGuards(JwtAuthGuard, OrganizationContextGuard)

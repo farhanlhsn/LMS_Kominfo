@@ -6,7 +6,7 @@ import { OrganizationContextGuard } from "../rbac/guards/organization-context.gu
 import { PermissionsGuard } from "../rbac/guards/permissions.guard";
 import { Permissions } from "../rbac/decorators/permissions.decorator";
 import { AnalyticsService } from "./analytics.service";
-import type { AnalyticsQueryDto, EventQueryDto, AuditLogQueryDto, ReportExportDto } from "./dto/analytics.dto";
+import { AnalyticsQueryDto, EventQueryDto, AuditLogQueryDto, ReportExportDto } from "./dto/analytics.dto";
 
 @Controller("analytics")
 @UseGuards(JwtAuthGuard, OrganizationContextGuard)

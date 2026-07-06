@@ -6,7 +6,7 @@ import { OrganizationContextGuard } from "../rbac/guards/organization-context.gu
 import { PermissionsGuard } from "../rbac/guards/permissions.guard";
 import { Permissions } from "../rbac/decorators/permissions.decorator";
 import { GamificationService } from "./gamification.service";
-import type { CreateSkillDto, UpdateSkillDto, CourseSkillDto, XpQueryDto, LeaderboardQueryDto, CreateAchievementDto, UpdateAchievementDto } from "./dto/gamification.dto";
+import { CreateSkillDto, UpdateSkillDto, CourseSkillDto, XpQueryDto, LeaderboardQueryDto, CreateAchievementDto, UpdateAchievementDto } from "./dto/gamification.dto";
 
 @Controller()
 @UseGuards(JwtAuthGuard, OrganizationContextGuard)

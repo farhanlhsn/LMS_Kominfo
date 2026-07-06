@@ -3,7 +3,7 @@ import type { AuthenticatedRequest } from "../auth/types/authenticated-request";
 import { JwtAuthGuard } from "../rbac/guards/jwt-auth.guard";
 import { OrganizationContextGuard } from "../rbac/guards/organization-context.guard";
 import { ReviewsService } from "./reviews.service";
-import type { CreateReviewDto, ModerateReviewDto, AddWishlistDto, FavoriteInstructorDto, ReviewQueryDto } from "./dto/reviews.dto";
+import { CreateReviewDto, ModerateReviewDto, AddWishlistDto, FavoriteInstructorDto, ReviewQueryDto } from "./dto/reviews.dto";
 
 @Controller()
 @UseGuards(JwtAuthGuard, OrganizationContextGuard)
