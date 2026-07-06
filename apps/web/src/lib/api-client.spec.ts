@@ -66,9 +66,9 @@ describe("apiBaseUrl", () => {
     }
   });
 
-  it("falls back to localhost when NEXT_PUBLIC_API_URL is not set", () => {
+  it("falls back to a same-origin api path when NEXT_PUBLIC_API_URL is not set", () => {
     delete process.env.NEXT_PUBLIC_API_URL;
-    expect(apiBaseUrl()).toBe("http://localhost:4000/api/v1");
+    expect(apiBaseUrl()).toBe("/api/v1");
   });
 
   it("uses NEXT_PUBLIC_API_URL when provided", () => {
@@ -106,7 +106,7 @@ describe("apiRequest", () => {
     expect(result).toEqual({ id: 1, name: "alpha" });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0]!;
-    expect(String(url)).toBe("http://localhost:4000/api/v1/items/1");
+    expect(String(url)).toBe("/api/v1/items/1");
     // The default fetch is GET when no method is provided.
     expect(init.method ?? "GET").toBe("GET");
   });

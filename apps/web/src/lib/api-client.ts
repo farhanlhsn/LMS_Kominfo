@@ -224,7 +224,7 @@ export interface ListResponse<T> {
 }
 
 export function apiBaseUrl() {
-  return process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api/v1";
+  return process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
 }
 
 export function getSession(): AuthSession | null {
