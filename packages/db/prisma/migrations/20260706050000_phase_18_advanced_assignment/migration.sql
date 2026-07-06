@@ -15,10 +15,6 @@ ALTER TABLE "Assignment"
 ALTER TABLE "AssignmentSubmission" ADD COLUMN "groupId" TEXT;
 CREATE INDEX "AssignmentSubmission_organizationId_groupId_idx"
   ON "AssignmentSubmission"("organizationId", "groupId");
-ALTER TABLE "AssignmentSubmission"
-  ADD CONSTRAINT "AssignmentSubmission_groupId_fkey"
-  FOREIGN KEY ("groupId") REFERENCES "AssignmentGroup"("id")
-  ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AssignmentGroup
 CREATE TABLE "AssignmentGroup" (
@@ -49,6 +45,10 @@ ALTER TABLE "AssignmentGroup"
   ADD CONSTRAINT "AssignmentGroup_courseId_fkey"
   FOREIGN KEY ("courseId") REFERENCES "Course"("id")
   ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "AssignmentSubmission"
+  ADD CONSTRAINT "AssignmentSubmission_groupId_fkey"
+  FOREIGN KEY ("groupId") REFERENCES "AssignmentGroup"("id")
+  ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AssignmentGroupMember
 CREATE TABLE "AssignmentGroupMember" (
