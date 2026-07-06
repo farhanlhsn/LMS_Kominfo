@@ -1,10 +1,18 @@
-import { Injectable, NestMiddleware } from "@nestjs/common";
+import { Inject, Injectable, NestMiddleware, Optional } from "@nestjs/common";
 import type { NextFunction, Request, Response } from "express";
 
 interface RateLimitBucket {
   count: number;
   resetAt: number;
 }
+
+interface RateLimitOptions {
+  windowMs?: number;
+  max?: number;
+  keyExtractor?: (req: Request) => string;
+}
+
+export const RATE_LIMIT_OPTIONS = Symbol("RATE_LIMIT_OPTIONS");
 
 const DEFAULT_WINDOW_MS = 60_000; // 1 minute
 const DEFAULT_MAX = 240; // 240 req/min/IP
@@ -14,11 +22,7 @@ export class RateLimitMiddleware implements NestMiddleware {
   private readonly buckets = new Map<string, RateLimitBucket>();
 
   constructor(
-    private readonly options: {
-      windowMs?: number;
-      max?: number;
-      keyExtractor?: (req: Request) => string;
-    } = {},
+    @Optional() @Inject(RATE_LIMIT_OPTIONS) private readonly options: RateLimitOptions = {},
   ) {}
 
   private getKey(req: Request) {
