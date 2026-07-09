@@ -40,6 +40,10 @@ export default function CoursesPage() {
         />
 
         <FilterBar
+          onClear={() => {
+            setSearch("");
+            setLevel("");
+          }}
           onClearLabel="Clear filters"
         >
           <label className="flex min-h-10 min-w-64 flex-1 items-center gap-2 rounded-md border border-input bg-card px-3 text-sm text-muted-foreground">
@@ -69,16 +73,6 @@ export default function CoursesPage() {
               )}
             </select>
           </label>
-          <button
-            className="rounded-md border border-border px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
-            onClick={() => {
-              setSearch("");
-              setLevel("");
-            }}
-            type="button"
-          >
-            Reset
-          </button>
         </FilterBar>
 
         {query.loading ? (

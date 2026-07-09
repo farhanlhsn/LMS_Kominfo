@@ -82,10 +82,15 @@ export default function CourseDetailPage() {
       ),
     [enrollmentsQuery.data, courseId],
   );
+  const hasLearningAccess = Boolean(
+    myEnrollment && ["ACTIVE", "COMPLETED"].includes(myEnrollment.status),
+  );
   const canReview = Boolean(
     session?.user?.id &&
       myEnrollment?.id &&
-      myEnrollment.status === "COMPLETED",
+      (myEnrollment.status === "COMPLETED" ||
+        Boolean(myEnrollment.completedAt) ||
+        (myEnrollment.progressPercent ?? 0) >= 100),
   );
   const myReview: CourseReview | undefined = reviews.find(
     (review) => review.userId === session?.user?.id,
@@ -143,6 +148,10 @@ export default function CourseDetailPage() {
 
   async function enroll() {
     if (!course) return;
+    if (hasLearningAccess) {
+      window.location.href = `/learn/courses/${course.id}`;
+      return;
+    }
     if (isPaidCheckout) {
       // Paid flow: hand off to the order creation screen.
       window.location.href = `/orders/new?courseId=${encodeURIComponent(course.id)}`;
@@ -216,12 +225,14 @@ export default function CourseDetailPage() {
                   >
                     {enrolling
                       ? "Enrolling"
+                      : hasLearningAccess
+                        ? "Continue learning"
                       : isPaidCheckout
                         ? "Buy and start"
                         : "Enroll and start"}
                     <ArrowRight aria-hidden="true" className="h-4 w-4" />
                   </button>
-                  {firstPublishedLesson ? (
+                  {hasLearningAccess && firstPublishedLesson ? (
                     <ButtonLink
                       href={`/learn/lessons/${firstPublishedLesson.id}`}
                       variant="secondary"

@@ -72,14 +72,13 @@ describe("NetworkStatusPill", () => {
     expect(html).toBe("");
   });
 
-  it("renders the offline pill when navigator reports offline", async () => {
+  it("renders nothing before network status hydrates", async () => {
     setNavigator({ onLine: false, connection: {} } as unknown as Navigator);
     const { NetworkStatusPill } = await import("./network-status");
     const { renderToStaticMarkup } = await import("react-dom/server");
     const { createElement } = await import("react");
     const html = renderToStaticMarkup(createElement(NetworkStatusPill, {}));
-    expect(html).toContain("Offline mode");
-    expect(html).toContain('data-status="offline"');
+    expect(html).toBe("");
   });
 
   it("NetworkStatusEmpty renders nothing while online", async () => {

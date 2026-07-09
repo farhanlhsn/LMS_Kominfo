@@ -48,11 +48,14 @@ import type {
   LiveClass,
   InAppNotification,
   NotificationPreference,
+  OrganizationMemberRecord,
+  OrganizationRoleRecord,
   LearnerNote,
   Lesson,
   LessonWorkspaceState,
   LearningWorkspacePreference,
   OrganizationSummary,
+  PermissionRecord,
   Plugin,
   PluginActivityType,
   PluginExecutionLog,
@@ -275,6 +278,14 @@ function authHeaders(session: AuthSession | null, base?: HeadersInit) {
   return headers;
 }
 
+function activeOrganizationId() {
+  const organizationId = getSession()?.activeOrganization?.id;
+  if (!organizationId) {
+    throw new ApiClientError("Active organization is required", 400);
+  }
+  return organizationId;
+}
+
 // Shared in-flight refresh so multiple concurrent 401s trigger a single
 // /auth/refresh call (avoids refresh-token rotation racing against itself).
 let refreshPromise: Promise<AuthSession | null> | null = null;
@@ -471,6 +482,79 @@ export const api = {
       organizations: OrganizationSummary[];
     }>("/auth/me"),
   organizations: () => apiRequest<OrganizationSummary[]>("/auth/organizations"),
+  organizationMembers: () => {
+    const organizationId = activeOrganizationId();
+    return apiRequest<OrganizationMemberRecord[]>(
+      `/organizations/${encodeURIComponent(organizationId)}/members`,
+    );
+  },
+  createOrganizationMember: (input: {
+    email: string;
+    name?: string;
+    password?: string;
+    roleKeys?: string[];
+  }) => {
+    const organizationId = activeOrganizationId();
+    return apiRequest<OrganizationMemberRecord>(
+      `/organizations/${encodeURIComponent(organizationId)}/members`,
+      { method: "POST", body: JSON.stringify(input) },
+    );
+  },
+  updateOrganizationMemberRoles: (memberId: string, roleKeys: string[]) => {
+    const organizationId = activeOrganizationId();
+    return apiRequest<OrganizationMemberRecord>(
+      `/organizations/${encodeURIComponent(organizationId)}/members/${encodeURIComponent(memberId)}/roles`,
+      { method: "PATCH", body: JSON.stringify({ roleKeys }) },
+    );
+  },
+  updateOrganizationMemberStatus: (
+    memberId: string,
+    status: OrganizationMemberRecord["status"],
+  ) => {
+    const organizationId = activeOrganizationId();
+    return apiRequest<OrganizationMemberRecord>(
+      `/organizations/${encodeURIComponent(organizationId)}/members/${encodeURIComponent(memberId)}/status`,
+      { method: "PATCH", body: JSON.stringify({ status }) },
+    );
+  },
+  organizationRoles: () => {
+    const organizationId = activeOrganizationId();
+    return apiRequest<OrganizationRoleRecord[]>(
+      `/organizations/${encodeURIComponent(organizationId)}/roles`,
+    );
+  },
+  organizationPermissions: () => {
+    const organizationId = activeOrganizationId();
+    return apiRequest<PermissionRecord[]>(
+      `/organizations/${encodeURIComponent(organizationId)}/permissions`,
+    );
+  },
+  createOrganizationRole: (input: {
+    key: string;
+    name: string;
+    description?: string;
+    permissionKeys?: string[];
+  }) => {
+    const organizationId = activeOrganizationId();
+    return apiRequest<OrganizationRoleRecord>(
+      `/organizations/${encodeURIComponent(organizationId)}/roles`,
+      { method: "POST", body: JSON.stringify(input) },
+    );
+  },
+  updateOrganizationRole: (
+    roleId: string,
+    input: {
+      name?: string;
+      description?: string;
+      permissionKeys?: string[];
+    },
+  ) => {
+    const organizationId = activeOrganizationId();
+    return apiRequest<OrganizationRoleRecord>(
+      `/organizations/${encodeURIComponent(organizationId)}/roles/${encodeURIComponent(roleId)}`,
+      { method: "PATCH", body: JSON.stringify(input) },
+    );
+  },
   switchOrganization: async (organizationId: string) => {
     const current = getSession();
     if (!current) throw new ApiClientError("Session is required", 401);

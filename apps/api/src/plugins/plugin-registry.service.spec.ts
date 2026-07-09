@@ -10,18 +10,28 @@ function registryWithPrisma(prisma: unknown) {
 }
 
 describe("PluginRegistry", () => {
-  it("lists implemented and placeholder activity types", () => {
+  it("lists implemented core and internal plugin activity types", () => {
     const registry = registryWithPrisma({});
 
     const activityTypes = registry.listActivityTypes();
 
     expect(activityTypes.some((type) => type.key === "core.text")).toBe(true);
     expect(activityTypes.some((type) => type.key === "core.quiz")).toBe(true);
+    expect(activityTypes.some((type) => type.key === "plugin.3d_viewer")).toBe(true);
+    expect(activityTypes.some((type) => type.key === "plugin.code_runner")).toBe(true);
+    expect(activityTypes.some((type) => type.key === "plugin.h5p")).toBe(true);
+    expect(activityTypes.some((type) => type.key === "plugin.scorm")).toBe(true);
     expect(
       activityTypes.find((type) => type.key === "core.quiz")?.placeholder,
     ).toBe(false);
     expect(
       activityTypes.find((type) => type.key === "core.quiz")?.implemented,
+    ).toBe(true);
+    expect(
+      activityTypes.find((type) => type.key === "plugin.code_runner")?.placeholder,
+    ).toBe(false);
+    expect(
+      activityTypes.find((type) => type.key === "plugin.code_runner")?.implemented,
     ).toBe(true);
   });
 

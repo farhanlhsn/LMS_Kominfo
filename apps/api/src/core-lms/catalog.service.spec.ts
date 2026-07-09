@@ -5,7 +5,7 @@ const organizationId = "org-1";
 
 function setupCatalog(overrides: Record<string, any> = {}) {
   const courses = [
-    { id: "c1", title: "A", category: { id: "cat" }, _count: { enrollments: 1, modules: 2, activities: 3 } },
+    { id: "c1", title: "A", category: { id: "cat" }, _count: { enrollments: 1, modules: 2, lessons: 4, activities: 3 } },
   ];
   const prisma = {
     course: {
@@ -29,6 +29,9 @@ describe("CoreLmsService.listCatalog", () => {
         take: 10,
       })
     );
+    expect(prisma.course.findMany.mock.calls[0]?.[0].include?._count?.select).toMatchObject({
+      lessons: true,
+    });
   });
 
   it("clamps limit to a maximum of 50", async () => {

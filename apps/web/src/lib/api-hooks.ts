@@ -47,6 +47,8 @@ import type {
   LessonWorkspaceState,
   LoginPolicy,
   NotesExport,
+  OrganizationMemberRecord,
+  OrganizationRoleRecord,
   Order,
   OrgDomain,
   Plugin,
@@ -141,6 +143,7 @@ import type {
   TaxCalculation,
   TaxRuleType,
   SupportedCurrency,
+  PermissionRecord,
   ThreeDAssetRecord,
   ThreeDSceneRecord,
   ThreeDInteractionRecord,
@@ -257,6 +260,81 @@ export function useRequireSession() {
 
 export function useOrganizations() {
   return useApiQuery(() => api.organizations(), []);
+}
+
+export function useOrganizationMembers() {
+  return useApiQuery<OrganizationMemberRecord[]>(
+    () => api.organizationMembers(),
+    [],
+  );
+}
+
+export function useOrganizationRoles() {
+  return useApiQuery<OrganizationRoleRecord[]>(
+    () => api.organizationRoles(),
+    [],
+  );
+}
+
+export function useOrganizationPermissions() {
+  return useApiQuery<PermissionRecord[]>(
+    () => api.organizationPermissions(),
+    [],
+  );
+}
+
+export function useCreateOrganizationMember() {
+  return useCallback(
+    (input: {
+      email: string;
+      name?: string;
+      password?: string;
+      roleKeys?: string[];
+    }) => api.createOrganizationMember(input),
+    [],
+  );
+}
+
+export function useUpdateOrganizationMemberRoles() {
+  return useCallback(
+    (memberId: string, roleKeys: string[]) =>
+      api.updateOrganizationMemberRoles(memberId, roleKeys),
+    [],
+  );
+}
+
+export function useUpdateOrganizationMemberStatus() {
+  return useCallback(
+    (memberId: string, status: OrganizationMemberRecord["status"]) =>
+      api.updateOrganizationMemberStatus(memberId, status),
+    [],
+  );
+}
+
+export function useCreateOrganizationRole() {
+  return useCallback(
+    (input: {
+      key: string;
+      name: string;
+      description?: string;
+      permissionKeys?: string[];
+    }) => api.createOrganizationRole(input),
+    [],
+  );
+}
+
+export function useUpdateOrganizationRole() {
+  return useCallback(
+    (
+      roleId: string,
+      input: {
+        name?: string;
+        description?: string;
+        permissionKeys?: string[];
+      },
+    ) => api.updateOrganizationRole(roleId, input),
+    [],
+  );
 }
 
 export function useSwitchOrganization() {

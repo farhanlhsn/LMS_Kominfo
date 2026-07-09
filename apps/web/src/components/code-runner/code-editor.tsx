@@ -47,7 +47,7 @@ export function CodeEditor({
   const handleRun = useCallback(async () => {
     setBusy(true);
     setError(null);
-    setStatus("Running…");
+    setStatus("Running...");
     setOutput(null);
     try {
       const result = await execute({
@@ -110,7 +110,7 @@ export function CodeEditor({
         </label>
         <div className="flex items-center gap-2">
           <Button onClick={handleRun} disabled={busy}>
-            <Play className="mr-2 h-4 w-4" /> {busy ? "Running…" : "Run code"}
+            <Play className="mr-2 h-4 w-4" /> {busy ? "Running..." : "Run code"}
           </Button>
           {status ? <StatusBadge value={status} tone={error ? "danger" : "success"} /> : null}
         </div>

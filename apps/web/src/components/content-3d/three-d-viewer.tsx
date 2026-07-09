@@ -35,7 +35,7 @@ export function ThreeDViewer({ asset, loading, error }: ThreeDViewerProps) {
           <h3 className="text-base font-semibold">{asset.name}</h3>
         </div>
         <p className="text-sm text-muted-foreground">
-          {asset.format} • {(asset.sizeBytes / 1024 / 1024).toFixed(2)} MB
+          {asset.format} / {(asset.sizeBytes / 1024 / 1024).toFixed(2)} MB
         </p>
       </CardHeader>
       <CardContent>

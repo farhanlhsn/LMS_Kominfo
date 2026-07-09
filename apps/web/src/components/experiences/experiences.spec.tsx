@@ -6,10 +6,10 @@ import {
   CourseFeedbackWidget,
   ExperienceViews,
   FeedbackList,
-  H5PLauncherPlaceholder,
+  H5PLauncher,
   PollResultsView,
   PollsList,
-  ScormLauncherPlaceholder,
+  ScormLauncher,
   SurveyQuestionList,
   SurveyResponseList,
   SurveysList,
@@ -364,18 +364,19 @@ describe("XapiStatementList", () => {
   });
 });
 
-describe("SCORM and H5P placeholders", () => {
-  it("renders SCORM placeholder with version", () => {
+describe("SCORM and H5P launchers", () => {
+  it("renders SCORM launcher with version", () => {
     const html = renderToStaticMarkup(
-      createElement(ScormLauncherPlaceholder, { title: "Module 1", version: "1.2" }),
+      createElement(ScormLauncher, { title: "Module 1", version: "1.2" }),
     );
     expect(html).toContain("Module 1");
     expect(html).toContain("SCORM 1.2");
+    expect(html).not.toContain("placeholder runtime");
   });
 
   it("renders SCORM entry URL link when provided", () => {
     const html = renderToStaticMarkup(
-      createElement(ScormLauncherPlaceholder, {
+      createElement(ScormLauncher, {
         title: "Module 1",
         version: "2004",
         entryUrl: "https://example.com/launch",
@@ -384,12 +385,13 @@ describe("SCORM and H5P placeholders", () => {
     expect(html).toContain("https://example.com/launch");
   });
 
-  it("renders H5P placeholder with library", () => {
+  it("renders H5P launcher with library", () => {
     const html = renderToStaticMarkup(
-      createElement(H5PLauncherPlaceholder, { title: "Quiz", library: "H5P.MultiChoice" }),
+      createElement(H5PLauncher, { title: "Quiz", library: "H5P.MultiChoice" }),
     );
     expect(html).toContain("Quiz");
     expect(html).toContain("H5P.MultiChoice");
+    expect(html).not.toContain("placeholder runtime");
   });
 });
 

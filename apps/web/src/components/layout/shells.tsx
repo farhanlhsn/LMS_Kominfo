@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   Award,
   BookOpen,
@@ -37,6 +38,7 @@ import {
   Globe,
   Heart,
   History,
+  LayoutGrid,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
@@ -75,6 +77,7 @@ const dashboardNav = [
   { key: "my-learning", href: "/subscriptions", label: "Subscriptions", icon: RefreshCw },
   { key: "my-learning", href: "/learn/surveys", label: "My Surveys", icon: ClipboardList },
   { key: "my-learning", href: "/learn/polls", label: "Live Polls", icon: CircleDot },
+  { key: "my-learning", href: "/learn/plugins", label: "Plugin Panels", icon: LayoutGrid },
   {
     key: "instructor",
     href: "/instructor/courses",
@@ -84,6 +87,7 @@ const dashboardNav = [
   { key: "instructor", href: "/instructor/discussions", label: "Discussions", icon: MessageSquare },
   { key: "instructor", href: "/instructor/calendar", label: "Teaching schedule", icon: CalendarDays },
   { key: "admin", href: "/admin", label: "Admin Dashboard", icon: LayoutDashboard },
+  { key: "admin", href: "/admin/members", label: "Members & Roles", icon: ShieldCheck },
   { key: "admin", href: "/admin/orders", label: "Admin Orders", icon: Receipt },
   { key: "admin", href: "/admin/payments", label: "Admin Payments", icon: Wallet },
   { key: "admin", href: "/admin/coupons", label: "Admin Coupons", icon: Tag },
@@ -117,6 +121,12 @@ const dashboardNav = [
     href: "/admin/plugins",
     label: "Plugins",
     icon: Plug,
+  },
+  {
+    key: "plugins",
+    href: "/admin/plugin-marketplace",
+    label: "Plugin Marketplace",
+    icon: LayoutGrid,
   },
 ] as const;
 
@@ -236,7 +246,7 @@ export function DashboardSidebar({
   branding?: OrganizationBranding | null;
 }) {
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-border bg-card lg:block">
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-border bg-card lg:flex">
       <SidebarBrand branding={branding} />
       <DashboardNav currentPath={currentPath} />
     </aside>
@@ -245,7 +255,7 @@ export function DashboardSidebar({
 
 function SidebarBrand({ branding }: { branding?: OrganizationBranding | null }) {
   return (
-    <div className="flex h-16 items-center gap-3 border-b border-border px-5">
+    <div className="flex min-h-16 shrink-0 items-center gap-3 border-b border-border px-5">
       {branding?.logoUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -258,12 +268,18 @@ function SidebarBrand({ branding }: { branding?: OrganizationBranding | null }) 
           <BookOpen aria-hidden="true" className="h-5 w-5" />
         </div>
       )}
-      <div>
-        <p className="text-sm font-semibold">{branding?.name ?? "LMS Platform"}</p>
+      <div className="min-w-0">
+        <p className="line-clamp-2 text-sm font-semibold leading-tight">
+          {branding?.name ?? "LMS Platform"}
+        </p>
         <p className="text-xs text-muted-foreground">Learning workspace</p>
       </div>
     </div>
   );
+}
+
+function matchesNavigationPath(path: string, href: string) {
+  return path === href || (href !== "/" && path.startsWith(`${href}/`));
 }
 
 function DashboardNav({
@@ -274,19 +290,37 @@ function DashboardNav({
   onNavigate?: () => void;
 }) {
   const session = useSession();
+  const pathname = usePathname();
   const visibleKeys = useMemo(
     () => new Set(visibleNavigationKeys(session)),
     [session],
   );
+  const visibleItems = useMemo(
+    () => dashboardNav.filter((item) => visibleKeys.has(item.key)),
+    [visibleKeys],
+  );
+  const activeHref = useMemo(() => {
+    const candidates = [pathname, currentPath].filter(
+      (path): path is string => Boolean(path),
+    );
+    return (
+      visibleItems
+        .filter((item) =>
+          candidates.some((path) => matchesNavigationPath(path, item.href)),
+        )
+        .sort((left, right) => right.href.length - left.href.length)[0]?.href ??
+      null
+    );
+  }, [currentPath, pathname, visibleItems]);
 
   return (
-    <nav aria-label="Primary" className="space-y-1 p-3">
-      {dashboardNav
-        .filter((item) => visibleKeys.has(item.key))
-        .map(({ href, icon: Icon, label }) => {
-          const active =
-            currentPath === href ||
-            (href !== "/" && currentPath?.startsWith(href));
+    <nav
+      aria-label="Primary"
+      className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 [scrollbar-gutter:stable]"
+    >
+      <div className="space-y-1 pb-4">
+        {visibleItems.map(({ href, icon: Icon, label }) => {
+          const active = activeHref === href;
 
           return (
             <Link
@@ -299,12 +333,15 @@ function DashboardNav({
               )}
               href={href}
               onClick={onNavigate}
+              aria-current={active ? "page" : undefined}
+              title={label}
             >
-              <Icon aria-hidden="true" className="h-4 w-4" />
-              <span>{label}</span>
+              <Icon aria-hidden="true" className="h-4 w-4 shrink-0" />
+              <span className="min-w-0 truncate">{label}</span>
             </Link>
           );
         })}
+      </div>
     </nav>
   );
 }
@@ -330,9 +367,9 @@ function MobileSidebar({
         onClick={onClose}
         type="button"
       />
-      <aside className="relative h-full w-72 max-w-[85vw] border-r border-border bg-card shadow-panel">
-        <div className="flex h-16 items-center justify-between border-b border-border px-5">
-          <div className="flex items-center gap-3">
+      <aside className="relative flex h-full w-72 max-w-[85vw] flex-col border-r border-border bg-card shadow-panel">
+        <div className="flex min-h-16 shrink-0 items-center justify-between border-b border-border px-5">
+          <div className="flex min-w-0 items-center gap-3">
             {branding?.logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -345,7 +382,9 @@ function MobileSidebar({
                 <BookOpen aria-hidden="true" className="h-5 w-5" />
               </div>
             )}
-            <span className="text-sm font-semibold">{branding?.name ?? "LMS Platform"}</span>
+            <span className="min-w-0 truncate text-sm font-semibold">
+              {branding?.name ?? "LMS Platform"}
+            </span>
           </div>
           <IconButton label="Close navigation" onClick={onClose}>
             <X aria-hidden="true" className="h-4 w-4" />

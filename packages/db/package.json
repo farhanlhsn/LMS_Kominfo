@@ -5,8 +5,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.prisma.json --noEmit",
+    "build": "node --max-old-space-size=4096 ../../node_modules/typescript/bin/tsc -p tsconfig.json",
+    "typecheck": "node --max-old-space-size=4096 ../../node_modules/typescript/bin/tsc -p tsconfig.json --noEmit && node --max-old-space-size=4096 ../../node_modules/typescript/bin/tsc -p tsconfig.prisma.json --noEmit",
     "lint": "pnpm typecheck",
     "test": "vitest run --passWithNoTests",
     "prisma:generate": "prisma generate",

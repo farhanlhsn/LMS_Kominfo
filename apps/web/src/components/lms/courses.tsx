@@ -531,7 +531,7 @@ export function CurriculumSidebar({
                             {activity.title}
                           </span>
                           <span className="mt-0.5 block text-xs text-muted-foreground">
-                            {activityKindLabel(activity.activityTypeKey)} ·{" "}
+                            {activityKindLabel(activity.activityTypeKey)} /{" "}
                             {activity.estimatedMinutes || 1} min
                           </span>
                         </span>

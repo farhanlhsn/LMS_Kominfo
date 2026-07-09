@@ -2,6 +2,34 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { PwaOverlay } from "../components/pwa/pwa-overlay";
 
+const serviceWorkerScript =
+  process.env.NODE_ENV === "production"
+    ? `
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+        });
+      }
+    `
+    : `
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.getRegistrations()
+          .then((registrations) => {
+            registrations.forEach((registration) => registration.unregister());
+          })
+          .catch(() => undefined);
+      }
+      if ("caches" in window) {
+        caches.keys()
+          .then((keys) => {
+            keys
+              .filter((key) => key.startsWith("lms-"))
+              .forEach((key) => caches.delete(key));
+          })
+          .catch(() => undefined);
+      }
+    `;
+
 export const metadata: Metadata = {
   title: "LMS Platform",
   description: "AI-powered, multi-tenant LMS foundation",
@@ -25,8 +53,6 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
 };
 
 export default function RootLayout({
@@ -38,7 +64,7 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#2563eb" />
+        <meta name="theme-color" content="#0f766e" />
         <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
       </head>
       <body>
@@ -46,13 +72,7 @@ export default function RootLayout({
         <PwaOverlay />
         <script
           dangerouslySetInnerHTML={{
-            __html: `
-              if ("serviceWorker" in navigator) {
-                window.addEventListener("load", () => {
-                  navigator.serviceWorker.register("/sw.js");
-                });
-              }
-            `,
+            __html: serviceWorkerScript,
           }}
         />
       </body>

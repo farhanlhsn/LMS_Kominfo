@@ -4,7 +4,7 @@ import { LockKeyhole } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect } from "react";
 import { useRequireSession } from "../../lib/api-hooks";
-import { hasAnyPermission } from "../../lib/authz";
+import { hasAllPermissions, hasAnyPermission } from "../../lib/authz";
 import { ButtonLink } from "../ui/core";
 import { ForbiddenState, LoadingState } from "../ui/states";
 
@@ -44,9 +44,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
 export function PermissionGate({
   anyOf,
+  allOf = [],
   children,
 }: {
   anyOf: string[];
+  allOf?: string[];
   children: ReactNode;
 }) {
   const { session, checked } = useRequireSession();
@@ -55,7 +57,7 @@ export function PermissionGate({
     return <LoadingState title="Checking permissions" />;
   }
 
-  if (!hasAnyPermission(session, anyOf)) {
+  if (!hasAnyPermission(session, anyOf) || !hasAllPermissions(session, allOf)) {
     return <ForbiddenState />;
   }
 

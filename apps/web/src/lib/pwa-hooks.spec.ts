@@ -54,7 +54,7 @@ afterEach(() => {
 });
 
 describe("useNetworkStatus", () => {
-  it("reports online by default and exposes effective type hook", async () => {
+  it("starts unknown before hydration and exposes effective type hook", async () => {
     setNavigator({
       onLine: true,
       connection: { effectiveType: "4g" },
@@ -66,7 +66,7 @@ describe("useNetworkStatus", () => {
 
     const { useNetworkStatus } = await import("./pwa-hooks");
     const result = useNetworkStatus();
-    expect(result.status).toBe("online");
+    expect(result.status).toBe("unknown");
     expect(result.isOnline).toBe(true);
     // effectiveType and lastChangedAt are hydrated inside useEffect, which
     // is mocked as a no-op; assert the public shape only.
@@ -74,7 +74,7 @@ describe("useNetworkStatus", () => {
     expect(result.lastChangedAt).toBeNull();
   });
 
-  it("reports offline when navigator.onLine is false", async () => {
+  it("does not render offline during the pre-hydration state", async () => {
     setNavigator({
       onLine: false,
       connection: {},
@@ -86,8 +86,8 @@ describe("useNetworkStatus", () => {
 
     const { useNetworkStatus } = await import("./pwa-hooks");
     const result = useNetworkStatus();
-    expect(result.status).toBe("offline");
-    expect(result.isOnline).toBe(false);
+    expect(result.status).toBe("unknown");
+    expect(result.isOnline).toBe(true);
   });
 });
 

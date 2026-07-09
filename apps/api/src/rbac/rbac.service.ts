@@ -15,8 +15,12 @@ export class RbacService {
   async ensureOrganizationDefaults(organizationId: string) {
     const permissions = await this.prisma.permission.findMany();
 
+    const allOrganizationPermissions = permissions
+      .map((permission) => permission.key)
+      .filter((key) => key !== PERMISSIONS.platformAdmin);
+
     const roles: Array<[string, string, string[]]> = [
-      [SYSTEM_ROLES.orgAdmin, "Organization Admin", permissions.map((permission) => permission.key)],
+      [SYSTEM_ROLES.orgAdmin, "Organization Admin", allOrganizationPermissions],
       [
         SYSTEM_ROLES.courseManager,
         "Course Manager",
@@ -25,16 +29,73 @@ export class RbacService {
           PERMISSIONS.coursesCreate,
           PERMISSIONS.coursesUpdate,
           PERMISSIONS.coursesPublish,
+          PERMISSIONS.filesRead,
+          PERMISSIONS.filesCreate,
+          PERMISSIONS.filesDelete,
+          PERMISSIONS.contentLibraryManage,
+          PERMISSIONS.contentProcess,
+          PERMISSIONS.quizManage,
+          PERMISSIONS.quizGrade,
+          PERMISSIONS.assignmentsManage,
+          PERMISSIONS.assignmentsGrade,
+          PERMISSIONS.certificatesManage,
+          PERMISSIONS.certificatesIssue,
+          PERMISSIONS.goalsManage,
           PERMISSIONS.analyticsView,
           PERMISSIONS.analyticsExport
         ]
       ],
-      [SYSTEM_ROLES.instructor, "Instructor", [PERMISSIONS.coursesRead, PERMISSIONS.coursesUpdate, PERMISSIONS.analyticsView]],
-      [SYSTEM_ROLES.assistantInstructor, "Assistant Instructor", [PERMISSIONS.coursesRead]],
-      [SYSTEM_ROLES.reviewer, "Reviewer", [PERMISSIONS.coursesRead, PERMISSIONS.coursesPublish]],
+      [
+        SYSTEM_ROLES.instructor,
+        "Instructor",
+        [
+          PERMISSIONS.coursesRead,
+          PERMISSIONS.coursesCreate,
+          PERMISSIONS.coursesUpdate,
+          PERMISSIONS.coursesPublish,
+          PERMISSIONS.filesRead,
+          PERMISSIONS.filesCreate,
+          PERMISSIONS.contentLibraryManage,
+          PERMISSIONS.contentProcess,
+          PERMISSIONS.quizManage,
+          PERMISSIONS.quizGrade,
+          PERMISSIONS.assignmentsManage,
+          PERMISSIONS.assignmentsGrade,
+          PERMISSIONS.certificatesIssue,
+          PERMISSIONS.analyticsView
+        ]
+      ],
+      [
+        SYSTEM_ROLES.assistantInstructor,
+        "Assistant Instructor",
+        [
+          PERMISSIONS.coursesRead,
+          PERMISSIONS.coursesUpdate,
+          PERMISSIONS.filesRead,
+          PERMISSIONS.filesCreate,
+          PERMISSIONS.contentLibraryManage,
+          PERMISSIONS.quizManage,
+          PERMISSIONS.assignmentsManage
+        ]
+      ],
+      [
+        SYSTEM_ROLES.reviewer,
+        "Reviewer",
+        [
+          PERMISSIONS.coursesRead,
+          PERMISSIONS.coursesPublish,
+          PERMISSIONS.filesRead,
+          PERMISSIONS.quizGrade,
+          PERMISSIONS.assignmentsGrade
+        ]
+      ],
       [SYSTEM_ROLES.mentor, "Mentor", [PERMISSIONS.coursesRead]],
-      [SYSTEM_ROLES.learner, "Learner", [PERMISSIONS.coursesRead, PERMISSIONS.analyticsView]],
-      [SYSTEM_ROLES.supportAdmin, "Support Admin", [PERMISSIONS.usersRead, PERMISSIONS.auditRead]],
+      [SYSTEM_ROLES.learner, "Learner", [PERMISSIONS.coursesRead]],
+      [
+        SYSTEM_ROLES.supportAdmin,
+        "Support Admin",
+        [PERMISSIONS.usersRead, PERMISSIONS.auditRead, PERMISSIONS.filesRead]
+      ],
       [SYSTEM_ROLES.financeAdmin, "Finance Admin", [PERMISSIONS.auditRead]]
     ] as const;
 

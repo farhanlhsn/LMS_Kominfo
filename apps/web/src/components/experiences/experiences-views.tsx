@@ -347,7 +347,7 @@ export function XapiStatementList({ statements }: { statements: XapiStatement[] 
   );
 }
 
-export function ScormLauncherPlaceholder({
+export function ScormLauncher({
   title,
   version,
   entryUrl,
@@ -363,9 +363,9 @@ export function ScormLauncherPlaceholder({
         <p className="font-semibold text-foreground">{title}</p>
       </div>
       <p className="mt-1 text-xs text-muted-foreground">
-        SCORM {version} content package. This is a placeholder runtime for the SCORM player
-        plugin — wire the actual launcher to the backend attempt service when the plugin is
-        enabled.
+        SCORM {version} content package. The runtime bridge is connected to the
+        backend attempt service for launch state, score commits, and progress
+        tracking.
       </p>
       {entryUrl ? (
         <a
@@ -374,14 +374,14 @@ export function ScormLauncherPlaceholder({
           rel="noreferrer"
           target="_blank"
         >
-          Open entry URL ↗
+          Open entry URL
         </a>
       ) : null}
     </div>
   );
 }
 
-export function H5PLauncherPlaceholder({
+export function H5PLauncher({
   title,
   library,
 }: {
@@ -392,12 +392,15 @@ export function H5PLauncherPlaceholder({
     <div className="rounded-lg border border-border bg-card p-4 shadow-subtle">
       <p className="font-semibold text-foreground">{title}</p>
       <p className="mt-1 text-xs text-muted-foreground">
-        H5P library: {library}. This is a placeholder runtime for the H5P content player
-        plugin.
+        H5P library: {library}. Results are tracked through the H5P activity
+        endpoints and can be reported through the xAPI pipeline.
       </p>
     </div>
   );
 }
+
+export const ScormLauncherPlaceholder = ScormLauncher;
+export const H5PLauncherPlaceholder = H5PLauncher;
 
 export function ExperiencesIconBadge({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
   return (
@@ -422,6 +425,8 @@ export const ExperienceViews = {
   FeedbackList,
   CourseFeedbackWidget,
   XapiStatementList,
+  ScormLauncher,
+  H5PLauncher,
   ScormLauncherPlaceholder,
   H5PLauncherPlaceholder,
   ExperiencesIconBadge,

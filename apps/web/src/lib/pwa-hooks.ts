@@ -31,15 +31,16 @@ export function useNetworkStatus(): {
   effectiveType: string | null;
   lastChangedAt: number | null;
 } {
-  const [status, setStatus] = useState<NetworkStatus>(() => {
-    if (typeof navigator === "undefined") return "unknown";
-    return navigator.onLine ? "online" : "offline";
-  });
+  const [status, setStatus] = useState<NetworkStatus>("unknown");
   const [lastChangedAt, setLastChangedAt] = useState<number | null>(null);
   const [effectiveType, setEffectiveType] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    const getCurrentStatus = () => {
+      if (typeof navigator === "undefined") return "unknown";
+      return navigator.onLine ? "online" : "offline";
+    };
     const handleOnline = () => {
       setStatus("online");
       setLastChangedAt(Date.now());
@@ -54,6 +55,7 @@ export function useNetworkStatus(): {
     const nav = (typeof navigator !== "undefined"
       ? (navigator as NavigatorWithConnection)
       : undefined);
+    setStatus(getCurrentStatus());
     if (nav?.connection?.effectiveType) {
       setEffectiveType(nav.connection.effectiveType);
     }
@@ -73,7 +75,7 @@ export function useNetworkStatus(): {
 
   return {
     status,
-    isOnline: status === "online",
+    isOnline: status !== "offline",
     effectiveType,
     lastChangedAt,
   };

@@ -1,7 +1,9 @@
 import {
   AlertTriangle,
   ArrowUpRight,
+  Box,
   ClipboardList,
+  Code2,
   Copy,
   ExternalLink,
   FileText,
@@ -20,11 +22,17 @@ import {
   VideoPlayer,
 } from "../content/content";
 import { AssignmentActivityRenderer } from "../assignments/assignment";
+import { CodeEditor } from "../code-runner/code-editor";
+import { H5PLauncher, ScormLauncher } from "../experiences/experiences-views";
 import { QuizActivityRenderer } from "../quiz/quiz";
+import { ThreeDViewer } from "../content-3d/three-d-viewer";
 import { StatusBadge } from "../ui/core";
 import type {
   Activity,
   ActivityContentResponse,
+  CodeLanguage,
+  ThreeDAssetRecord,
+  ThreeDFormat,
   VideoCaptionTrack,
 } from "../../lib/lms-types";
 
@@ -48,6 +56,10 @@ const coreRenderers: Record<string, ComponentType<RendererProps>> = {
   "core.link": CoreLinkRenderer,
   "core.quiz": QuizActivityRenderer,
   "core.assignment": AssignmentActivityRenderer,
+  "plugin.3d_viewer": ThreeDPluginRenderer,
+  "plugin.code_runner": CodeRunnerPluginRenderer,
+  "plugin.h5p": H5PPluginRenderer,
+  "plugin.scorm": ScormPluginRenderer,
 };
 
 const coreEditors: Record<string, ComponentType<EditorProps>> = {
@@ -57,6 +69,10 @@ const coreEditors: Record<string, ComponentType<EditorProps>> = {
   "core.link": CoreActivityEditor,
   "core.quiz": CoreActivityEditor,
   "core.assignment": CoreActivityEditor,
+  "plugin.3d_viewer": CoreActivityEditor,
+  "plugin.code_runner": CoreActivityEditor,
+  "plugin.h5p": CoreActivityEditor,
+  "plugin.scorm": CoreActivityEditor,
 };
 
 export const PluginRendererRegistry = {
@@ -79,7 +95,7 @@ export const PluginEditorRegistry = {
 
 export const PluginAdminSettingsRegistry = {
   hasSettings(pluginKey: string) {
-    return pluginKey.startsWith("core.");
+    return pluginKey.startsWith("core.") || pluginKey.startsWith("plugin.");
   },
 };
 
@@ -183,6 +199,76 @@ function CoreLinkRenderer({
       description={content?.textContent ?? "Open the linked resource."}
       href={externalUrl ?? "#"}
       title={response.activity.title}
+    />
+  );
+}
+
+function ThreeDPluginRenderer({ response }: RendererProps) {
+  const asset = resolveThreeDAsset(response);
+  return (
+    <section className="grid gap-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Box aria-hidden="true" className="h-4 w-4 text-primary" />
+        <StatusBadge value="3D viewer" tone="info" />
+        <span className="text-sm font-medium">{response.activity.title}</span>
+      </div>
+      <ThreeDViewer asset={asset} />
+    </section>
+  );
+}
+
+function CodeRunnerPluginRenderer({ response }: RendererProps) {
+  const { content, structured } = activityPayload(response);
+  const instructions =
+    content?.textContent ??
+    readString(structured.instructions) ??
+    readString(structured.prompt) ??
+    "Write and run code for this exercise.";
+  const initialCode =
+    readString(structured.starterCode) ??
+    readString(structured.initialCode) ??
+    readString(structured.code) ??
+    "";
+  const language = readCodeLanguage(structured.language);
+
+  return (
+    <section className="grid gap-4">
+      <article className="rounded-lg border border-border bg-card p-4 shadow-subtle">
+        <div className="flex flex-wrap items-center gap-2">
+          <Code2 aria-hidden="true" className="h-4 w-4 text-primary" />
+          <StatusBadge value="Code runner" tone="info" />
+        </div>
+        <h2 className="mt-3 text-lg font-semibold">{response.activity.title}</h2>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">
+          {instructions}
+        </p>
+      </article>
+      <CodeEditor initialCode={initialCode} initialLanguage={language} />
+    </section>
+  );
+}
+
+function H5PPluginRenderer({ response }: RendererProps) {
+  const { structured } = activityPayload(response);
+  return (
+    <H5PLauncher
+      library={
+        readString(structured.library) ??
+        readString(structured.h5pLibrary) ??
+        "H5P.InteractiveContent"
+      }
+      title={response.activity.title}
+    />
+  );
+}
+
+function ScormPluginRenderer({ response }: RendererProps) {
+  const { externalUrl, structured } = activityPayload(response);
+  return (
+    <ScormLauncher
+      entryUrl={externalUrl ?? readString(structured.entryUrl)}
+      title={response.activity.title}
+      version={readString(structured.version) ?? "1.2"}
     />
   );
 }
@@ -504,10 +590,74 @@ function readString(value: unknown) {
   return typeof value === "string" && value.trim() ? value : undefined;
 }
 
+function readNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
 function readStringArray(value: unknown) {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
     : [];
+}
+
+function readCodeLanguage(value: unknown): CodeLanguage {
+  const normalized =
+    typeof value === "string" ? value.trim().toUpperCase() : "";
+  return [
+    "PYTHON",
+    "JAVASCRIPT",
+    "TYPESCRIPT",
+    "GO",
+    "RUST",
+    "JAVA",
+    "CPP",
+    "RUBY",
+    "PHP",
+  ].includes(normalized)
+    ? (normalized as CodeLanguage)
+    : "PYTHON";
+}
+
+function readThreeDFormat(value: unknown, url?: string): ThreeDFormat {
+  const normalized =
+    typeof value === "string" ? value.trim().toUpperCase() : "";
+  if (["GLB", "GLTF", "FBX", "OBJ"].includes(normalized)) {
+    return normalized as ThreeDFormat;
+  }
+  const lowerUrl = url?.toLowerCase() ?? "";
+  if (lowerUrl.endsWith(".gltf")) return "GLTF";
+  if (lowerUrl.endsWith(".fbx")) return "FBX";
+  if (lowerUrl.endsWith(".obj")) return "OBJ";
+  return "GLB";
+}
+
+function resolveThreeDAsset(response: ActivityContentResponse): ThreeDAssetRecord | null {
+  const { content, structured, externalUrl } = activityPayload(response);
+  const asset = asRecord(structured.asset) ?? asRecord(content?.metadata?.asset) ?? structured;
+  const url =
+    readString(asset.url) ??
+    readString(asset.assetUrl) ??
+    response.fileAccess?.url ??
+    externalUrl;
+
+  if (!url) return null;
+
+  return {
+    id: readString(asset.id) ?? response.activity.id,
+    organizationId: readString(asset.organizationId) ?? "activity-content",
+    name:
+      readString(asset.name) ??
+      readString(asset.title) ??
+      response.activity.title,
+    format: readThreeDFormat(asset.format, url),
+    sizeBytes: readNumber(asset.sizeBytes) ?? 0,
+    url,
+    thumbnailUrl:
+      readString(asset.thumbnailUrl) ?? readString(asset.thumbnail) ?? null,
+    uploadedBy: readString(asset.uploadedBy) ?? "activity-content",
+    createdAt:
+      readString(asset.createdAt) ?? readString(asset.uploadedAt) ?? new Date(0).toISOString(),
+  };
 }
 
 function UnknownActivityRenderer({ response }: RendererProps) {

@@ -8,7 +8,7 @@ const adminOrg = { ...org, roleKeys: ["org_admin"], isPlatformAdmin: true };
 function setup(overrides: Record<string, unknown> = {}) {
   const prisma = {
     course: { findFirst: vi.fn().mockResolvedValue({ id: "course-a", organizationId: "org-a", deletedAt: null }) },
-    enrollment: { findUnique: vi.fn().mockResolvedValue({ status: "COMPLETED" }) },
+    enrollment: { findUnique: vi.fn().mockResolvedValue({ status: "COMPLETED", progressPercent: 100, completedAt: null }) },
     courseInstructor: { findFirst: vi.fn().mockResolvedValue(null) },
     courseReview: { findUnique: vi.fn().mockResolvedValue(null), findFirst: vi.fn().mockResolvedValue({ id: "rev-a", organizationId: "org-a", courseId: "course-a", userId: "user-a" }), findMany: vi.fn().mockResolvedValue([]), create: vi.fn().mockResolvedValue({ id: "rev-a" }), update: vi.fn(), delete: vi.fn(), aggregate: vi.fn().mockResolvedValue({ _avg: { rating: 4.5 }, _count: { rating: 10 } }), count: vi.fn().mockResolvedValue(0) },
     wishlist: { findUnique: vi.fn().mockResolvedValue(null), findMany: vi.fn().mockResolvedValue([]), create: vi.fn(), upsert: vi.fn(), delete: vi.fn() },
@@ -29,13 +29,31 @@ describe("ReviewsService", () => {
       expect(prisma.courseReview.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ rating: 5, title: "Great!" }) }));
     });
 
+    it("allows review when completion timestamp exists", async () => {
+      const { service, prisma } = setup({
+        enrollment: { findUnique: vi.fn().mockResolvedValue({ status: "ACTIVE", progressPercent: 70, completedAt: new Date() }) },
+      });
+      await service.create(org, "user-a", { courseId: "course-a", rating: 5 });
+      expect(prisma.courseReview.create).toHaveBeenCalled();
+    });
+
+    it("allows review when progress reaches 100 percent", async () => {
+      const { service, prisma } = setup({
+        enrollment: { findUnique: vi.fn().mockResolvedValue({ status: "ACTIVE", progressPercent: 100, completedAt: null }) },
+      });
+      await service.create(org, "user-a", { courseId: "course-a", rating: 5 });
+      expect(prisma.courseReview.create).toHaveBeenCalled();
+    });
+
     it("rejects duplicate review", async () => {
       const { service, prisma } = setup({ courseReview: { findUnique: vi.fn().mockResolvedValue({ id: "existing" }) } });
       await expect(service.create(org, "user-a", { courseId: "course-a", rating: 3 })).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it("rejects review when enrollment not completed", async () => {
-      const { service, prisma } = setup({ enrollment: { findUnique: vi.fn().mockResolvedValue({ status: "ACTIVE" }) } });
+      const { service } = setup({
+        enrollment: { findUnique: vi.fn().mockResolvedValue({ status: "ACTIVE", progressPercent: 99, completedAt: null }) },
+      });
       await expect(service.create(org, "user-a", { courseId: "course-a", rating: 3 })).rejects.toBeInstanceOf(ForbiddenException);
     });
   });

@@ -64,6 +64,7 @@ export class CoreLmsService {
             select: {
               enrollments: true,
               modules: true,
+              lessons: true,
               activities: true,
             },
           },
@@ -1138,7 +1139,7 @@ export class CoreLmsService {
       },
     });
 
-    if (!enrollment || enrollment.status !== "ACTIVE") {
+    if (!enrollment || !["ACTIVE", "COMPLETED"].includes(enrollment.status)) {
       throw new ForbiddenException("Course enrollment is required");
     }
 
@@ -1203,6 +1204,7 @@ export class CoreLmsService {
         },
       },
       data: {
+        status: completed ? "COMPLETED" : "ACTIVE",
         progressPercent: progress.progressPercent,
         completedAt: completed ? new Date() : null,
       },

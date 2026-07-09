@@ -109,7 +109,7 @@ export function ThreeDAssetUploader({ onUploaded }: ThreeDAssetUploaderProps) {
       </div>
       <Button onClick={handleSubmit} disabled={busy}>
         <Upload className="mr-2 h-4 w-4" />
-        {busy ? "Saving…" : "Save asset"}
+        {busy ? "Saving..." : "Save asset"}
       </Button>
     </div>
   );
