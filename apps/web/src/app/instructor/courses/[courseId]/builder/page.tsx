@@ -1,53 +1,672 @@
 "use client";
 
 import type { FormEvent } from "react";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { Save, Send, Sparkles, Trash2 } from "lucide-react";
+import {
+  BookOpen, ChevronDown, ChevronRight,
+  FilePlus, FolderPlus, Save, Send, Sparkles,
+  Trash2, Video,
+} from "lucide-react";
 import { PERMISSIONS } from "@lms/shared";
 import { AuthGate } from "../../../../../components/auth/auth-gate";
 import { RichTextEditor } from "../../../../../components/content/content";
 import { AppShell } from "../../../../../components/layout/shells";
-import {
-  ActivityTypeLegend,
-  CourseBuilderShell,
-} from "../../../../../components/lms/courses";
 import { PluginActivityEditor } from "../../../../../components/plugins/plugin-activity";
 import { AiApprovalQueue } from "../../../../../components/advanced-assignment/ai-approval-queue";
 import { CaptionCueEditor } from "../../../../../components/advanced-assignment/caption-cue-editor";
-import {
-  ButtonLink,
-  ConfirmDialog,
-  FormSection,
-  PageHeader,
-  StatusBadge,
-} from "../../../../../components/ui/core";
+import { ButtonLink, StatusBadge } from "../../../../../components/ui/core";
 import { ApiErrorState, EmptyState, LoadingState } from "../../../../../components/ui/states";
 import { CoursePhaseNavigation } from "../../../../../components/engagement/engagement";
 import { api } from "../../../../../lib/api-client";
 import {
-  useContentLibrary,
-  useCreateInstructorCaptionTrack,
-  useFiles,
-  useGenerateInstructorVideoQuiz,
-  useGenerateInstructorVideoSummary,
-  useInstructorAiGeneratedItems,
-  useInstructorCaptionTracks,
-  useInstructorCourse,
-  useInstructorQuizzes,
-  usePluginActivityTypes,
-  useSession,
-  useDeleteInstructorCaptionTrack,
-  useUpdateInstructorCaptionTrack,
+  useContentLibrary, useCreateInstructorCaptionTrack,
+  useDeleteInstructorCaptionTrack, useFiles,
+  useGenerateInstructorVideoQuiz, useGenerateInstructorVideoSummary,
+  useInstructorAiGeneratedItems, useInstructorCaptionTracks,
+  useInstructorCourse, useInstructorQuizzes, usePluginActivityTypes,
+  useSession, useUpdateInstructorCaptionTrack,
 } from "../../../../../lib/api-hooks";
 import { hasPermission } from "../../../../../lib/authz";
-import type {
-  Activity,
-  Course,
-  CourseModule,
-  Lesson,
-  VideoCaptionTrack,
-} from "../../../../../lib/lms-types";
+import type { Activity, Course, CourseModule, Lesson, VideoCaptionTrack } from "../../../../../lib/lms-types";
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+type Selection =
+  | { type: "module"; id: string }
+  | { type: "lesson"; id: string; moduleId: string }
+  | { type: "activity"; id: string; lessonId: string }
+  | null;
+
+// ─── Curriculum tree ─────────────────────────────────────────────────────────
+
+function ModuleTreeItem({
+  mod, idx, selection, onSelect, onAddLesson, onAddActivity,
+}: {
+  mod: CourseModule; idx: number; selection: Selection;
+  onSelect: (s: Selection) => void;
+  onAddLesson: (moduleId: string) => void;
+  onAddActivity: (lessonId: string) => void;
+}) {
+  const [open, setOpen] = useState(true);
+  const isSelected = selection?.type === "module" && selection.id === mod.id;
+  return (
+    <div>
+      <div className={`group flex items-center gap-1 px-3 py-1.5 cursor-pointer hover:bg-muted/50 ${isSelected ? "bg-primary/10" : ""}`}
+        onClick={() => onSelect({ type: "module", id: mod.id })}>
+        <button type="button" className="shrink-0 p-0.5 text-muted-foreground hover:text-foreground"
+          onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}>
+          {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+        </button>
+        <BookOpen className="h-3.5 w-3.5 shrink-0 text-primary" />
+        <span className="flex-1 truncate text-sm font-medium">{idx + 1}. {mod.title}</span>
+        <button type="button" title="Add lesson"
+          onClick={(e) => { e.stopPropagation(); onAddLesson(mod.id); }}
+          className="hidden shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground group-hover:block">
+          <FilePlus className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      {open && mod.lessons.map((lesson, li) => (
+        <LessonTreeItem key={lesson.id} lesson={lesson} lessonIdx={li} moduleId={mod.id}
+          selection={selection} onSelect={onSelect} onAddActivity={onAddActivity} />
+      ))}
+    </div>
+  );
+}
+
+function LessonTreeItem({
+  lesson, lessonIdx, moduleId, selection, onSelect, onAddActivity,
+}: {
+  lesson: Lesson; lessonIdx: number; moduleId: string; selection: Selection;
+  onSelect: (s: Selection) => void;
+  onAddActivity: (lessonId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const isSelected = selection?.type === "lesson" && selection.id === lesson.id;
+  return (
+    <div>
+      <div className={`group flex items-center gap-1 py-1.5 pl-7 pr-3 cursor-pointer hover:bg-muted/50 ${isSelected ? "bg-primary/10" : ""}`}
+        onClick={() => onSelect({ type: "lesson", id: lesson.id, moduleId })}>
+        <button type="button" className="shrink-0 p-0.5 text-muted-foreground hover:text-foreground"
+          onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}>
+          {lesson.activities.length > 0
+            ? (open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />)
+            : <span className="h-3 w-3" />}
+        </button>
+        <Video className="h-3 w-3 shrink-0 text-muted-foreground" />
+        <span className="flex-1 truncate text-xs">{lessonIdx + 1}. {lesson.title}</span>
+        <button type="button" title="Add activity"
+          onClick={(e) => { e.stopPropagation(); onAddActivity(lesson.id); }}
+          className="hidden shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground group-hover:block">
+          <FilePlus className="h-3 w-3" />
+        </button>
+      </div>
+      {open && lesson.activities.map((act, ai) => {
+        const isActSelected = selection?.type === "activity" && selection.id === act.id;
+        return (
+          <div key={act.id}
+            className={`flex items-center gap-2 py-1 pl-14 pr-3 cursor-pointer hover:bg-muted/50 text-xs ${isActSelected ? "bg-primary/10 font-medium" : "text-muted-foreground"}`}
+            onClick={() => onSelect({ type: "activity", id: act.id, lessonId: lesson.id })}>
+            <span className="truncate">{ai + 1}. {act.title}</span>
+            <StatusBadge value={act.activityTypeKey.replace("core.", "").replace("plugin.", "")} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Selection helpers ────────────────────────────────────────────────────────
+
+function PanelHeader({ title, subtitle, badge }: { title: string; subtitle?: string; badge?: string }) {
+  return (
+    <div className="mb-5 flex flex-wrap items-start justify-between gap-2 border-b border-border pb-4">
+      <div>
+        <h2 className="text-lg font-semibold">{title}</h2>
+        {subtitle && <p className="mt-0.5 text-sm text-muted-foreground">{subtitle}</p>}
+      </div>
+      {badge && <StatusBadge value={badge} />}
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="flex flex-col gap-1.5 text-sm font-medium">
+      {label}
+      {children}
+    </label>
+  );
+}
+
+const INPUT = "h-9 w-full rounded-md border border-input bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
+const TEXTAREA = "w-full rounded-md border border-input bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
+
+// ─── Course overview panel ────────────────────────────────────────────────────
+
+function CourseOverviewPanel({ course, canUpdate, canPublish, onAction }: {
+  course: Course; canUpdate: boolean; canPublish: boolean;
+  onAction: (action: () => Promise<unknown>, msg: string) => void;
+}) {
+  const totalActivities = course.modules?.flatMap((m) => m.lessons.flatMap((l) => l.activities)).length ?? 0;
+  const totalLessons = course.modules?.flatMap((m) => m.lessons).length ?? 0;
+  return (
+    <div className="flex flex-col gap-5 max-w-2xl">
+      <PanelHeader title="Course overview" subtitle="Select an item in the curriculum tree to edit it." badge={course.status} />
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: "Modules", value: course.modules?.length ?? 0 },
+          { label: "Lessons", value: totalLessons },
+          { label: "Activities", value: totalActivities },
+        ].map(({ label, value }) => (
+          <div key={label} className="rounded-lg border border-border bg-card p-4 text-center">
+            <p className="text-2xl font-bold">{value}</p>
+            <p className="text-xs text-muted-foreground">{label}</p>
+          </div>
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {canPublish && course.status !== "PUBLISHED" && (
+          <button type="button"
+            onClick={() => void onAction(() => api.publishCourse(course.id), "Course published.")}
+            className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
+            <Send className="h-4 w-4" /> Publish course
+          </button>
+        )}
+        {canPublish && (
+          <button type="button"
+            onClick={() => void onAction(() => api.archiveCourse(course.id), "Course archived.")}
+            className="rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-muted">
+            Archive
+          </button>
+        )}
+        <ButtonLink href={`/instructor/courses/${course.id}/edit`} variant="secondary">Edit profile</ButtonLink>
+      </div>
+    </div>
+  );
+}
+
+// ─── Module edit panel ────────────────────────────────────────────────────────
+
+function ModuleEditPanel({ course, moduleId, onSave, onDelete }: {
+  course: Course; moduleId: string;
+  onSave: (id: string, data: Record<string, unknown>) => void;
+  onDelete: (id: string) => void;
+}) {
+  const mod = course.modules?.find((m) => m.id === moduleId);
+  if (!mod) return <EmptyState title="Module not found" />;
+
+  async function submit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const d = new FormData(e.currentTarget);
+    onSave(mod!.id, {
+      title: String(d.get("title") ?? ""),
+      description: String(d.get("description") ?? ""),
+      isPublished: d.get("isPublished") === "on",
+    });
+  }
+
+  return (
+    <div className="max-w-xl">
+      <PanelHeader title={`Module: ${mod.title}`} subtitle={`${mod.lessons.length} lesson${mod.lessons.length !== 1 ? "s" : ""}`} badge={mod.isPublished ? "published" : "draft"} />
+      <form onSubmit={submit} className="flex flex-col gap-4">
+        <Field label="Title">
+          <input name="title" defaultValue={mod.title} required minLength={2} className={INPUT} />
+        </Field>
+        <Field label="Description">
+          <input name="description" defaultValue={mod.description ?? ""} className={INPUT} />
+        </Field>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" name="isPublished" defaultChecked={mod.isPublished} className="h-4 w-4" />
+          Published
+        </label>
+        <div className="flex gap-2 pt-1">
+          <button type="submit" className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
+            <Save className="h-4 w-4" /> Save module
+          </button>
+          <button type="button"
+            onClick={() => { if (window.confirm("Delete this module and all its lessons?")) onDelete(mod.id); }}
+            className="rounded-md border border-destructive/40 px-4 py-2 text-sm font-semibold text-destructive hover:bg-destructive/10">
+            <Trash2 className="mr-1.5 inline h-4 w-4" /> Delete
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+// ─── Lesson edit panel ───────────────────────────────────────────────────────
+
+function LessonEditPanel({ course, lessonId, onSave, onDelete }: {
+  course: Course; lessonId: string;
+  onSave: (id: string, data: Record<string, unknown>) => void;
+  onDelete: (id: string) => void;
+}) {
+  const lesson = course.modules?.flatMap((m) => m.lessons).find((l) => l.id === lessonId);
+  if (!lesson) return <EmptyState title="Lesson not found" />;
+
+  async function submit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const d = new FormData(e.currentTarget);
+    onSave(lesson!.id, {
+      title: String(d.get("title") ?? ""),
+      summary: String(d.get("summary") ?? ""),
+      estimatedMinutes: Number(d.get("estimatedMinutes") ?? 0),
+      isPublished: d.get("isPublished") === "on",
+      isPreview: d.get("isPreview") === "on",
+    });
+  }
+
+  return (
+    <div className="max-w-xl">
+      <PanelHeader
+        title={`Lesson: ${lesson.title}`}
+        subtitle={`${lesson.activities.length} activit${lesson.activities.length !== 1 ? "ies" : "y"}`}
+        badge={lesson.isPublished ? "published" : "draft"}
+      />
+      <form onSubmit={submit} className="flex flex-col gap-4">
+        <Field label="Title">
+          <input name="title" defaultValue={lesson.title} required minLength={2} className={INPUT} />
+        </Field>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Summary">
+            <input name="summary" defaultValue={lesson.summary ?? ""} className={INPUT} />
+          </Field>
+          <Field label="Estimated minutes">
+            <input name="estimatedMinutes" type="number" min={0}
+              defaultValue={lesson.estimatedMinutes ?? 0} className={INPUT} />
+          </Field>
+        </div>
+        <div className="flex gap-5">
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="isPublished" defaultChecked={lesson.isPublished} className="h-4 w-4" />
+            Published
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="isPreview" defaultChecked={Boolean(lesson.isPreview)} className="h-4 w-4" />
+            Free preview
+          </label>
+        </div>
+        <div className="flex gap-2 pt-1">
+          <button type="submit" className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
+            <Save className="h-4 w-4" /> Save lesson
+          </button>
+          <button type="button"
+            onClick={() => { if (window.confirm("Delete this lesson and all its activities?")) onDelete(lesson.id); }}
+            className="rounded-md border border-destructive/40 px-4 py-2 text-sm font-semibold text-destructive hover:bg-destructive/10">
+            <Trash2 className="mr-1.5 inline h-4 w-4" /> Delete
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+// ─── Activity edit panel ──────────────────────────────────────────────────────
+
+function ActivityEditPanel({
+  activity, fileOptions, libraryOptions, quizOptions, activityTypes,
+  onSave, onDelete, onSaveContent, onAttachFile, onAttachLibrary, onAttachQuiz,
+}: {
+  activity: Activity;
+  fileOptions: Array<{ id: string; originalFilename: string }>;
+  libraryOptions: Array<{ id: string; title: string }>;
+  quizOptions: Array<{ id: string; title: string; status: string }>;
+  activityTypes: Array<{ key: string; name: string; implemented?: boolean }>;
+  onSave: (id: string, data: Record<string, unknown>) => void;
+  onDelete: (id: string) => void;
+  onSaveContent: (id: string, data: Record<string, unknown>) => void;
+  onAttachFile: (id: string, fileId: string) => void;
+  onAttachLibrary: (id: string, libId: string) => void;
+  onAttachQuiz: (id: string, quizId: string) => void;
+}) {
+  const [tab, setTab] = useState<"settings" | "content">("content");
+
+  async function submitSettings(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const d = new FormData(e.currentTarget);
+    onSave(activity.id, {
+      title: String(d.get("title") ?? ""),
+      description: String(d.get("description") ?? ""),
+      isRequired: d.get("isRequired") === "on",
+      isPublished: d.get("isPublished") === "on",
+    });
+  }
+
+  return (
+    <div className="max-w-3xl">
+      <PanelHeader
+        title={activity.title}
+        subtitle={activity.activityTypeKey}
+        badge={activity.isPublished ? "published" : "draft"}
+      />
+
+      {/* Tabs */}
+      <div className="mb-5 flex gap-1 rounded-lg border border-border bg-card p-1">
+        {(["content", "settings"] as const).map((t) => (
+          <button key={t} type="button" onClick={() => setTab(t)}
+            className={`flex-1 rounded-md py-1.5 text-sm font-medium capitalize transition-colors ${tab === t ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {tab === "settings" && (
+        <form onSubmit={submitSettings} className="flex flex-col gap-4">
+          <Field label="Title">
+            <input name="title" defaultValue={activity.title} required minLength={2} className={INPUT} />
+          </Field>
+          <Field label="Description">
+            <input name="description" defaultValue={activity.description ?? ""} className={INPUT} />
+          </Field>
+          <Field label="Activity type">
+            <div className="flex flex-wrap gap-2">
+              {(activityTypes.length ? activityTypes.filter((t) => t.implemented !== false) : [
+                { key: "core.text", name: "Text" }, { key: "core.video", name: "Video" },
+                { key: "core.file", name: "File" }, { key: "core.link", name: "Link" },
+              ]).map((at) => (
+                <span key={at.key}
+                  className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${at.key === activity.activityTypeKey ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"}`}>
+                  {at.name}
+                </span>
+              ))}
+            </div>
+          </Field>
+          <div className="flex gap-5">
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="isRequired" defaultChecked={activity.isRequired} className="h-4 w-4" />
+              Required
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="isPublished" defaultChecked={activity.isPublished} className="h-4 w-4" />
+              Published
+            </label>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button type="submit" className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
+              <Save className="h-4 w-4" /> Save settings
+            </button>
+            <button type="button"
+              onClick={() => { if (window.confirm("Delete this activity?")) onDelete(activity.id); }}
+              className="rounded-md border border-destructive/40 px-4 py-2 text-sm font-semibold text-destructive hover:bg-destructive/10">
+              <Trash2 className="mr-1.5 inline h-4 w-4" /> Delete
+            </button>
+          </div>
+        </form>
+      )}
+
+      {tab === "content" && (
+        <ActivityContentPanel
+          activity={activity}
+          fileOptions={fileOptions}
+          libraryOptions={libraryOptions}
+          quizOptions={quizOptions}
+          onSaveContent={onSaveContent}
+          onAttachFile={onAttachFile}
+          onAttachLibrary={onAttachLibrary}
+          onAttachQuiz={onAttachQuiz}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Video enhancements panel ─────────────────────────────────────────────────
+
+function VideoEnhancementsPanel({ activity }: { activity: Activity }) {
+  const captionTracks = useInstructorCaptionTracks(activity.id);
+  const generatedItems = useInstructorAiGeneratedItems(activity.id);
+  const createCaption = useCreateInstructorCaptionTrack();
+  const updateCaption = useUpdateInstructorCaptionTrack();
+  const deleteCaption = useDeleteInstructorCaptionTrack();
+  const generateSummary = useGenerateInstructorVideoSummary();
+  const generateQuiz = useGenerateInstructorVideoQuiz();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [captionContent, setCaptionContent] = useState("");
+  const [captionLang, setCaptionLang] = useState("en");
+  const [captionLabel, setCaptionLabel] = useState("English captions");
+  const [captionDefault, setCaptionDefault] = useState(true);
+  const [syncTranscript, setSyncTranscript] = useState(true);
+  const [editingTrackId, setEditingTrackId] = useState<string | null>(null);
+
+  async function doRun(key: string, action: () => Promise<unknown>, success: string) {
+    setBusy(key); setMsg(null);
+    try { await action(); setMsg(success); await Promise.all([captionTracks.reload(), generatedItems.reload()]); }
+    catch (err) { setMsg(err instanceof Error ? err.message : "Error"); }
+    finally { setBusy(null); }
+  }
+
+  async function submitCaption(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    await doRun("caption", () => createCaption(activity.id, {
+      label: captionLabel, language: captionLang, rawContent: captionContent,
+      source: "UPLOAD", isDefault: captionDefault, syncTranscript,
+    }), "Caption track saved.");
+    setCaptionContent("");
+  }
+
+  const defaultLang = captionTracks.data?.find((t) => t.isDefault)?.language
+    ?? captionTracks.data?.[0]?.language ?? captionLang;
+
+  return (
+    <div className="flex flex-col gap-4 rounded-xl border border-border bg-muted/20 p-5">
+      <div>
+        <h3 className="flex items-center gap-2 text-sm font-semibold">
+          <Video className="h-4 w-4 text-primary" /> Advanced video
+        </h3>
+        <p className="mt-0.5 text-xs text-muted-foreground">Upload captions and generate AI draft summaries or quizzes.</p>
+      </div>
+
+      {/* Caption upload form */}
+      <form onSubmit={submitCaption} className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Add caption track</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Label">
+            <input className={INPUT} value={captionLabel} onChange={(e) => setCaptionLabel(e.target.value)} />
+          </Field>
+          <Field label="Language code">
+            <input className={INPUT} value={captionLang} onChange={(e) => setCaptionLang(e.target.value)} placeholder="en" />
+          </Field>
+        </div>
+        <Field label="VTT / SRT content">
+          <textarea className={`min-h-32 font-mono text-xs ${TEXTAREA}`} value={captionContent}
+            onChange={(e) => setCaptionContent(e.target.value)}
+            placeholder={"WEBVTT\n\n00:00:01.000 --> 00:00:04.000\nWelcome."} />
+        </Field>
+        <div className="flex flex-wrap gap-4 text-sm">
+          <label className="flex items-center gap-2"><input type="checkbox" className="h-4 w-4" checked={captionDefault} onChange={(e) => setCaptionDefault(e.target.checked)} /> Default</label>
+          <label className="flex items-center gap-2"><input type="checkbox" className="h-4 w-4" checked={syncTranscript} onChange={(e) => setSyncTranscript(e.target.checked)} /> Sync transcript</label>
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            <input type="file" accept=".vtt,.srt" className="max-w-44 text-xs"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) void f.text().then(setCaptionContent); }} />
+            Load file
+          </label>
+        </div>
+        {msg && <p className="rounded bg-muted px-3 py-1.5 text-xs">{msg}</p>}
+        <button type="submit" disabled={!captionContent.trim() || busy !== null}
+          className="flex w-fit items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">
+          <Save className="h-4 w-4" /> Save caption track
+        </button>
+      </form>
+
+      {/* Tracks + AI drafts */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="flex flex-col gap-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Caption tracks</p>
+          {captionTracks.loading ? <LoadingState title="Loading…" /> :
+            captionTracks.data?.length ? captionTracks.data.map((track) => (
+              <CaptionTrackCard key={track.id} track={track}
+                isEditing={editingTrackId === track.id}
+                onEditCues={() => setEditingTrackId(editingTrackId === track.id ? null : track.id)}
+                onMakeDefault={() => doRun("caption", () => updateCaption(track.id, { isDefault: true }), "Default updated.")}
+                onDelete={() => doRun("caption", () => deleteCaption(track.id), "Track deleted.")} />
+            )) : <p className="text-xs text-muted-foreground">No tracks yet.</p>}
+        </div>
+        <div className="flex flex-col gap-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">AI drafts</p>
+          <div className="flex gap-2">
+            <button type="button" disabled={busy !== null}
+              onClick={() => void doRun("summary", () => generateSummary(activity.id, { language: defaultLang }), "Summary drafted.")}
+              className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-semibold disabled:opacity-50">
+              <Sparkles className="h-3.5 w-3.5" /> Summary
+            </button>
+            <button type="button" disabled={busy !== null}
+              onClick={() => void doRun("quiz", () => generateQuiz(activity.id, { language: defaultLang, questionCount: 5 }), "Quiz drafted.")}
+              className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-semibold disabled:opacity-50">
+              <Sparkles className="h-3.5 w-3.5" /> Quiz
+            </button>
+          </div>
+          {generatedItems.data?.length ? <AiApprovalQueue activityId={activity.id} /> : <p className="text-xs text-muted-foreground">No drafts yet.</p>}
+        </div>
+      </div>
+
+      {editingTrackId && <CaptionCueEditor trackId={editingTrackId} />}
+    </div>
+  );
+}
+
+function CaptionTrackCard({ track, isEditing, onEditCues, onMakeDefault, onDelete }: {
+  track: VideoCaptionTrack; isEditing: boolean;
+  onEditCues: () => void; onMakeDefault: () => void; onDelete: () => void;
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-card p-3">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="text-sm font-medium">{track.label}</p>
+          <p className="text-xs text-muted-foreground">{track.language.toUpperCase()} · {track.kind} · {track.cues.length} cues</p>
+        </div>
+        {track.isDefault && <StatusBadge value="default" tone="success" />}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        <button type="button" onClick={onEditCues} className="rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:bg-muted">
+          {isEditing ? "Close editor" : "Edit cues"}
+        </button>
+        {!track.isDefault && (
+          <button type="button" onClick={() => void onMakeDefault()} className="rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:bg-muted">
+            Set default
+          </button>
+        )}
+        <button type="button" onClick={() => void onDelete()} className="flex items-center gap-1 rounded-md border border-destructive/30 px-2.5 py-1 text-xs font-semibold text-destructive hover:bg-destructive/10">
+          <Trash2 className="h-3 w-3" /> Delete
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ActivityContentPanel({
+  activity, fileOptions, libraryOptions, quizOptions,
+  onSaveContent, onAttachFile, onAttachLibrary, onAttachQuiz,
+}: {
+  activity: Activity;
+  fileOptions: Array<{ id: string; originalFilename: string }>;
+  libraryOptions: Array<{ id: string; title: string }>;
+  quizOptions: Array<{ id: string; title: string; status: string }>;
+  onSaveContent: (id: string, data: Record<string, unknown>) => void;
+  onAttachFile: (id: string, fileId: string) => void;
+  onAttachLibrary: (id: string, libId: string) => void;
+  onAttachQuiz: (id: string, quizId: string) => void;
+}) {
+  const isText = activity.activityTypeKey === "core.text";
+  const isQuiz = activity.activityTypeKey === "core.quiz";
+  const isVideo = activity.activityTypeKey === "core.video";
+  const content = activity.activityContent?.content ?? {};
+  const htmlDefault =
+    typeof content.html === "string" ? content.html :
+    typeof content.body === "string" && content.format === "rich_text_html" ? content.body :
+    activity.activityContent?.textContent ?? "";
+
+  async function submitGeneric(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const d = new FormData(e.currentTarget);
+    onSaveContent(activity.id, {
+      textContent: String(d.get("textContent") ?? ""),
+      externalUrl: String(d.get("externalUrl") ?? "") || undefined,
+      content: { body: String(d.get("textContent") ?? ""), url: String(d.get("externalUrl") ?? "") || undefined },
+    });
+  }
+
+  return (
+    <PluginActivityEditor activity={activity}>
+      <div className="flex flex-col gap-5">
+        {isQuiz ? (
+          <AttachSelect label="Attach quiz"
+            options={quizOptions.map((q) => ({ id: q.id, label: `${q.title} (${q.status})` }))}
+            onAttach={(id) => onAttachQuiz(activity.id, id)} />
+        ) : isText ? (
+          <div>
+            <p className="mb-2 text-sm font-medium">Rich text content</p>
+            <RichTextEditor defaultValue={htmlDefault}
+              onSubmit={(_val, payload) => {
+                onSaveContent(activity.id, {
+                  textContent: payload.text,
+                  content: { format: "rich_text_html", html: payload.html, body: payload.html },
+                });
+                return Promise.resolve();
+              }} />
+          </div>
+        ) : (
+          <form onSubmit={submitGeneric} className="flex flex-col gap-4">
+            <Field label="Text content">
+              <textarea name="textContent" rows={5} className={TEXTAREA}
+                defaultValue={activity.activityContent?.textContent ?? ""} />
+            </Field>
+            <Field label="External URL">
+              <input name="externalUrl" type="url" className={INPUT}
+                defaultValue={activity.activityContent?.externalUrl ?? ""} />
+            </Field>
+            <button type="submit" className="flex w-fit items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
+              <Save className="h-4 w-4" /> Save content
+            </button>
+          </form>
+        )}
+
+        {!isQuiz && (
+          <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/20 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Attachments</p>
+            <AttachSelect label="File"
+              options={fileOptions.map((f) => ({ id: f.id, label: f.originalFilename }))}
+              onAttach={(id) => onAttachFile(activity.id, id)} />
+            <AttachSelect label="Library item"
+              options={libraryOptions.map((l) => ({ id: l.id, label: l.title }))}
+              onAttach={(id) => onAttachLibrary(activity.id, id)} />
+          </div>
+        )}
+
+        {isVideo && <VideoEnhancementsPanel activity={activity} />}
+      </div>
+    </PluginActivityEditor>
+  );
+}
+
+function AttachSelect({ label, options, onAttach }: {
+  label: string;
+  options: Array<{ id: string; label: string }>;
+  onAttach: (id: string) => void;
+}) {
+  const [selectedId, setSelectedId] = useState("");
+  return (
+    <div className="flex flex-wrap items-end gap-2">
+      <label className="min-w-52 flex-1 text-sm font-medium">
+        {label}
+        <select className={`mt-1 ${INPUT}`} value={selectedId}
+          onChange={(e) => setSelectedId(e.target.value)}>
+          <option value="">Select…</option>
+          {options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+        </select>
+      </label>
+      <button type="button" disabled={!selectedId}
+        onClick={() => { if (selectedId) { onAttach(selectedId); setSelectedId(""); } }}
+        className="h-9 rounded-md border border-border px-3 text-sm font-semibold disabled:opacity-40 hover:bg-muted">
+        Attach
+      </button>
+    </div>
+  );
+}
+
+// ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function BuilderPage() {
   const params = useParams<{ courseId: string }>();
@@ -58,35 +677,34 @@ export default function BuilderPage() {
   const quizzesQuery = useInstructorQuizzes();
   const session = useSession();
   const course = courseQuery.data;
-  const canCreate = hasPermission(session, PERMISSIONS.coursesCreate);
   const canUpdate = hasPermission(session, PERMISSIONS.coursesUpdate);
   const canPublish = hasPermission(session, PERMISSIONS.coursesPublish);
-  const [selectedActivityId, setSelectedActivityId] = useState<string | null>(
-    null,
-  );
-  const [message, setMessage] = useState<string | null>(null);
-  const activities = useMemo(
-    () =>
-      course?.modules?.flatMap((module) =>
-        module.lessons.flatMap((lesson) => lesson.activities),
-      ) ?? [],
-    [course],
-  );
-  const selectedActivity =
-    activities.find((activity) => activity.id === selectedActivityId) ??
-    activities[0] ??
-    null;
+  const canCreate = hasPermission(session, PERMISSIONS.coursesCreate);
+  const [selection, setSelection] = useState<Selection>(null);
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+
+  const showToast = useCallback((msg: string, ok = true) => {
+    setToast({ msg, ok });
+    setTimeout(() => setToast(null), 3000);
+  }, []);
 
   async function run(action: () => Promise<unknown>, success: string) {
-    setMessage(null);
     try {
       await action();
-      setMessage(success);
       await courseQuery.reload();
-    } catch (caught) {
-      setMessage(caught instanceof Error ? caught.message : String(caught));
+      showToast(success);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : String(err), false);
     }
   }
+
+  const activities = useMemo(
+    () => course?.modules?.flatMap((m) => m.lessons.flatMap((l) => l.activities)) ?? [],
+    [course],
+  );
+  const selectedActivity = selection?.type === "activity"
+    ? (activities.find((a) => a.id === selection.id) ?? null)
+    : null;
 
   return (
     <AuthGate>
@@ -94,1347 +712,109 @@ export default function BuilderPage() {
         {courseQuery.loading ? (
           <LoadingState title="Loading builder" />
         ) : courseQuery.error || !course ? (
-          <ApiErrorState
-            error={courseQuery.error}
-            fallbackTitle="Could not load builder"
-            fallbackDescription="Course was not found."
-          />
+          <ApiErrorState error={courseQuery.error} fallbackTitle="Could not load course" />
         ) : (
-          <>
-            <PageHeader
-              breadcrumbs={[
-                { label: "Instructor", href: "/instructor/courses" },
-                { label: course.title },
-              ]}
-              eyebrow="Instructor builder"
-              title={course.title}
-              description="Build modules, lessons, extensible activities, and reusable content."
-              actions={
-                <ButtonLink
-                  href={`/instructor/courses/${course.id}/edit`}
-                  variant="secondary"
-                >
-                  Edit profile
-                </ButtonLink>
-              }
-            />
-            <CoursePhaseNavigation courseId={params.courseId} active="overview" instructor />
-
-            <CourseBuilderShell
-              course={course}
-              aside={
-                <>
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Publish readiness
-                  </p>
-                  <h2 className="mt-1 text-lg font-semibold">
-                    Course structure
-                  </h2>
-                  <div className="mt-4 space-y-3">
-                    {[
-                      `${course.modules?.length ?? 0} modules`,
-                      `${activities.length} activities`,
-                      course.status === "PUBLISHED"
-                        ? "Published"
-                        : "Draft or review state",
-                    ].map((item) => (
-                      <div key={item} className="flex items-center gap-2 text-sm">
-                        <span className="h-2 w-2 rounded-full bg-primary" />
-                        <span>{item}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-5 flex flex-wrap gap-2">
-                    {canPublish ? (
-                      <button
-                        className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
-                        disabled={course.status === "PUBLISHED"}
-                        onClick={() =>
-                          void run(
-                            () => api.publishCourse(course.id),
-                            "Course published.",
-                          )
-                        }
-                        type="button"
-                      >
-                        <Send aria-hidden="true" className="h-4 w-4" />
-                        {course.status === "PUBLISHED" ? "Published" : "Publish"}
-                      </button>
-                    ) : (
-                      <span className="rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-sm font-medium text-warning">
-                        Publish requires reviewer or manager permission
-                      </span>
-                    )}
-                    <ButtonLink
-                      href={`/instructor/courses/${course.id}/preview`}
-                      variant="secondary"
-                    >
-                      Preview
-                    </ButtonLink>
-                    {canCreate ? (
-                      <button
-                        className="inline-flex items-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-semibold hover:bg-muted"
-                        onClick={() =>
-                          void run(
-                            () => api.duplicateCourse(course.id),
-                            "Course duplicated.",
-                          )
-                        }
-                        type="button"
-                      >
-                        Duplicate
-                      </button>
-                    ) : null}
-                    {canPublish ? (
-                      <button
-                        className="inline-flex items-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-semibold hover:bg-muted"
-                        onClick={() =>
-                          void run(
-                            () => api.archiveCourse(course.id),
-                            "Course archived.",
-                          )
-                        }
-                        type="button"
-                      >
-                        Archive
-                      </button>
-                    ) : null}
-                    {canUpdate ? (
-                      <button
-                        className="inline-flex items-center gap-2 rounded-md border border-destructive/40 px-4 py-2 text-sm font-semibold text-destructive hover:bg-destructive/10"
-                        onClick={() => {
-                          if (
-                            window.confirm(
-                              "Delete this course? This hides it from instructor and learner views.",
-                            )
-                          ) {
-                            void run(
-                              () => api.deleteCourse(course.id),
-                              "Course deleted.",
-                            ).then(() => {
-                              window.location.href = "/instructor/courses";
-                            });
-                          }
-                        }}
-                        type="button"
-                      >
-                        Delete
-                      </button>
-                    ) : null}
-                  </div>
-                  <div className="mt-5">
-                    <ConfirmDialog
-                      title="Publishing uses backend validation"
-                      description="Visibility, RBAC, and tenant checks are enforced by the API."
-                    />
-                  </div>
-                  {message ? (
-                    <p className="mt-4 text-sm text-muted-foreground">{message}</p>
-                  ) : null}
-                </>
-              }
-            >
-              <div className="grid gap-5">
-                <CreateModuleForm
-                  onCreate={(title, description) =>
-                    run(
-                      () => api.createModule(course.id, { title, description }),
-                      "Module created.",
-                    )
-                  }
-                />
-
-                {course.modules?.length ? (
-                  <ManageCurriculum
-                    course={course}
-                    onDeleteActivity={(activityId) =>
-                      run(
-                        () => api.deleteActivity(activityId),
-                        "Activity deleted.",
-                      )
-                    }
-                    onDeleteLesson={(lessonId) =>
-                      run(() => api.deleteLesson(lessonId), "Lesson deleted.")
-                    }
-                    onDeleteModule={(moduleId) =>
-                      run(() => api.deleteModule(moduleId), "Module deleted.")
-                    }
-                    onUpdateActivity={(activityId, input) =>
-                      run(
-                        () => api.updateActivity(activityId, input),
-                        "Activity updated.",
-                      )
-                    }
-                    onUpdateLesson={(lessonId, input) =>
-                      run(
-                        () => api.updateLesson(lessonId, input),
-                        "Lesson updated.",
-                      )
-                    }
-                    onUpdateModule={(moduleId, input) =>
-                      run(
-                        () => api.updateModule(moduleId, input),
-                        "Module updated.",
-                      )
-                    }
-                  />
-                ) : (
-                  <EmptyState
-                    title="No curriculum yet"
-                    description="Create the first module and lesson before publishing."
-                  />
+          <div className="flex flex-col gap-0">
+            {/* Top bar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-card px-5 py-3">
+              <div className="flex flex-col gap-0.5">
+                <p className="text-xs text-muted-foreground">Course Builder</p>
+                <h1 className="text-base font-semibold">{course.title}</h1>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {toast && (
+                  <span className={`rounded-md px-3 py-1 text-xs font-medium ${toast.ok ? "bg-emerald-100 text-emerald-700" : "bg-destructive/10 text-destructive"}`}>
+                    {toast.msg}
+                  </span>
                 )}
-
-                {course.modules?.map((module) => (
-                  <CreateLessonForm
-                    key={module.id}
-                    moduleTitle={module.title}
-                    onCreate={(title, summary, estimatedMinutes) =>
-                      run(
-                        () =>
-                          api.createLesson(module.id, {
-                            title,
-                            summary,
-                            estimatedMinutes,
-                          }),
-                        "Lesson created.",
-                      )
-                    }
-                  />
-                ))}
-
-                {course.modules?.flatMap((module) =>
-                  module.lessons.map((lesson) => (
-                    <CreateActivityForm
-                      key={lesson.id}
-                      activityTypes={activityTypesQuery.data?.activityTypes ?? []}
-                      lessonTitle={lesson.title}
-                      onCreate={(title, activityTypeKey, description) =>
-                        run(
-                          () =>
-                            api.createActivity(lesson.id, {
-                              title,
-                              activityTypeKey,
-                              description,
-                              isRequired: true,
-                            }),
-                          "Activity created.",
-                        )
-                      }
-                    />
-                  )),
+                <ButtonLink href={`/instructor/courses/${course.id}/preview`} variant="secondary">
+                  Preview
+                </ButtonLink>
+                {canCreate && (
+                  <button type="button"
+                    onClick={() => void run(() => api.duplicateCourse(course.id), "Course duplicated.")}
+                    className="rounded-md border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted">
+                    Duplicate
+                  </button>
+                )}
+                {canPublish && (
+                  <button type="button"
+                    disabled={course.status === "PUBLISHED"}
+                    onClick={() => void run(() => api.publishCourse(course.id), "Course published.")}
+                    className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">
+                    <Send className="h-3.5 w-3.5" />
+                    {course.status === "PUBLISHED" ? "Published" : "Publish"}
+                  </button>
                 )}
               </div>
-            </CourseBuilderShell>
+            </div>
 
-            <section className="mt-5 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-              <FormSection
-                title="Activity content"
-                description="Save rich text or external URLs to the selected activity."
-              >
-                <ActivitySelector
-                  activities={activities}
-                  selectedActivity={selectedActivity}
-                  onSelect={setSelectedActivityId}
-                />
-                {selectedActivity ? (
-                  <ActivityContentForm
+            <CoursePhaseNavigation courseId={params.courseId} active="overview" instructor />
+
+            {/* 2-column layout */}
+            <div className="flex min-h-[calc(100vh-10rem)]">
+              {/* Left sidebar — curriculum tree */}
+              <aside className="flex w-72 shrink-0 flex-col border-r border-border bg-card">
+                <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Curriculum
+                  </span>
+                  <button type="button"
+                    onClick={() => void run(() => api.createModule(course.id, { title: "New Module" }), "Module added.")}
+                    className="flex items-center gap-1 rounded bg-primary px-2 py-1 text-xs font-semibold text-primary-foreground">
+                    <FolderPlus className="h-3 w-3" /> Module
+                  </button>
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                  {!course.modules?.length ? (
+                    <p className="px-4 py-6 text-center text-xs text-muted-foreground">
+                      No modules yet. Add one to start.
+                    </p>
+                  ) : (
+                    course.modules.map((mod, idx) => (
+                      <ModuleTreeItem key={mod.id} mod={mod} idx={idx}
+                        selection={selection} onSelect={setSelection}
+                        onAddLesson={(mid) => run(() => api.createLesson(mid, { title: "New Lesson" }), "Lesson added.")}
+                        onAddActivity={(lid) => run(() => api.createActivity(lid, { title: "New Activity", activityTypeKey: "core.text", isRequired: true }), "Activity added.")}
+                      />
+                    ))
+                  )}
+                </div>
+              </aside>
+
+              {/* Right — edit panel */}
+              <main className="flex-1 overflow-y-auto bg-background p-6">
+                {!selection && <CourseOverviewPanel course={course} canUpdate={canUpdate} canPublish={canPublish} onAction={run} />}
+                {selection?.type === "module" && (
+                  <ModuleEditPanel course={course} moduleId={selection.id}
+                    onSave={(id, d) => run(() => api.updateModule(id, d), "Module saved.")}
+                    onDelete={(id) => run(() => api.deleteModule(id), "Module deleted.")} />
+                )}
+                {selection?.type === "lesson" && (
+                  <LessonEditPanel course={course} lessonId={selection.id}
+                    onSave={(id, d) => run(() => api.updateLesson(id, d), "Lesson saved.")}
+                    onDelete={(id) => run(() => api.deleteLesson(id), "Lesson deleted.")} />
+                )}
+                {selection?.type === "activity" && selectedActivity && (
+                  <ActivityEditPanel
                     activity={selectedActivity}
                     fileOptions={filesQuery.data?.data ?? []}
                     libraryOptions={libraryQuery.data ?? []}
                     quizOptions={quizzesQuery.data ?? []}
-                    onAttachFile={(fileId) =>
-                      run(
-                        () => api.attachFileToActivity(selectedActivity.id, fileId),
-                        "File attached.",
-                      )
-                    }
-                    onAttachLibraryItem={(libraryItemId) =>
-                      run(
-                        () =>
-                          api.attachLibraryItemToActivity(
-                            selectedActivity.id,
-                            libraryItemId,
-                          ),
-                        "Library item attached.",
-                      )
-                    }
-                    onAttachQuiz={(quizId) =>
-                      run(
-                        () => api.attachQuizToActivity(selectedActivity.id, quizId),
-                        "Quiz attached.",
-                      )
-                    }
-                    onSave={(input) =>
-                      run(
-                        () => api.updateActivityContent(selectedActivity.id, input),
-                        "Activity content saved.",
-                      )
-                    }
+                    activityTypes={activityTypesQuery.data?.activityTypes ?? []}
+                    onSave={(id, d) => run(() => api.updateActivity(id, d), "Activity saved.")}
+                    onDelete={(id) => run(() => api.deleteActivity(id), "Activity deleted.")}
+                    onSaveContent={(id, d) => run(() => api.updateActivityContent(id, d), "Content saved.")}
+                    onAttachFile={(id, fid) => run(() => api.attachFileToActivity(id, fid), "File attached.")}
+                    onAttachLibrary={(id, lid) => run(() => api.attachLibraryItemToActivity(id, lid), "Library item attached.")}
+                    onAttachQuiz={(id, qid) => run(() => api.attachQuizToActivity(id, qid), "Quiz attached.")}
                   />
-                ) : null}
-              </FormSection>
-
-              <section className="rounded-lg border border-border bg-card p-5 shadow-subtle">
-                <p className="text-sm font-medium text-muted-foreground">
-                  Activity renderer keys
-                </p>
-                <h2 className="mt-1 text-lg font-semibold">
-                  Plugin-ready activity types
-                </h2>
-                <div className="mt-4">
-                  <ActivityTypeLegend />
-                </div>
-              </section>
-            </section>
-          </>
+                )}
+              </main>
+            </div>
+          </div>
         )}
       </AppShell>
     </AuthGate>
-  );
-}
-
-function ManageCurriculum({
-  course,
-  onUpdateModule,
-  onDeleteModule,
-  onUpdateLesson,
-  onDeleteLesson,
-  onUpdateActivity,
-  onDeleteActivity,
-}: {
-  course: Course;
-  onUpdateModule: (
-    moduleId: string,
-    input: Record<string, unknown>,
-  ) => Promise<unknown>;
-  onDeleteModule: (moduleId: string) => Promise<unknown>;
-  onUpdateLesson: (
-    lessonId: string,
-    input: Record<string, unknown>,
-  ) => Promise<unknown>;
-  onDeleteLesson: (lessonId: string) => Promise<unknown>;
-  onUpdateActivity: (
-    activityId: string,
-    input: Record<string, unknown>,
-  ) => Promise<unknown>;
-  onDeleteActivity: (activityId: string) => Promise<unknown>;
-}) {
-  return (
-    <div className="grid gap-4">
-      {course.modules?.map((module, moduleIndex) => (
-        <ModuleEditor
-          key={module.id}
-          module={module}
-          moduleIndex={moduleIndex}
-          onDeleteActivity={onDeleteActivity}
-          onDeleteLesson={onDeleteLesson}
-          onDeleteModule={onDeleteModule}
-          onUpdateActivity={onUpdateActivity}
-          onUpdateLesson={onUpdateLesson}
-          onUpdateModule={onUpdateModule}
-        />
-      ))}
-    </div>
-  );
-}
-
-function ModuleEditor({
-  module,
-  moduleIndex,
-  onUpdateModule,
-  onDeleteModule,
-  onUpdateLesson,
-  onDeleteLesson,
-  onUpdateActivity,
-  onDeleteActivity,
-}: {
-  module: CourseModule;
-  moduleIndex: number;
-  onUpdateModule: (
-    moduleId: string,
-    input: Record<string, unknown>,
-  ) => Promise<unknown>;
-  onDeleteModule: (moduleId: string) => Promise<unknown>;
-  onUpdateLesson: (
-    lessonId: string,
-    input: Record<string, unknown>,
-  ) => Promise<unknown>;
-  onDeleteLesson: (lessonId: string) => Promise<unknown>;
-  onUpdateActivity: (
-    activityId: string,
-    input: Record<string, unknown>,
-  ) => Promise<unknown>;
-  onDeleteActivity: (activityId: string) => Promise<unknown>;
-}) {
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    await onUpdateModule(module.id, {
-      title: String(data.get("title") ?? ""),
-      description: String(data.get("description") ?? ""),
-      isPublished: data.get("isPublished") === "on",
-    });
-  }
-
-  return (
-    <article className="rounded-lg border border-border p-4">
-      <form className="grid gap-3" onSubmit={submit}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Module {moduleIndex + 1}
-          </p>
-          <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-            <input
-              className="h-4 w-4"
-              defaultChecked={module.isPublished}
-              name="isPublished"
-              type="checkbox"
-            />
-            Published
-          </label>
-        </div>
-        <input
-          className="h-10 rounded-md border border-input bg-card px-3 text-sm"
-          defaultValue={module.title}
-          minLength={2}
-          name="title"
-          required
-        />
-        <input
-          className="h-10 rounded-md border border-input bg-card px-3 text-sm"
-          defaultValue={module.description ?? ""}
-          name="description"
-        />
-        <div className="flex flex-wrap gap-2">
-          <button
-            className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground"
-            type="submit"
-          >
-            <Save aria-hidden="true" className="h-4 w-4" />
-            Save module
-          </button>
-          <button
-            className="rounded-md border border-destructive/40 px-3 py-2 text-sm font-semibold text-destructive hover:bg-destructive/10"
-            onClick={() => {
-              if (window.confirm("Delete this module and its lessons?")) {
-                void onDeleteModule(module.id);
-              }
-            }}
-            type="button"
-          >
-            Delete module
-          </button>
-        </div>
-      </form>
-
-      <div className="mt-4 grid gap-3">
-        {module.lessons.map((lesson, lessonIndex) => (
-          <LessonEditor
-            key={lesson.id}
-            lesson={lesson}
-            lessonIndex={lessonIndex}
-            onDeleteActivity={onDeleteActivity}
-            onDeleteLesson={onDeleteLesson}
-            onUpdateActivity={onUpdateActivity}
-            onUpdateLesson={onUpdateLesson}
-          />
-        ))}
-      </div>
-    </article>
-  );
-}
-
-function LessonEditor({
-  lesson,
-  lessonIndex,
-  onUpdateLesson,
-  onDeleteLesson,
-  onUpdateActivity,
-  onDeleteActivity,
-}: {
-  lesson: Lesson;
-  lessonIndex: number;
-  onUpdateLesson: (
-    lessonId: string,
-    input: Record<string, unknown>,
-  ) => Promise<unknown>;
-  onDeleteLesson: (lessonId: string) => Promise<unknown>;
-  onUpdateActivity: (
-    activityId: string,
-    input: Record<string, unknown>,
-  ) => Promise<unknown>;
-  onDeleteActivity: (activityId: string) => Promise<unknown>;
-}) {
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    await onUpdateLesson(lesson.id, {
-      title: String(data.get("title") ?? ""),
-      summary: String(data.get("summary") ?? ""),
-      estimatedMinutes: Number(data.get("estimatedMinutes") ?? 0),
-      isPublished: data.get("isPublished") === "on",
-      isPreview: data.get("isPreview") === "on",
-    });
-  }
-
-  return (
-    <section className="rounded-md border border-border px-3 py-3">
-      <form className="grid gap-3" onSubmit={submit}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Lesson {lessonIndex + 1}
-          </p>
-          <div className="flex flex-wrap gap-3">
-            <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-              <input
-                className="h-4 w-4"
-                defaultChecked={lesson.isPublished}
-                name="isPublished"
-                type="checkbox"
-              />
-              Published
-            </label>
-            <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-              <input
-                className="h-4 w-4"
-                defaultChecked={Boolean(lesson.isPreview)}
-                name="isPreview"
-                type="checkbox"
-              />
-              Preview
-            </label>
-          </div>
-        </div>
-        <div className="grid gap-3 md:grid-cols-[1fr_140px]">
-          <input
-            className="h-10 rounded-md border border-input bg-card px-3 text-sm"
-            defaultValue={lesson.title}
-            minLength={2}
-            name="title"
-            required
-          />
-          <input
-            className="h-10 rounded-md border border-input bg-card px-3 text-sm"
-            defaultValue={lesson.estimatedMinutes}
-            min={0}
-            name="estimatedMinutes"
-            type="number"
-          />
-        </div>
-        <input
-          className="h-10 rounded-md border border-input bg-card px-3 text-sm"
-          defaultValue={lesson.summary ?? ""}
-          name="summary"
-        />
-        <div className="flex flex-wrap gap-2">
-          <button
-            className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground"
-            type="submit"
-          >
-            <Save aria-hidden="true" className="h-4 w-4" />
-            Save lesson
-          </button>
-          <button
-            className="rounded-md border border-destructive/40 px-3 py-2 text-sm font-semibold text-destructive hover:bg-destructive/10"
-            onClick={() => {
-              if (window.confirm("Delete this lesson and its activities?")) {
-                void onDeleteLesson(lesson.id);
-              }
-            }}
-            type="button"
-          >
-            Delete lesson
-          </button>
-        </div>
-      </form>
-
-      <div className="mt-3 grid gap-2">
-        {lesson.activities.map((activity) => (
-          <ActivityEditor
-            key={activity.id}
-            activity={activity}
-            onDeleteActivity={onDeleteActivity}
-            onUpdateActivity={onUpdateActivity}
-          />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function ActivityEditor({
-  activity,
-  onUpdateActivity,
-  onDeleteActivity,
-}: {
-  activity: Activity;
-  onUpdateActivity: (
-    activityId: string,
-    input: Record<string, unknown>,
-  ) => Promise<unknown>;
-  onDeleteActivity: (activityId: string) => Promise<unknown>;
-}) {
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    await onUpdateActivity(activity.id, {
-      title: String(data.get("title") ?? ""),
-      description: String(data.get("description") ?? ""),
-      isRequired: data.get("isRequired") === "on",
-      isPublished: data.get("isPublished") === "on",
-    });
-  }
-
-  return (
-    <form className="rounded-md border border-border p-3" onSubmit={submit}>
-      <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
-        <label className="text-sm font-medium">
-          Activity
-          <input
-            className="mt-2 h-10 w-full rounded-md border border-input bg-card px-3 text-sm"
-            defaultValue={activity.title}
-            minLength={2}
-            name="title"
-            required
-          />
-        </label>
-        <label className="text-sm font-medium">
-          Description
-          <input
-            className="mt-2 h-10 w-full rounded-md border border-input bg-card px-3 text-sm"
-            defaultValue={activity.description ?? ""}
-            name="description"
-          />
-        </label>
-        <StatusBadge value={activity.activityTypeKey} />
-      </div>
-      <div className="mt-3 flex flex-wrap items-center gap-3">
-        <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-          <input
-            className="h-4 w-4"
-            defaultChecked={activity.isRequired}
-            name="isRequired"
-            type="checkbox"
-          />
-          Required
-        </label>
-        <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-          <input
-            className="h-4 w-4"
-            defaultChecked={activity.isPublished}
-            name="isPublished"
-            type="checkbox"
-          />
-          Published
-        </label>
-        <button
-          className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground"
-          type="submit"
-        >
-          <Save aria-hidden="true" className="h-4 w-4" />
-          Save
-        </button>
-        <button
-          className="rounded-md border border-destructive/40 px-3 py-2 text-sm font-semibold text-destructive hover:bg-destructive/10"
-          onClick={() => {
-            if (window.confirm("Delete this activity?")) {
-              void onDeleteActivity(activity.id);
-            }
-          }}
-          type="button"
-        >
-          Delete
-        </button>
-      </div>
-    </form>
-  );
-}
-
-function CreateModuleForm({
-  onCreate,
-}: {
-  onCreate: (title: string, description: string) => Promise<unknown>;
-}) {
-  return (
-    <MiniForm
-      buttonLabel="Add module"
-      fields={[
-        ["title", "Module title"],
-        ["description", "Description"],
-      ]}
-      onSubmit={(data) =>
-        onCreate(String(data.get("title") ?? ""), String(data.get("description") ?? ""))
-      }
-      title="New module"
-    />
-  );
-}
-
-function CreateLessonForm({
-  moduleTitle,
-  onCreate,
-}: {
-  moduleTitle: string;
-  onCreate: (
-    title: string,
-    summary: string,
-    estimatedMinutes: number,
-  ) => Promise<unknown>;
-}) {
-  return (
-    <MiniForm
-      buttonLabel="Add lesson"
-      fields={[
-        ["title", "Lesson title"],
-        ["summary", "Summary"],
-        ["estimatedMinutes", "Estimated minutes"],
-      ]}
-      onSubmit={(data) =>
-        onCreate(
-          String(data.get("title") ?? ""),
-          String(data.get("summary") ?? ""),
-          Number(data.get("estimatedMinutes") ?? 0),
-        )
-      }
-      title={`New lesson in ${moduleTitle}`}
-    />
-  );
-}
-
-function CreateActivityForm({
-  lessonTitle,
-  activityTypes,
-  onCreate,
-}: {
-  lessonTitle: string;
-  activityTypes: Array<{
-    key: string;
-    name: string;
-    implemented?: boolean;
-    placeholder?: boolean;
-  }>;
-  onCreate: (
-    title: string,
-    activityTypeKey: string,
-    description: string,
-  ) => Promise<unknown>;
-}) {
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formElement = event.currentTarget;
-    const data = new FormData(formElement);
-    await onCreate(
-      String(data.get("title") ?? ""),
-      String(data.get("activityTypeKey") ?? "core.text"),
-      String(data.get("description") ?? ""),
-    );
-    formElement.reset();
-  }
-
-  return (
-    <form className="rounded-lg border border-border p-4" onSubmit={submit}>
-      <h3 className="text-sm font-semibold">New activity in {lessonTitle}</h3>
-      <div className="mt-3 grid gap-3 md:grid-cols-3">
-        <input
-          className="h-10 rounded-md border border-input bg-card px-3 text-sm"
-          minLength={2}
-          name="title"
-          placeholder="Activity title"
-          required
-        />
-        <select
-          className="h-10 rounded-md border border-input bg-card px-3 text-sm"
-          name="activityTypeKey"
-        >
-          {(activityTypes.length
-            ? activityTypes.filter(
-                (activityType) =>
-                  activityType.implemented !== false &&
-                  !activityType.placeholder,
-              )
-            : [
-                { key: "core.text", name: "Text" },
-                { key: "core.video", name: "Video" },
-                { key: "core.file", name: "File" },
-                { key: "core.link", name: "Link" },
-              ]
-          ).map((activityType) => (
-            <option key={activityType.key} value={activityType.key}>
-              {activityType.name}
-            </option>
-          ))}
-        </select>
-        <input
-          className="h-10 rounded-md border border-input bg-card px-3 text-sm"
-          name="description"
-          placeholder="Description"
-        />
-      </div>
-      <button
-        className="mt-3 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
-        type="submit"
-      >
-        <Save aria-hidden="true" className="h-4 w-4" />
-        Add activity
-      </button>
-    </form>
-  );
-}
-
-function MiniForm({
-  title,
-  fields,
-  buttonLabel,
-  onSubmit,
-}: {
-  title: string;
-  fields: Array<[string, string]>;
-  buttonLabel: string;
-  onSubmit: (data: FormData) => Promise<unknown>;
-}) {
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formElement = event.currentTarget;
-    await onSubmit(new FormData(formElement));
-    formElement.reset();
-  }
-
-  return (
-    <form className="rounded-lg border border-border p-4" onSubmit={submit}>
-      <h3 className="text-sm font-semibold">{title}</h3>
-      <div className="mt-3 grid gap-3 md:grid-cols-2">
-        {fields.map(([name, placeholder]) => (
-          <input
-            key={name}
-            className="h-10 rounded-md border border-input bg-card px-3 text-sm"
-            minLength={name === "title" ? 2 : undefined}
-            name={name}
-            placeholder={placeholder}
-            required={name === "title"}
-            type={name === "estimatedMinutes" ? "number" : "text"}
-          />
-        ))}
-      </div>
-      <button
-        className="mt-3 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
-        type="submit"
-      >
-        <Save aria-hidden="true" className="h-4 w-4" />
-        {buttonLabel}
-      </button>
-    </form>
-  );
-}
-
-function ActivitySelector({
-  activities,
-  selectedActivity,
-  onSelect,
-}: {
-  activities: Activity[];
-  selectedActivity: Activity | null;
-  onSelect: (activityId: string) => void;
-}) {
-  if (!activities.length) {
-    return (
-      <EmptyState
-        title="No activities"
-        description="Create an activity before adding content."
-      />
-    );
-  }
-
-  return (
-    <select
-      className="h-11 rounded-md border border-input bg-card px-3 text-sm"
-      onChange={(event) => onSelect(event.target.value)}
-      value={selectedActivity?.id ?? ""}
-    >
-      {activities.map((activity) => (
-        <option key={activity.id} value={activity.id}>
-          {activity.title}
-        </option>
-      ))}
-    </select>
-  );
-}
-
-function ActivityContentForm({
-  activity,
-  fileOptions,
-  libraryOptions,
-  quizOptions,
-  onSave,
-  onAttachFile,
-  onAttachLibraryItem,
-  onAttachQuiz,
-}: {
-  activity: Activity;
-  fileOptions: Array<{ id: string; originalFilename: string }>;
-  libraryOptions: Array<{ id: string; title: string }>;
-  quizOptions: Array<{ id: string; title: string; status: string }>;
-  onSave: (input: Record<string, unknown>) => Promise<unknown>;
-  onAttachFile: (fileId: string) => Promise<unknown>;
-  onAttachLibraryItem: (libraryItemId: string) => Promise<unknown>;
-  onAttachQuiz: (quizId: string) => Promise<unknown>;
-}) {
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    await onSave({
-      textContent: String(data.get("textContent") ?? ""),
-      externalUrl: String(data.get("externalUrl") ?? "") || undefined,
-      content: {
-        body: String(data.get("textContent") ?? ""),
-        url: String(data.get("externalUrl") ?? "") || undefined,
-      },
-    });
-  }
-  const content = activity.activityContent?.content ?? {};
-  const htmlDefault =
-    typeof content.html === "string"
-      ? content.html
-      : typeof content.body === "string" && content.format === "rich_text_html"
-        ? content.body
-        : activity.activityContent?.textContent ?? "";
-  const isTextActivity = activity.activityTypeKey === "core.text";
-  const isQuizActivity = activity.activityTypeKey === "core.quiz";
-
-  return (
-    <div className="grid gap-4">
-      <PluginActivityEditor activity={activity}>
-        {isQuizActivity ? (
-          <AttachSelect
-            label="Attach quiz"
-            options={quizOptions.map((quiz) => ({
-              id: quiz.id,
-              label: `${quiz.title} (${quiz.status})`,
-            }))}
-            onAttach={onAttachQuiz}
-          />
-        ) : isTextActivity ? (
-          <RichTextEditor
-            defaultValue={htmlDefault}
-            onSubmit={(_value, payload) =>
-              onSave({
-                textContent: payload.text,
-                content: {
-                  format: "rich_text_html",
-                  html: payload.html,
-                  body: payload.html,
-                },
-              })
-            }
-          />
-        ) : (
-          <form className="grid gap-3" onSubmit={submit}>
-            <label className="block text-sm font-medium text-foreground">
-              Text content
-              <textarea
-                className="mt-2 min-h-32 w-full rounded-md border border-input bg-card px-3 py-2 text-sm"
-                defaultValue={activity.activityContent?.textContent ?? ""}
-                name="textContent"
-              />
-            </label>
-            <label className="block text-sm font-medium text-foreground">
-              External URL
-              <input
-                className="mt-2 h-10 w-full rounded-md border border-input bg-card px-3 text-sm"
-                defaultValue={activity.activityContent?.externalUrl ?? ""}
-                name="externalUrl"
-                type="url"
-              />
-            </label>
-            <button
-              className="inline-flex w-fit items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
-              type="submit"
-            >
-              <Save aria-hidden="true" className="h-4 w-4" />
-              Save content
-            </button>
-          </form>
-        )}
-
-        {!isQuizActivity ? (
-          <>
-            <AttachSelect
-              label="Attach file"
-              options={fileOptions.map((file) => ({
-                id: file.id,
-                label: file.originalFilename,
-              }))}
-              onAttach={onAttachFile}
-            />
-            <AttachSelect
-              label="Attach library item"
-              options={libraryOptions.map((item) => ({
-                id: item.id,
-                label: item.title,
-              }))}
-              onAttach={onAttachLibraryItem}
-            />
-            {activity.activityTypeKey === "core.video" ? (
-              <VideoEnhancementsPanel activity={activity} />
-            ) : null}
-          </>
-        ) : null}
-      </PluginActivityEditor>
-    </div>
-  );
-}
-
-function VideoEnhancementsPanel({ activity }: { activity: Activity }) {
-  const captionTracks = useInstructorCaptionTracks(activity.id);
-  const generatedItems = useInstructorAiGeneratedItems(activity.id);
-  const createCaptionTrack = useCreateInstructorCaptionTrack();
-  const updateCaptionTrack = useUpdateInstructorCaptionTrack();
-  const deleteCaptionTrack = useDeleteInstructorCaptionTrack();
-  const generateSummary = useGenerateInstructorVideoSummary();
-  const generateQuiz = useGenerateInstructorVideoQuiz();
-  const [message, setMessage] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"caption" | "summary" | "quiz" | null>(null);
-  const [captionContent, setCaptionContent] = useState("");
-  const [captionLanguage, setCaptionLanguage] = useState("en");
-  const [captionLabel, setCaptionLabel] = useState("English captions");
-  const [captionDefault, setCaptionDefault] = useState(true);
-  const [syncTranscript, setSyncTranscript] = useState(true);
-  const [editingTrackId, setEditingTrackId] = useState<string | null>(null);
-
-  async function run(
-    mode: "caption" | "summary" | "quiz",
-    action: () => Promise<unknown>,
-    success: string,
-  ) {
-    setBusy(mode);
-    setMessage(null);
-    try {
-      await action();
-      setMessage(success);
-      await Promise.all([captionTracks.reload(), generatedItems.reload()]);
-    } catch (caught) {
-      setMessage(caught instanceof Error ? caught.message : String(caught));
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function submitCaption(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    await run(
-      "caption",
-      () =>
-        createCaptionTrack(activity.id, {
-          label: captionLabel,
-          language: captionLanguage,
-          rawContent: captionContent,
-          source: "UPLOAD",
-          isDefault: captionDefault,
-          syncTranscript,
-        }),
-      "Caption track saved.",
-    );
-    setCaptionContent("");
-  }
-
-  const defaultLanguage =
-    captionTracks.data?.find((track) => track.isDefault)?.language ??
-    captionTracks.data?.[0]?.language ??
-    captionLanguage;
-
-  return (
-    <div className="grid gap-4 rounded-lg border border-border bg-muted/30 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-semibold">Advanced video learning</h3>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Upload captions, sync transcript, and generate reviewable AI drafts from the video transcript.
-          </p>
-        </div>
-        {message ? (
-          <span className="rounded-md border border-border bg-card px-3 py-1 text-xs text-muted-foreground">
-            {message}
-          </span>
-        ) : null}
-      </div>
-
-      <form className="grid gap-3 rounded-md border border-border bg-card p-4" onSubmit={submitCaption}>
-        <div className="grid gap-3 md:grid-cols-2">
-          <label className="text-sm font-medium text-foreground">
-            Caption label
-            <input
-              className="mt-2 h-10 w-full rounded-md border border-input bg-card px-3 text-sm"
-              onChange={(event) => setCaptionLabel(event.target.value)}
-              value={captionLabel}
-            />
-          </label>
-          <label className="text-sm font-medium text-foreground">
-            Language
-            <input
-              className="mt-2 h-10 w-full rounded-md border border-input bg-card px-3 text-sm"
-              onChange={(event) => setCaptionLanguage(event.target.value)}
-              value={captionLanguage}
-            />
-          </label>
-        </div>
-        <label className="text-sm font-medium text-foreground">
-          VTT / SRT content
-          <textarea
-            className="mt-2 min-h-40 w-full rounded-md border border-input bg-card px-3 py-2 text-sm font-mono"
-            onChange={(event) => setCaptionContent(event.target.value)}
-            placeholder={`WEBVTT\n\n00:00:01.000 --> 00:00:04.000\nWelcome to the lesson.`}
-            value={captionContent}
-          />
-        </label>
-        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-          <label className="inline-flex items-center gap-2">
-            <input
-              checked={captionDefault}
-              onChange={(event) => setCaptionDefault(event.target.checked)}
-              type="checkbox"
-            />
-            Set as default track
-          </label>
-          <label className="inline-flex items-center gap-2">
-            <input
-              checked={syncTranscript}
-              onChange={(event) => setSyncTranscript(event.target.checked)}
-              type="checkbox"
-            />
-            Sync transcript from caption cues
-          </label>
-          <label className="inline-flex items-center gap-2">
-            <input
-              accept=".vtt,.srt,.txt,text/vtt"
-              className="max-w-52 text-xs"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (!file) return;
-                void file.text().then((text) => setCaptionContent(text));
-              }}
-              type="file"
-            />
-            Load file
-          </label>
-        </div>
-        <button
-          className="inline-flex w-fit items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50"
-          disabled={!captionContent.trim() || busy !== null}
-          type="submit"
-        >
-          <Save aria-hidden="true" className="h-4 w-4" />
-          Save caption track
-        </button>
-      </form>
-
-      <div className="grid gap-3 rounded-md border border-border bg-card p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-semibold">AI transcript drafts</h3>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Create draft-only summary and quiz items for instructor review.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-semibold disabled:opacity-50"
-              disabled={busy !== null}
-              onClick={() =>
-                void run(
-                  "summary",
-                  () =>
-                    generateSummary(activity.id, {
-                      language: defaultLanguage,
-                    }),
-                  "Summary draft generated.",
-                )
-              }
-              type="button"
-            >
-              <Sparkles aria-hidden="true" className="h-4 w-4" />
-              Generate summary
-            </button>
-            <button
-              className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-semibold disabled:opacity-50"
-              disabled={busy !== null}
-              onClick={() =>
-                void run(
-                  "quiz",
-                  () =>
-                    generateQuiz(activity.id, {
-                      language: defaultLanguage,
-                      questionCount: 5,
-                    }),
-                  "Quiz draft generated.",
-                )
-              }
-              type="button"
-            >
-              <Sparkles aria-hidden="true" className="h-4 w-4" />
-              Generate quiz
-            </button>
-          </div>
-        </div>
-        <div className="grid gap-3 lg:grid-cols-2">
-          <div className="grid gap-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Caption tracks
-            </p>
-            {captionTracks.loading ? (
-              <LoadingState title="Loading caption tracks" />
-            ) : captionTracks.error ? (
-              <ApiErrorState error={captionTracks.error} fallbackTitle="Could not load caption tracks" />
-            ) : captionTracks.data?.length ? (
-              captionTracks.data.map((track) => (
-                <CaptionTrackCard
-                  key={track.id}
-                  onDelete={() =>
-                    run(
-                      "caption",
-                      () => deleteCaptionTrack(track.id),
-                      "Caption track deleted.",
-                    )
-                  }
-                  onEditCues={() =>
-                    setEditingTrackId(
-                      editingTrackId === track.id ? null : track.id,
-                    )
-                  }
-                  isEditing={editingTrackId === track.id}
-                  onMakeDefault={() =>
-                    run(
-                      "caption",
-                      () => updateCaptionTrack(track.id, { isDefault: true }),
-                      "Default caption track updated.",
-                    )
-                  }
-                  track={track}
-                />
-              ))
-            ) : (
-              <EmptyState
-                title="No caption tracks"
-                description="Upload at least one VTT or SRT file to unlock multi-language captions."
-              />
-            )}
-          </div>
-          <div className="grid gap-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              AI generated drafts
-            </p>
-            {generatedItems.loading ? (
-              <LoadingState title="Loading AI drafts" />
-            ) : generatedItems.error ? (
-              <ApiErrorState error={generatedItems.error} fallbackTitle="Could not load AI drafts" />
-            ) : generatedItems.data?.length ? (
-              <AiApprovalQueue activityId={activity.id} />
-            ) : (
-              <EmptyState
-                title="No AI drafts"
-                description="Generate a summary or quiz draft after transcript data is available."
-              />
-            )}
-          </div>
-        </div>
-      </div>
-
-      {editingTrackId ? (
-        <CaptionCueEditor trackId={editingTrackId} />
-      ) : null}
-    </div>
-  );
-}
-
-function CaptionTrackCard({
-  track,
-  onMakeDefault,
-  onDelete,
-  onEditCues,
-  isEditing,
-}: {
-  track: VideoCaptionTrack;
-  onMakeDefault: () => Promise<unknown>;
-  onDelete: () => Promise<unknown>;
-  onEditCues: () => void;
-  isEditing: boolean;
-}) {
-  return (
-    <article className="rounded-md border border-border bg-background p-3">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold">{track.label}</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {track.language.toUpperCase()} · {track.kind.toLowerCase()} · {track.cues.length} cues
-          </p>
-        </div>
-        {track.isDefault ? <StatusBadge tone="success" value="default" /> : null}
-      </div>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <button
-          className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold"
-          onClick={onEditCues}
-          type="button"
-        >
-          {isEditing ? "Close cue editor" : "Edit cues"}
-        </button>
-        {!track.isDefault ? (
-          <button
-            className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold"
-            onClick={() => void onMakeDefault()}
-            type="button"
-          >
-            Set default
-          </button>
-        ) : null}
-        <button
-          className="inline-flex items-center gap-1 rounded-md border border-destructive/30 px-3 py-1.5 text-xs font-semibold text-destructive"
-          onClick={() => void onDelete()}
-          type="button"
-        >
-          <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
-          Delete
-        </button>
-      </div>
-    </article>
-  );
-}
-
-function AttachSelect({
-  label,
-  options,
-  onAttach,
-}: {
-  label: string;
-  options: Array<{ id: string; label: string }>;
-  onAttach: (id: string) => Promise<unknown>;
-}) {
-  const [selectedId, setSelectedId] = useState("");
-
-  return (
-    <div className="flex flex-wrap items-end gap-2">
-      <label className="min-w-64 flex-1 text-sm font-medium text-foreground">
-        {label}
-        <select
-          className="mt-2 h-10 w-full rounded-md border border-input bg-card px-3 text-sm"
-          onChange={(event) => setSelectedId(event.target.value)}
-          value={selectedId}
-        >
-          <option value="">Select item</option>
-          {options.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <button
-        className="h-10 rounded-md border border-border px-3 text-sm font-semibold disabled:opacity-50"
-        disabled={!selectedId}
-        onClick={() => void onAttach(selectedId)}
-        type="button"
-      >
-        Attach
-      </button>
-    </div>
   );
 }

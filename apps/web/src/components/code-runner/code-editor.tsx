@@ -1,24 +1,33 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import { Play, Send } from "lucide-react";
+import { useCallback, useRef, useState } from "react";
+import Editor from "@monaco-editor/react";
+import { CheckCircle2, ChevronDown, ChevronRight, Play, Send, Terminal, XCircle } from "lucide-react";
 import { useExecuteCode } from "../../lib/api-hooks";
-import { Button } from "../ui/button";
-import { Card, CardContent, CardHeader } from "../ui/card";
 import { StatusBadge } from "../ui/core";
-import type { CodeLanguage } from "../../lib/lms-types";
+import type { CodeLanguage, CodeExecutionRecord } from "../../lib/lms-types";
 
-const LANGUAGES: CodeLanguage[] = [
-  "PYTHON",
-  "JAVASCRIPT",
-  "TYPESCRIPT",
-  "GO",
-  "RUST",
-  "JAVA",
-  "CPP",
-  "RUBY",
-  "PHP",
+const LANGUAGES: { key: CodeLanguage; label: string; monacoId: string; starter: string }[] = [
+  { key: "PYTHON",     label: "Python",     monacoId: "python",     starter: "# Write your Python code here\nprint('Hello, world!')\n" },
+  { key: "JAVASCRIPT", label: "JavaScript", monacoId: "javascript", starter: "// Write your JavaScript code here\nconsole.log('Hello, world!');\n" },
+  { key: "TYPESCRIPT", label: "TypeScript", monacoId: "typescript", starter: "// Write your TypeScript code here\nconst message: string = 'Hello, world!';\nconsole.log(message);\n" },
+  { key: "GO",         label: "Go",         monacoId: "go",         starter: 'package main\n\nimport "fmt"\n\nfunc main() {\n\tfmt.Println("Hello, world!")\n}\n' },
+  { key: "RUST",       label: "Rust",       monacoId: "rust",       starter: 'fn main() {\n    println!("Hello, world!");\n}\n' },
+  { key: "JAVA",       label: "Java",       monacoId: "java",       starter: 'public class Main {\n    public static void main(String[] args) {\n        System.out.println("Hello, world!");\n    }\n}\n' },
+  { key: "CPP",        label: "C++",        monacoId: "cpp",        starter: '#include <iostream>\n\nint main() {\n    std::cout << "Hello, world!" << std::endl;\n    return 0;\n}\n' },
+  { key: "RUBY",       label: "Ruby",       monacoId: "ruby",       starter: "# Write your Ruby code here\nputs 'Hello, world!'\n" },
+  { key: "PHP",        label: "PHP",        monacoId: "php",        starter: "<?php\n// Write your PHP code here\necho 'Hello, world!';\n" },
 ];
+
+const STATUS_TONE: Record<string, "success" | "danger" | "warning" | "neutral"> = {
+  COMPLETED: "success",
+  FAILED: "danger",
+  TIMED_OUT: "danger",
+  RUNTIME_ERROR: "danger",
+  ERROR: "danger",
+  RUNNING: "warning",
+  PENDING: "neutral",
+};
 
 export interface CodeEditorProps {
   initialCode?: string;
@@ -26,108 +35,162 @@ export interface CodeEditorProps {
   onCodeChange?: (code: string) => void;
   onLanguageChange?: (language: CodeLanguage) => void;
   onExecuted?: (result: { output: string | null; error: string | null }) => void;
+  height?: number;
+  readOnly?: boolean;
 }
 
 export function CodeEditor({
-  initialCode = "",
+  initialCode,
   initialLanguage = "PYTHON",
   onCodeChange,
   onLanguageChange,
   onExecuted,
+  height = 340,
+  readOnly = false,
 }: CodeEditorProps) {
   const execute = useExecuteCode();
-  const [code, setCode] = useState(initialCode);
   const [language, setLanguage] = useState<CodeLanguage>(initialLanguage);
+  const langMeta = LANGUAGES.find((l) => l.key === language) ?? LANGUAGES[0]!;
+  const [code, setCode] = useState(initialCode ?? langMeta.starter);
   const [stdin, setStdin] = useState("");
-  const [output, setOutput] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState<string | null>(null);
+  const [showStdin, setShowStdin] = useState(false);
+  const [result, setResult] = useState<{ output: string | null; error: string | null; status: string | null } | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const handleLanguageChange = (key: CodeLanguage) => {
+    const meta = LANGUAGES.find((l) => l.key === key) ?? LANGUAGES[0]!;
+    setLanguage(key);
+    setCode(meta.starter);
+    onLanguageChange?.(key);
+    setResult(null);
+  };
 
   const handleRun = useCallback(async () => {
     setBusy(true);
-    setError(null);
-    setStatus("Running...");
-    setOutput(null);
+    setResult(null);
     try {
-      const result = await execute({
-        language,
-        code,
-        stdin: stdin || undefined,
-      });
-      setOutput(result.output);
-      setError(result.error);
-      setStatus(result.status);
-      onExecuted?.({ output: result.output, error: result.error });
+      const res = await execute({ language, code, stdin: stdin || undefined });
+      setResult({ output: res.output, error: res.error, status: res.status });
+      onExecuted?.({ output: res.output, error: res.error });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to execute code");
-      setStatus("ERROR");
+      setResult({ output: null, error: err instanceof Error ? err.message : "Execution failed", status: "ERROR" });
     } finally {
       setBusy(false);
     }
   }, [code, language, stdin, execute, onExecuted]);
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between gap-3">
-          <h3 className="text-base font-semibold">Code runner</h3>
+    <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-[#1e1e1e] shadow-lg">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between gap-2 border-b border-white/10 bg-[#2d2d2d] px-3 py-2">
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1.5">
+            <span className="h-3 w-3 rounded-full bg-red-500/80" />
+            <span className="h-3 w-3 rounded-full bg-yellow-500/80" />
+            <span className="h-3 w-3 rounded-full bg-green-500/80" />
+          </div>
           <select
-            className="rounded border border-border px-2 py-1 text-sm"
+            className="ml-2 rounded bg-white/10 px-2 py-0.5 text-xs font-medium text-white/90 focus:outline-none"
             value={language}
-            onChange={(e) => {
-              setLanguage(e.target.value as CodeLanguage);
-              onLanguageChange?.(e.target.value as CodeLanguage);
-            }}
+            onChange={(e) => handleLanguageChange(e.target.value as CodeLanguage)}
           >
-            {LANGUAGES.map((lang) => (
-              <option key={lang} value={lang}>
-                {lang}
-              </option>
+            {LANGUAGES.map((l) => (
+              <option key={l.key} value={l.key}>{l.label}</option>
             ))}
           </select>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <textarea
-          aria-label="Source code"
-          className="min-h-48 w-full rounded-md border border-border bg-card p-3 font-mono text-sm"
-          value={code}
-          onChange={(e) => {
-            setCode(e.target.value);
-            onCodeChange?.(e.target.value);
-          }}
-          spellCheck={false}
-        />
-        <label className="block text-sm">
-          Standard input (optional)
+
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setShowStdin((v) => !v)}
+            className="flex items-center gap-1 rounded px-2 py-1 text-xs text-white/60 hover:bg-white/10 hover:text-white/90"
+          >
+            <Terminal className="h-3 w-3" />
+            stdin
+          </button>
+          <button
+            type="button"
+            onClick={handleRun}
+            disabled={busy || readOnly}
+            className="flex items-center gap-1.5 rounded bg-green-600 px-3 py-1 text-xs font-semibold text-white hover:bg-green-500 disabled:opacity-50"
+          >
+            <Play className="h-3 w-3" />
+            {busy ? "Running…" : "Run"}
+          </button>
+        </div>
+      </div>
+
+      {/* Monaco editor */}
+      <Editor
+        height={height}
+        language={langMeta.monacoId}
+        value={code}
+        theme="vs-dark"
+        options={{
+          fontSize: 13,
+          minimap: { enabled: false },
+          scrollBeyondLastLine: false,
+          readOnly,
+          tabSize: 2,
+          wordWrap: "on",
+          lineNumbers: "on",
+          renderLineHighlight: "line",
+          padding: { top: 8, bottom: 8 },
+          fontFamily: "JetBrains Mono, Fira Code, monospace",
+        }}
+        onChange={(val) => {
+          const v = val ?? "";
+          setCode(v);
+          onCodeChange?.(v);
+        }}
+      />
+
+      {/* Stdin panel */}
+      {showStdin && (
+        <div className="border-t border-white/10 bg-[#252525] px-3 py-2">
+          <p className="mb-1 text-xs text-white/50">Standard input (stdin)</p>
           <textarea
-            className="mt-1 w-full rounded border border-border px-2 py-1 text-sm"
+            className="w-full rounded bg-[#1e1e1e] px-2 py-1.5 font-mono text-xs text-white/80 focus:outline-none"
             rows={3}
             value={stdin}
             onChange={(e) => setStdin(e.target.value)}
+            placeholder="Enter program input here…"
           />
-        </label>
-        <div className="flex items-center gap-2">
-          <Button onClick={handleRun} disabled={busy}>
-            <Play className="mr-2 h-4 w-4" /> {busy ? "Running..." : "Run code"}
-          </Button>
-          {status ? <StatusBadge value={status} tone={error ? "danger" : "success"} /> : null}
         </div>
-        {output ? (
-          <pre className="max-h-48 overflow-auto rounded-md border border-border bg-muted/40 p-3 text-xs">
-            {output}
-          </pre>
-        ) : null}
-        {error ? (
-          <pre className="max-h-48 overflow-auto rounded-md border border-destructive/40 bg-destructive/5 p-3 text-xs text-destructive">
-            {error}
-          </pre>
-        ) : null}
-        <p className="flex items-center gap-1 text-xs text-muted-foreground">
-          <Send className="h-3 w-3" /> Code is executed in a sandboxed runner.
-        </p>
-      </CardContent>
-    </Card>
+      )}
+
+      {/* Output panel */}
+      {result && (
+        <div className="border-t border-white/10 bg-[#1a1a1a]">
+          <div className="flex items-center gap-2 border-b border-white/5 px-3 py-1.5">
+            {result.error ? (
+              <XCircle className="h-3.5 w-3.5 text-red-400" />
+            ) : (
+              <CheckCircle2 className="h-3.5 w-3.5 text-green-400" />
+            )}
+            <span className="text-xs text-white/50">Output</span>
+            {result.status && (
+              <StatusBadge value={result.status} tone={STATUS_TONE[result.status] ?? "neutral"} />
+            )}
+          </div>
+          {result.output && (
+            <pre className="max-h-40 overflow-auto px-3 py-2 font-mono text-xs text-green-300">
+              {result.output}
+            </pre>
+          )}
+          {result.error && (
+            <pre className="max-h-40 overflow-auto px-3 py-2 font-mono text-xs text-red-400">
+              {result.error}
+            </pre>
+          )}
+        </div>
+      )}
+
+      <div className="flex items-center gap-1.5 border-t border-white/5 bg-[#2d2d2d] px-3 py-1.5 text-xs text-white/40">
+        <Send className="h-3 w-3" />
+        Executed in an isolated sandbox — no filesystem or network access
+      </div>
+    </div>
   );
 }
