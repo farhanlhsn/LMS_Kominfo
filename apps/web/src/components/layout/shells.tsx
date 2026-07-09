@@ -36,7 +36,9 @@ import {
   KeyRound,
   Globe,
   Heart,
+  HelpCircle,
   History,
+  Users,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
@@ -56,6 +58,7 @@ import { NotificationBadge } from "../engagement/engagement";
 const dashboardNav = [
   { key: "dashboard", href: "/", label: "Dashboard", icon: LayoutDashboard },
   { key: "catalog", href: "/courses", label: "Catalog", icon: BookOpen },
+  { key: "catalog", href: "/search", label: "Search", icon: Search },
   {
     key: "my-learning",
     href: "/my-learning",
@@ -75,6 +78,8 @@ const dashboardNav = [
   { key: "my-learning", href: "/subscriptions", label: "Subscriptions", icon: RefreshCw },
   { key: "my-learning", href: "/learn/surveys", label: "My Surveys", icon: ClipboardList },
   { key: "my-learning", href: "/learn/polls", label: "Live Polls", icon: CircleDot },
+  { key: "my-learning", href: "/my-cohorts", label: "My Cohorts", icon: Users },
+  { key: "my-learning", href: "/help", label: "Help Center", icon: HelpCircle },
   {
     key: "instructor",
     href: "/instructor/courses",
