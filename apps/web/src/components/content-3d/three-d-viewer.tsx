@@ -4,6 +4,7 @@ import { Suspense, useRef, useState } from "react";
 import { Canvas, useFrame, useLoader } from "@react-three/fiber";
 import { OrbitControls, Environment, Html, useProgress } from "@react-three/drei";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { Box3, Vector3 } from "three";
 import { Download, RotateCw, ZoomIn } from "lucide-react";
 import type { ThreeDAssetRecord } from "../../lib/lms-types";
@@ -40,6 +41,23 @@ function GltfModel({ url }: { url: string }) {
   return <primitive ref={ref} object={gltf.scene} />;
 }
 
+function ObjModel({ url }: { url: string }) {
+  const obj = useLoader(OBJLoader, url);
+  const ref = useRef<any>(null);
+  if (ref.current && obj) {
+    const box = new Box3().setFromObject(obj);
+    const size = box.getSize(new Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z);
+    if (maxDim > 0) {
+      const scale = 2 / maxDim;
+      ref.current.scale.setScalar(scale);
+      const center = box.getCenter(new Vector3());
+      ref.current.position.copy(center.multiplyScalar(-scale));
+    }
+  }
+  return <primitive ref={ref} object={obj} />;
+}
+
 function WireframeBox() {
   const ref = useRef<any>(null);
   useFrame((_, delta) => { if (ref.current) ref.current.rotation.y += delta * 0.4; });
@@ -62,7 +80,9 @@ export interface ThreeDViewerProps {
 
 export function ThreeDViewer({ asset, loading, error, height = 420, showInfo = true, autoRotate = true }: ThreeDViewerProps) {
   const [spinning, setSpinning] = useState(autoRotate);
-  const isRenderable = asset?.format === "GLB" || asset?.format === "GLTF";
+  const isGltf = asset?.format === "GLB" || asset?.format === "GLTF";
+  const isObj = asset?.format === "OBJ";
+  const isRenderable = isGltf || isObj;
 
   if (loading) return <LoadingState title="Loading 3D asset" />;
 
@@ -87,7 +107,7 @@ export function ThreeDViewer({ asset, loading, error, height = 420, showInfo = t
           <directionalLight position={[5, 8, 5]} intensity={1.2} castShadow />
           <directionalLight position={[-3, -3, -3]} intensity={0.3} />
           <Suspense fallback={<ProgressLoader />}>
-            {isRenderable ? <GltfModel url={asset.url} /> : <WireframeBox />}
+            {isGltf ? <GltfModel url={asset.url} /> : isObj ? <ObjModel url={asset.url} /> : <WireframeBox />}
             <Environment preset="studio" />
           </Suspense>
           <OrbitControls autoRotate={spinning} autoRotateSpeed={1.5} enablePan enableZoom enableRotate minDistance={1} maxDistance={10} />
