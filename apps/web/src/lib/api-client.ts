@@ -1235,6 +1235,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  deleteContentLibraryItem: (id: string) =>
+    apiRequest<{ deleted: boolean }>(`/content-library/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    }),
   pluginActivityTypes: () =>
     apiRequest<{ organizationId: string; activityTypes: PluginActivityType[] }>(
       "/plugins/activity-types",

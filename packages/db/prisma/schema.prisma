@@ -147,6 +147,7 @@ enum ContentLibraryItemType {
   PDF
   LINK
   IMAGE
+  THREE_D_MODEL
 }
 
 enum PluginCategory {

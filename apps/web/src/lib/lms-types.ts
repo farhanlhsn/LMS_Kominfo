@@ -192,7 +192,7 @@ export interface ContentLibraryItem {
   id: string;
   title: string;
   description?: string | null;
-  type: "RICH_TEXT" | "VIDEO" | "FILE" | "PDF" | "LINK" | "IMAGE";
+  type: "RICH_TEXT" | "VIDEO" | "FILE" | "PDF" | "LINK" | "IMAGE" | "THREE_D_MODEL";
   tags?: string[];
   metadata?: Record<string, unknown>;
   fileId?: string | null;

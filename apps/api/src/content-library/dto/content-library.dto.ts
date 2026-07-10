@@ -15,8 +15,8 @@ export class CreateContentLibraryItemDto {
   @IsString()
   description?: string;
 
-  @IsIn(["RICH_TEXT", "VIDEO", "FILE", "PDF", "LINK", "IMAGE"])
-  type!: "RICH_TEXT" | "VIDEO" | "FILE" | "PDF" | "LINK" | "IMAGE";
+  @IsIn(["RICH_TEXT", "VIDEO", "FILE", "PDF", "LINK", "IMAGE", "THREE_D_MODEL"])
+  type!: "RICH_TEXT" | "VIDEO" | "FILE" | "PDF" | "LINK" | "IMAGE" | "THREE_D_MODEL";
 
   @IsOptional()
   @IsString()
