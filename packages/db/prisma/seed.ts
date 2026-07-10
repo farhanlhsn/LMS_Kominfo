@@ -483,7 +483,7 @@ async function seedPluginShowcaseCourse(input: {
   });
 
   // Module 1: 3D Content
-  const mod1 = await prisma.module.create({
+  const mod1 = await prisma.courseModule.create({
     data: {
       organizationId: input.organizationId,
       courseId: course.id,
@@ -534,7 +534,7 @@ async function seedPluginShowcaseCourse(input: {
   });
 
   // Module 2: Code Runner
-  const mod2 = await prisma.module.create({
+  const mod2 = await prisma.courseModule.create({
     data: {
       organizationId: input.organizationId,
       courseId: course.id,
@@ -596,7 +596,7 @@ async function seedPluginShowcaseCourse(input: {
   });
 
   // Module 3: Video + Quiz
-  const mod3 = await prisma.module.create({
+  const mod3 = await prisma.courseModule.create({
     data: {
       organizationId: input.organizationId,
       courseId: course.id,
