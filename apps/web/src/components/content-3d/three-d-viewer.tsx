@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { Canvas, useFrame, useLoader } from "@react-three/fiber";
 import { OrbitControls, Environment, Html, useProgress } from "@react-three/drei";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
@@ -61,10 +61,22 @@ function ObjModel({ url }: { url: string }) {
 }
 
 function ObjWithMtlModel({ url, mtlUrl }: { url: string; mtlUrl: string }) {
-  const mtl = useLoader(MTLLoader, mtlUrl);
+  const [materials, setMaterials] = useState<any>(null);
+
+  useEffect(() => {
+    fetch(mtlUrl)
+      .then((r) => r.text())
+      .then((text) => {
+        const loader = new MTLLoader();
+        const mat = loader.parse(text, "");
+        mat.preload();
+        setMaterials(mat);
+      })
+      .catch(console.error);
+  }, [mtlUrl]);
+
   const obj = useLoader(OBJLoader, url, (loader) => {
-    mtl.preload();
-    loader.setMaterials(mtl);
+    if (materials) loader.setMaterials(materials);
   });
   const ref = useRef<any>(null);
   if (ref.current && obj) {
