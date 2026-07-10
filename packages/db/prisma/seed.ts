@@ -436,6 +436,230 @@ async function main() {
     console.log('Seeded XP for ' + Math.min(eu.length, 5) + ' learners.');
   }
 
+  // Demo course: Full Plugin Showcase
+  await seedPluginShowcaseCourse({
+    organizationId: organization.id,
+    adminUserId: user.id,
+  });
+  console.log('Seeded plugin showcase demo course.');
+
+}
+
+async function seedPluginShowcaseCourse(input: {
+  organizationId: string;
+  adminUserId: string;
+}) {
+  const existing = await prisma.course.findFirst({
+    where: { organizationId: input.organizationId, slug: 'plugin-showcase-demo' },
+  });
+  if (existing) return;
+
+  const course = await prisma.course.create({
+    data: {
+      organizationId: input.organizationId,
+      title: 'Plugin Showcase: 3D, Code Runner & Interactive Content',
+      slug: 'plugin-showcase-demo',
+      subtitle: 'Experience all LMS plugins in one comprehensive course',
+      description: 'A hands-on course demonstrating every plugin capability: interactive 3D models, code exercises with test cases, H5P content, SCORM packages, video with captions, quizzes, and assignments.',
+      level: 'BEGINNER',
+      language: 'en',
+      durationMinutes: 90,
+      status: 'PUBLISHED',
+      visibility: 'PUBLIC',
+      publishedAt: new Date(),
+      learningObjectives: [
+        'Explore and interact with 3D models directly in the browser',
+        'Write and run code exercises with automated test case grading',
+        'Experience H5P and SCORM interactive content',
+        'Complete quizzes and graded assignments',
+      ],
+      requirements: ['A modern web browser', 'Basic programming curiosity'],
+      targetAudience: ['Learners', 'Instructors', 'Platform admins'],
+      tags: ['demo', 'plugins', '3d', 'code-runner', 'showcase'],
+      instructors: {
+        create: [{ organizationId: input.organizationId, userId: input.adminUserId, role: 'OWNER' }],
+      },
+    },
+  });
+
+  // Module 1: 3D Content
+  const mod1 = await prisma.module.create({
+    data: {
+      organizationId: input.organizationId,
+      courseId: course.id,
+      title: '3D Interactive Content',
+      description: 'Explore 3D models and interactive scenes',
+      orderIndex: 0,
+      isPublished: true,
+    },
+  });
+
+  const lesson1 = await prisma.lesson.create({
+    data: {
+      organizationId: input.organizationId,
+      moduleId: mod1.id,
+      title: 'Exploring 3D Models',
+      summary: 'Learn how to interact with 3D assets in the browser',
+      orderIndex: 0,
+      isPublished: true,
+      estimatedMinutes: 15,
+    },
+  });
+
+  await prisma.activity.create({
+    data: {
+      organizationId: input.organizationId,
+      lessonId: lesson1.id,
+      title: 'Interactive 3D Viewer',
+      activityTypeKey: 'plugin.3d_viewer',
+      orderIndex: 0,
+      isRequired: true,
+      isPublished: true,
+      activityContent: {
+        create: {
+          organizationId: input.organizationId,
+          body: {
+            asset: {
+              name: 'Sample 3D Model',
+              format: 'GLB',
+              url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Box/glTF-Binary/Box.glb',
+              thumbnailUrl: null,
+              sizeBytes: 1024,
+            },
+          } as Prisma.InputJsonObject,
+          textContent: 'Rotate, zoom, and explore this 3D model using mouse or touch controls.',
+        },
+      },
+    },
+  });
+
+  // Module 2: Code Runner
+  const mod2 = await prisma.module.create({
+    data: {
+      organizationId: input.organizationId,
+      courseId: course.id,
+      title: 'Code Exercises',
+      description: 'Practice coding with automated test case grading',
+      orderIndex: 1,
+      isPublished: true,
+    },
+  });
+
+  const lesson2 = await prisma.lesson.create({
+    data: {
+      organizationId: input.organizationId,
+      moduleId: mod2.id,
+      title: 'Python Basics Exercise',
+      summary: 'Write Python code and check it against test cases',
+      orderIndex: 0,
+      isPublished: true,
+      estimatedMinutes: 20,
+    },
+  });
+
+  // Create assignment for judge code
+  const assignment = await prisma.assignment.create({
+    data: {
+      organizationId: input.organizationId,
+      courseId: course.id,
+      title: 'FizzBuzz Challenge',
+      description: 'Classic FizzBuzz: print numbers 1-20, replace multiples of 3 with Fizz, 5 with Buzz, both with FizzBuzz.',
+      type: 'CODE',
+      gradingType: 'AUTOMATIC',
+      maxScore: 100,
+      isPublished: true,
+    },
+  });
+
+  await prisma.activity.create({
+    data: {
+      organizationId: input.organizationId,
+      lessonId: lesson2.id,
+      title: 'FizzBuzz Challenge',
+      activityTypeKey: 'plugin.code_runner',
+      orderIndex: 0,
+      isRequired: true,
+      isPublished: true,
+      activityContent: {
+        create: {
+          organizationId: input.organizationId,
+          body: {
+            instructions: `Write a Python function that implements FizzBuzz:\n- Print numbers from 1 to 20\n- For multiples of 3, print "Fizz" instead of the number\n- For multiples of 5, print "Buzz" instead of the number\n- For multiples of both 3 and 5, print "FizzBuzz"`,
+            starterCode: `# FizzBuzz challenge\nfor i in range(1, 21):\n    # Your code here\n    pass`,
+            language: 'PYTHON',
+            assignmentId: assignment.id,
+          } as Prisma.InputJsonObject,
+          textContent: 'Implement FizzBuzz in Python with automated grading.',
+        },
+      },
+    },
+  });
+
+  // Module 3: Video + Quiz
+  const mod3 = await prisma.module.create({
+    data: {
+      organizationId: input.organizationId,
+      courseId: course.id,
+      title: 'Video & Assessment',
+      description: 'Video lessons with quizzes',
+      orderIndex: 2,
+      isPublished: true,
+    },
+  });
+
+  const lesson3 = await prisma.lesson.create({
+    data: {
+      organizationId: input.organizationId,
+      moduleId: mod3.id,
+      title: 'Introduction Video',
+      summary: 'Watch the intro and complete the quiz',
+      orderIndex: 0,
+      isPublished: true,
+      estimatedMinutes: 10,
+    },
+  });
+
+  await prisma.activity.create({
+    data: {
+      organizationId: input.organizationId,
+      lessonId: lesson3.id,
+      title: 'Platform Overview Video',
+      activityTypeKey: 'core.video',
+      orderIndex: 0,
+      isRequired: true,
+      isPublished: true,
+      activityContent: {
+        create: {
+          organizationId: input.organizationId,
+          body: { format: 'video' } as Prisma.InputJsonObject,
+          externalUrl: 'https://www.w3schools.com/html/mov_bbb.mp4',
+          textContent: 'Watch this overview of the LMS platform features.',
+        },
+      },
+    },
+  });
+
+  await prisma.activity.create({
+    data: {
+      organizationId: input.organizationId,
+      lessonId: lesson3.id,
+      title: 'Rich Text Reading',
+      activityTypeKey: 'core.text',
+      orderIndex: 1,
+      isRequired: true,
+      isPublished: true,
+      activityContent: {
+        create: {
+          organizationId: input.organizationId,
+          body: {
+            format: 'rich_text_html',
+            html: '<h2>Welcome to the Plugin Showcase</h2><p>This course demonstrates all major plugin capabilities including <strong>3D viewers</strong>, <strong>code runners</strong>, <strong>interactive content</strong>, and more.</p><p>Complete each activity to earn XP and a certificate.</p>',
+          } as Prisma.InputJsonObject,
+          textContent: 'Welcome to the Plugin Showcase course.',
+        },
+      },
+    },
+  });
 }
 
 async function seedPluginFoundation(input: {
