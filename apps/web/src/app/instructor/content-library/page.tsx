@@ -104,7 +104,7 @@ export default function InstructorContentLibraryPage() {
         const type = detectTypeFromFile(file);
         const formData = new FormData();
         formData.append("file", file);
-        formData.append("purpose", type === "THREE_D_MODEL" ? "CONTENT_3D" : "CONTENT");
+        formData.append("purpose", "CONTENT");
         const asset = await api.uploadFile(formData);
         const { url } = await api.signedFileUrl(asset.id);
 

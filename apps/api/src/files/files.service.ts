@@ -33,6 +33,13 @@ const allowedMimeTypes = new Set([
   "video/mp4",
   "video/webm",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  // 3D model formats
+  "model/gltf-binary",
+  "model/gltf+json",
+  "application/octet-stream", // GLB, FBX, OBJ fallback
+  "model/obj",
+  "model/mtl",
+  "text/x-wavefront-obj",
 ]);
 
 @Injectable()
@@ -59,7 +66,9 @@ export class FilesService {
     const extension = extname(file.originalname).replace(".", "").toLowerCase();
     const key = `${organization.id}/${new Date().getFullYear()}/${randomUUID()}-${this.safeFilename(file.originalname)}`;
     const checksum = createHash("sha256").update(file.buffer).digest("hex");
-    const purpose = dto.purpose ?? this.purposeFromMime(file.mimetype);
+    const rawPurpose = dto.purpose ?? this.purposeFromMime(file.mimetype);
+    // CONTENT_3D is a frontend hint — map to CONTENT for DB storage
+    const purpose = (rawPurpose === "CONTENT_3D" ? "CONTENT" : rawPurpose) as Exclude<typeof rawPurpose, "CONTENT_3D">;
     const folderId = await this.ensureFolderInOrganization(
       organization.id,
       dto.folderId,
