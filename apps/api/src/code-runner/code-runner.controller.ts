@@ -33,7 +33,7 @@ export class CodeRunnerController {
   ) {}
 
   @Post("execute")
-  @Permissions(PERMISSIONS.assignmentsManage)
+  @Permissions(PERMISSIONS.coursesRead)
   execute(
     @ActiveOrganization() organization: OrganizationContext,
     @CurrentUser() user: AuthenticatedUser,
@@ -43,7 +43,7 @@ export class CodeRunnerController {
   }
 
   @Post("judge")
-  @Permissions(PERMISSIONS.assignmentsManage)
+  @Permissions(PERMISSIONS.coursesRead)
   judge(
     @ActiveOrganization() organization: OrganizationContext,
     @CurrentUser() user: AuthenticatedUser,
@@ -54,20 +54,25 @@ export class CodeRunnerController {
   }
 
   @Get("submissions")
-  @Permissions(PERMISSIONS.assignmentsManage)
+  @Permissions(PERMISSIONS.coursesRead)
   listSubmissions(
     @ActiveOrganization() organization: OrganizationContext,
+    @CurrentUser() user: AuthenticatedUser,
     @Query("assignmentId") assignmentId?: string,
     @Query("userId") userId?: string,
   ) {
+    // Learners can only see their own submissions
+    const resolvedUserId = organization.roleKeys.some(r =>
+      ["org_admin", "course_manager", "instructor", "assistant_instructor"].includes(r)
+    ) ? userId : user.id;
     return this.service.listSubmissions(organization.id, {
       assignmentId,
-      userId,
+      userId: resolvedUserId,
     });
   }
 
   @Get("executions/:id")
-  @Permissions(PERMISSIONS.assignmentsManage)
+  @Permissions(PERMISSIONS.coursesRead)
   getExecution(
     @ActiveOrganization() organization: OrganizationContext,
     @Param("id") id: string,

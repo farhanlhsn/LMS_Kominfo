@@ -227,175 +227,165 @@ function ThreeDPluginRenderer({ response }: RendererProps) {
 
 function CodeRunnerPluginRenderer({ response }: RendererProps) {
   const { content, structured } = activityPayload(response);
-  const instructions =
-    content?.textContent ??
-    readString(structured.instructions) ??
-    readString(structured.prompt) ??
-    "Write and run code for this exercise.";
-  const initialCode =
-    readString(structured.starterCode) ??
-    readString(structured.initialCode) ??
-    readString(structured.code) ??
-    "";
-  const language = readCodeLanguage(structured.language);
-  const assignmentId = readString(structured.assignmentId) ?? readString(structured.assignment_id);
 
-  const judgeCode = useJudgeCode();
-  const submissionsQuery = useCodeSubmissions(assignmentId ? { assignmentId } : {});
+  // Support multiple problems (array) or single problem (object)
+  const problemsRaw = Array.isArray(structured.problems)
+    ? structured.problems
+    : [structured];
 
-  const [code, setCode] = useState(initialCode);
-  const [lang, setLang] = useState<CodeLanguage>(language);
-  const [testCases, setTestCases] = useState<Array<{ name: string; input: string; expectedOutput: string }>>([
-    { name: "Test 1", input: "", expectedOutput: "" },
-  ]);
-  const [judgeResult, setJudgeResult] = useState<CodeJudgeResult | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<"editor" | "history">("editor");
+  const problems = problemsRaw.map((p: any, i: number) => ({
+    title: readString(p.title) ?? `Problem ${i + 1}`,
+    instructions: readString(p.instructions) ?? readString(p.prompt) ?? content?.textContent ?? "Write code to solve this exercise.",
+    starterCode: readString(p.starterCode) ?? readString(p.initialCode) ?? "",
+    language: readCodeLanguage(p.language),
+    assignmentId: readString(p.assignmentId) ?? readString(p.assignment_id),
+  }));
 
-  const addTestCase = () =>
-    setTestCases((tc) => [...tc, { name: `Test ${tc.length + 1}`, input: "", expectedOutput: "" }]);
-
-  const removeTestCase = (i: number) =>
-    setTestCases((tc) => tc.filter((_, idx) => idx !== i));
-
-  const updateTestCase = (i: number, field: "name" | "input" | "expectedOutput", value: string) =>
-    setTestCases((tc) => tc.map((t, idx) => idx === i ? { ...t, [field]: value } : t));
-
-  async function handleJudge() {
-    if (!assignmentId) return;
-    const valid = testCases.filter((tc) => tc.expectedOutput.trim());
-    if (!valid.length) return;
-    setBusy(true);
-    setJudgeResult(null);
-    try {
-      const result = await judgeCode({
-        assignmentId,
-        language: lang,
-        code,
-        testCases: valid.map((tc) => ({ name: tc.name, input: tc.input || undefined, expectedOutput: tc.expectedOutput })),
-      });
-      setJudgeResult(result);
-      await submissionsQuery.reload();
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setBusy(false);
-    }
-  }
+  const [activeIdx, setActiveIdx] = useState(0);
+  const activeProblem = problems[activeIdx] ?? problems[0]!;
 
   return (
     <section className="flex flex-col gap-4">
-      {/* Problem statement */}
+      {/* Header */}
       <article className="rounded-xl border border-border bg-card p-5">
         <div className="flex items-center gap-2 text-primary">
           <Code2 className="h-5 w-5" aria-hidden="true" />
           <StatusBadge value="Code exercise" tone="info" />
         </div>
         <h2 className="mt-2 text-lg font-semibold">{response.activity.title}</h2>
-        <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">{instructions}</p>
       </article>
+
+      {/* Problem tabs if multiple */}
+      {problems.length > 1 && (
+        <div className="flex flex-wrap gap-1 rounded-lg border border-border bg-card p-1">
+          {problems.map((p, i) => (
+            <button key={i} type="button" onClick={() => setActiveIdx(i)}
+              className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${activeIdx === i ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+              {p.title}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <CodeProblemView
+        key={activeIdx}
+        title={activeProblem.title}
+        instructions={activeProblem.instructions}
+        initialCode={activeProblem.starterCode}
+        initialLanguage={activeProblem.language}
+        assignmentId={activeProblem.assignmentId}
+      />
+    </section>
+  );
+}
+
+function CodeProblemView({
+  title,
+  instructions,
+  initialCode,
+  initialLanguage,
+  assignmentId,
+}: {
+  title: string;
+  instructions: string;
+  initialCode: string;
+  initialLanguage: CodeLanguage;
+  assignmentId: string | null | undefined;
+}) {
+  const judgeCode = useJudgeCode();
+  const submissionsQuery = useCodeSubmissions(assignmentId ? { assignmentId } : {});
+  const [code, setCode] = useState(initialCode);
+  const [lang, setLang] = useState<CodeLanguage>(initialLanguage);
+  const [judgeResult, setJudgeResult] = useState<CodeJudgeResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<"editor" | "history">("editor");
+
+  async function handleSubmit() {
+    if (!assignmentId) return;
+    setBusy(true);
+    setJudgeResult(null);
+    setError(null);
+    try {
+      // Hidden test cases come from the assignment — learner doesn't see them
+      const result = await judgeCode({
+        assignmentId,
+        language: lang,
+        code,
+        testCases: [{ name: "Submit", input: "", expectedOutput: "__judge_server_side__" }],
+      });
+      setJudgeResult(result);
+      await submissionsQuery.reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Submission failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Problem description */}
+      <div className="rounded-xl border border-border bg-muted/20 p-4">
+        <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
+        <p className="whitespace-pre-wrap text-sm leading-relaxed">{instructions}</p>
+      </div>
 
       {/* Tabs */}
       <div className="flex gap-1 rounded-lg border border-border bg-card p-1">
         {(["editor", "history"] as const).map((t) => (
           <button key={t} type="button" onClick={() => setTab(t)}
-            className={`flex-1 rounded-md py-1.5 text-sm font-medium capitalize transition-colors ${tab === t ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-            {t === "editor" ? "Code Editor" : "Submission History"}
+            className={`flex-1 rounded-md py-1.5 text-sm font-medium transition-colors ${tab === t ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+            {t === "editor" ? "Code Editor" : "My Submissions"}
           </button>
         ))}
       </div>
 
       {tab === "editor" && (
         <div className="flex flex-col gap-4">
-          {/* Monaco editor */}
-          <CodeEditor
-            initialCode={code}
-            initialLanguage={lang}
-            onCodeChange={setCode}
-            onLanguageChange={setLang}
-            height={360}
-          />
+          <CodeEditor initialCode={code} initialLanguage={lang}
+            onCodeChange={setCode} onLanguageChange={setLang} height={360} />
 
-          {/* Test cases */}
-          <div className="rounded-xl border border-border bg-card p-4">
-            <div className="flex items-center justify-between gap-2 pb-3">
-              <h3 className="text-sm font-semibold">Test cases</h3>
-              <button type="button" onClick={addTestCase}
-                className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:bg-muted">
-                <Plus className="h-3.5 w-3.5" /> Add
-              </button>
-            </div>
-            <div className="flex flex-col gap-3">
-              {testCases.map((tc, i) => (
-                <div key={i} className="grid gap-2 rounded-lg border border-border bg-muted/20 p-3">
-                  <div className="flex items-center gap-2">
-                    <input
-                      className="h-7 flex-1 rounded border border-border bg-card px-2 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-ring"
-                      value={tc.name}
-                      onChange={(e) => updateTestCase(i, "name", e.target.value)}
-                      placeholder="Test case name"
-                    />
-                    {testCases.length > 1 && (
-                      <button type="button" onClick={() => removeTestCase(i)}
-                        className="text-muted-foreground hover:text-destructive">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <div>
-                      <p className="mb-1 text-xs text-muted-foreground">Input (stdin)</p>
-                      <textarea
-                        className="h-16 w-full rounded border border-border bg-card px-2 py-1.5 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-                        value={tc.input}
-                        onChange={(e) => updateTestCase(i, "input", e.target.value)}
-                        placeholder="(optional)"
-                      />
-                    </div>
-                    <div>
-                      <p className="mb-1 text-xs text-muted-foreground">Expected output <span className="text-destructive">*</span></p>
-                      <textarea
-                        className="h-16 w-full rounded border border-border bg-card px-2 py-1.5 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-                        value={tc.expectedOutput}
-                        onChange={(e) => updateTestCase(i, "expectedOutput", e.target.value)}
-                        placeholder="Expected output"
-                        required
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {assignmentId ? (
-              <button type="button" onClick={handleJudge} disabled={busy}
-                className="mt-4 flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">
+          {/* Submit button — no test cases shown to learner */}
+          {assignmentId ? (
+            <div className="flex items-center gap-3">
+              <button type="button" onClick={handleSubmit} disabled={busy}
+                className="flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">
                 <Send className="h-4 w-4" />
-                {busy ? "Judging…" : "Submit & Judge"}
+                {busy ? "Running…" : "Submit solution"}
               </button>
-            ) : (
-              <p className="mt-3 text-xs text-muted-foreground">Configure an assignment ID in the activity content to enable graded submission.</p>
-            )}
-          </div>
+              <p className="text-xs text-muted-foreground">Your code will be tested against hidden test cases.</p>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">This exercise is in free-run mode. Use the Run button in the editor to test your code.</p>
+          )}
 
-          {/* Judge result */}
+          {error && (
+            <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3">
+              <XCircle className="h-4 w-4 text-destructive" />
+              <p className="text-sm text-destructive">{error}</p>
+            </div>
+          )}
+
           {judgeResult && (
-            <div className={`rounded-xl border p-5 ${judgeResult.status === "PASSED" ? "border-emerald-300 bg-emerald-50" : "border-destructive/30 bg-destructive/5"}`}>
+            <div className={`rounded-xl border p-5 ${judgeResult.status === "PASSED" ? "border-emerald-300 bg-emerald-50 dark:bg-emerald-950/20" : "border-destructive/30 bg-destructive/5"}`}>
               <div className="flex items-center gap-3">
                 {judgeResult.status === "PASSED"
                   ? <CheckCircle2 className="h-6 w-6 text-emerald-600" />
                   : <XCircle className="h-6 w-6 text-destructive" />}
                 <div>
-                  <p className="font-semibold">{judgeResult.status === "PASSED" ? "All tests passed!" : "Some tests failed"}</p>
+                  <p className="font-semibold">{judgeResult.status === "PASSED" ? "All tests passed! 🎉" : "Some tests failed"}</p>
                   <p className="text-sm text-muted-foreground">Score: {judgeResult.score.toFixed(0)}%</p>
                 </div>
               </div>
-              <div className="mt-4 flex flex-col gap-2">
-                {judgeResult.results.map((r) => (
-                  <div key={r.id} className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm ${r.passed ? "border-emerald-200 bg-emerald-50/50" : "border-destructive/20 bg-destructive/5"}`}>
+              {/* Show pass/fail per test but NOT expected output */}
+              <div className="mt-3 flex flex-col gap-1.5">
+                {judgeResult.results.map((r, i) => (
+                  <div key={r.id} className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm ${r.passed ? "border-emerald-200 bg-emerald-50/50 dark:bg-emerald-950/10" : "border-destructive/20 bg-destructive/5"}`}>
                     <div className="flex items-center gap-2">
                       {r.passed ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <XCircle className="h-4 w-4 text-destructive" />}
-                      <span className="font-medium">{r.name}</span>
+                      <span className="font-medium">Test {i + 1}</span>
+                      <span className="text-xs text-muted-foreground">{r.passed ? "Passed" : "Failed"}</span>
                     </div>
                     <span className="text-xs text-muted-foreground">{r.durationMs}ms</span>
                   </div>
@@ -411,22 +401,19 @@ function CodeRunnerPluginRenderer({ response }: RendererProps) {
           {submissionsQuery.loading ? (
             <p className="text-sm text-muted-foreground">Loading…</p>
           ) : !submissionsQuery.data?.length ? (
-            <p className="rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">No submissions yet.</p>
+            <p className="rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">No submissions yet. Submit your solution to see history.</p>
           ) : (
             submissionsQuery.data.map((sub) => (
               <div key={sub.id} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3">
                 <div className="flex flex-col gap-0.5">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-medium uppercase">{sub.language}</span>
-                    <StatusBadge
-                      value={sub.status}
-                      tone={sub.status === "PASSED" ? "success" : sub.status === "FAILED" ? "danger" : "neutral"}
-                    />
+                    <StatusBadge value={sub.status} tone={sub.status === "PASSED" ? "success" : sub.status === "FAILED" ? "danger" : "neutral"} />
                   </div>
                   <span className="text-xs text-muted-foreground">{new Date(sub.createdAt).toLocaleString()}</span>
                 </div>
                 {sub.score != null && (
-                  <span className={`text-sm font-bold ${sub.score >= 100 ? "text-emerald-600" : sub.score >= 50 ? "text-amber-600" : "text-destructive"}`}>
+                  <span className={`text-lg font-bold ${sub.score >= 100 ? "text-emerald-600" : sub.score >= 50 ? "text-amber-600" : "text-destructive"}`}>
                     {sub.score.toFixed(0)}%
                   </span>
                 )}
@@ -435,7 +422,7 @@ function CodeRunnerPluginRenderer({ response }: RendererProps) {
           )}
         </div>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -997,26 +984,192 @@ function ThreeDActivityEditor({ activity, children }: EditorProps) {
   );
 }
 
+type CodeProblem = {
+  title: string;
+  instructions: string;
+  starterCode: string;
+  language: CodeLanguage;
+  assignmentId: string;
+  testCases: Array<{ name: string; input: string; expectedOutput: string }>;
+};
+
+function emptyProblem(idx: number): CodeProblem {
+  return {
+    title: `Problem ${idx + 1}`,
+    instructions: "",
+    starterCode: "# Write your solution here\n",
+    language: "PYTHON",
+    assignmentId: "",
+    testCases: [{ name: "Test 1", input: "", expectedOutput: "" }],
+  };
+}
+
 function CodeRunnerActivityEditor({ activity, children }: EditorProps) {
+  const { structured } = activityPayload({ content: null, activity, plugin: null, fileAccess: null } as any);
+  const initialProblems: CodeProblem[] = Array.isArray(structured?.problems)
+    ? structured.problems.map((p: any, i: number) => ({
+        title: p.title ?? `Problem ${i + 1}`,
+        instructions: p.instructions ?? "",
+        starterCode: p.starterCode ?? "",
+        language: (p.language ?? "PYTHON") as CodeLanguage,
+        assignmentId: p.assignmentId ?? "",
+        testCases: Array.isArray(p.testCases) ? p.testCases : [{ name: "Test 1", input: "", expectedOutput: "" }],
+      }))
+    : [emptyProblem(0)];
+
+  const [problems, setProblems] = useState<CodeProblem[]>(initialProblems);
+  const [activeIdx, setActiveIdx] = useState(0);
+  const activeProblem = problems[activeIdx] ?? problems[0]!;
+
+  function updateProblem(idx: number, patch: Partial<CodeProblem>) {
+    setProblems((ps) => ps.map((p, i) => i === idx ? { ...p, ...patch } : p));
+  }
+
+  function addProblem() {
+    setProblems((ps) => [...ps, emptyProblem(ps.length)]);
+    setActiveIdx(problems.length);
+  }
+
+  function removeProblem(idx: number) {
+    if (problems.length <= 1) return;
+    setProblems((ps) => ps.filter((_, i) => i !== idx));
+    setActiveIdx(Math.max(0, activeIdx - 1));
+  }
+
+  function addTestCase(probIdx: number) {
+    setProblems((ps) => ps.map((p, i) => i !== probIdx ? p : {
+      ...p, testCases: [...p.testCases, { name: `Test ${p.testCases.length + 1}`, input: "", expectedOutput: "" }],
+    }));
+  }
+
+  function updateTestCase(probIdx: number, tcIdx: number, field: keyof CodeProblem["testCases"][0], val: string) {
+    setProblems((ps) => ps.map((p, i) => i !== probIdx ? p : {
+      ...p, testCases: p.testCases.map((tc, j) => j !== tcIdx ? tc : { ...tc, [field]: val }),
+    }));
+  }
+
+  function removeTestCase(probIdx: number, tcIdx: number) {
+    setProblems((ps) => ps.map((p, i) => i !== probIdx ? p : {
+      ...p, testCases: p.testCases.filter((_, j) => j !== tcIdx),
+    }));
+  }
+
+  const contentJson = JSON.stringify({ problems: problems.map(({ testCases, ...rest }) => rest) }, null, 2);
+  const instructorJson = JSON.stringify({ problems }, null, 2);
+
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex items-center gap-2">
-        <Code2 aria-hidden="true" className="h-4 w-4 text-primary" />
-        <StatusBadge value="Code runner" tone="info" />
-        <span className="text-sm font-medium">{activity.title}</span>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Code2 aria-hidden="true" className="h-4 w-4 text-primary" />
+          <StatusBadge value="Code runner" tone="info" />
+          <span className="text-sm font-medium">{activity.title}</span>
+        </div>
+        <button type="button" onClick={addProblem}
+          className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted">
+          <Plus className="h-3.5 w-3.5" /> Add problem
+        </button>
       </div>
-      <div className="rounded-xl border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
-        <p className="font-medium text-foreground">Code runner activity setup</p>
-        <p className="mt-1 text-xs">In the Content tab, set the following in the text field or external URL:</p>
-        <ul className="mt-2 list-disc pl-4 text-xs space-y-1">
-          <li><code className="rounded bg-muted px-1">instructions</code> — problem description shown to learners</li>
-          <li><code className="rounded bg-muted px-1">starterCode</code> — optional pre-filled code template</li>
-          <li><code className="rounded bg-muted px-1">language</code> — default language (PYTHON, JAVASCRIPT, etc.)</li>
-          <li><code className="rounded bg-muted px-1">assignmentId</code> — link to an assignment to enable graded submission</li>
-        </ul>
-        <p className="mt-2 text-xs">Store these as a JSON object in the activity content field.</p>
+
+      {/* Problem selector tabs */}
+      {problems.length > 1 && (
+        <div className="flex flex-wrap gap-1 rounded-lg border border-border bg-card p-1">
+          {problems.map((p, i) => (
+            <div key={i} className="group relative flex items-center">
+              <button type="button" onClick={() => setActiveIdx(i)}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors pr-6 ${activeIdx === i ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+                {p.title}
+              </button>
+              <button type="button" onClick={() => removeProblem(i)}
+                className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive">
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+
+      {/* Problem editor */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Problem {activeIdx + 1} config</p>
+          <label className="flex flex-col gap-1 text-xs font-medium">Title
+            <input className="h-8 rounded-md border border-border bg-card px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              value={activeProblem.title} onChange={(e) => updateProblem(activeIdx, { title: e.target.value })} />
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-medium">Language
+            <select className="h-8 rounded-md border border-border bg-card px-2 text-sm focus:outline-none"
+              value={activeProblem.language} onChange={(e) => updateProblem(activeIdx, { language: e.target.value as CodeLanguage })}>
+              {(["PYTHON","JAVASCRIPT","TYPESCRIPT","GO","RUST","JAVA","CPP","RUBY","PHP"] as CodeLanguage[]).map(l => (
+                <option key={l} value={l}>{l}</option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-medium">Instructions (shown to learners)
+            <textarea rows={4} className="rounded-md border border-border bg-card px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              value={activeProblem.instructions} onChange={(e) => updateProblem(activeIdx, { instructions: e.target.value })} placeholder="Describe the problem..." />
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-medium">Starter code
+            <textarea rows={4} className="rounded-md border border-border bg-[#1e1e1e] px-2 py-1.5 font-mono text-xs text-green-300 focus:outline-none focus:ring-1 focus:ring-ring"
+              value={activeProblem.starterCode} onChange={(e) => updateProblem(activeIdx, { starterCode: e.target.value })} placeholder="# starter code..." />
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-medium">Assignment ID <span className="font-normal text-muted-foreground">(for graded submission)</span>
+            <input className="h-8 rounded-md border border-border bg-card px-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-ring"
+              value={activeProblem.assignmentId} onChange={(e) => updateProblem(activeIdx, { assignmentId: e.target.value })} placeholder="paste assignment id..." />
+          </label>
+        </div>
+
+        <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Test cases <span className="font-normal text-muted-foreground">(hidden from learners)</span></p>
+            <button type="button" onClick={() => addTestCase(activeIdx)}
+              className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs font-medium hover:bg-muted">
+              <Plus className="h-3 w-3" /> Add
+            </button>
+          </div>
+          <div className="flex flex-col gap-2 max-h-96 overflow-y-auto">
+            {activeProblem.testCases.map((tc, j) => (
+              <div key={j} className="rounded-lg border border-border bg-muted/20 p-3">
+                <div className="mb-2 flex items-center gap-2">
+                  <input className="h-6 flex-1 rounded border border-border bg-card px-2 text-xs font-medium focus:outline-none"
+                    value={tc.name} onChange={(e) => updateTestCase(activeIdx, j, "name", e.target.value)} placeholder="Test name" />
+                  {activeProblem.testCases.length > 1 && (
+                    <button type="button" onClick={() => removeTestCase(activeIdx, j)}
+                      className="text-muted-foreground hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>
+                  )}
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div>
+                    <p className="mb-1 text-xs text-muted-foreground">Input (stdin)</p>
+                    <textarea rows={2} className="w-full rounded border border-border bg-card px-2 py-1 font-mono text-xs focus:outline-none"
+                      value={tc.input} onChange={(e) => updateTestCase(activeIdx, j, "input", e.target.value)} placeholder="optional" />
+                  </div>
+                  <div>
+                    <p className="mb-1 text-xs text-muted-foreground">Expected output <span className="text-destructive">*</span></p>
+                    <textarea rows={2} className="w-full rounded border border-border bg-card px-2 py-1 font-mono text-xs focus:outline-none"
+                      value={tc.expectedOutput} onChange={(e) => updateTestCase(activeIdx, j, "expectedOutput", e.target.value)} placeholder="expected..." />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
-      {children}
+
+      <div className="rounded-xl border border-border bg-muted/20 p-4">
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Content JSON <span className="font-normal">(paste into activity Content tab)</span>
+          </p>
+          <button type="button" onClick={() => void navigator.clipboard?.writeText(JSON.stringify({ problems: problems.map(({ testCases, ...rest }) => rest) }, null, 2))}
+            className="rounded border border-border px-2 py-0.5 text-xs hover:bg-muted">Copy</button>
+        </div>
+        <pre className="max-h-32 overflow-auto rounded-lg bg-[#1e1e1e] p-3 text-xs text-green-300">
+          {JSON.stringify({ problems: problems.map(({ testCases, ...rest }) => rest) }, null, 2)}
+        </pre>
+        <p className="mt-2 text-xs text-amber-600">⚠ Test cases are NOT included in this JSON — they stay hidden from learners.</p>
+      </div>
     </section>
   );
 }
