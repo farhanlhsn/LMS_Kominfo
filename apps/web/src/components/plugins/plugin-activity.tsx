@@ -240,6 +240,7 @@ function CodeRunnerPluginRenderer({ response }: RendererProps) {
     starterCode: readString(p.starterCode) ?? readString(p.initialCode) ?? "",
     language: readCodeLanguage(p.language),
     assignmentId: readString(p.assignmentId) ?? readString(p.assignment_id),
+    lockedLanguage: p.lockedLanguage === true,
   }));
 
   const [activeIdx, setActiveIdx] = useState(0);
@@ -275,6 +276,7 @@ function CodeRunnerPluginRenderer({ response }: RendererProps) {
         initialCode={activeProblem.starterCode}
         initialLanguage={activeProblem.language}
         assignmentId={activeProblem.assignmentId}
+        lockedLanguage={activeProblem.lockedLanguage}
       />
     </section>
   );
@@ -286,12 +288,14 @@ function CodeProblemView({
   initialCode,
   initialLanguage,
   assignmentId,
+  lockedLanguage = false,
 }: {
   title: string;
   instructions: string;
   initialCode: string;
   initialLanguage: CodeLanguage;
   assignmentId: string | null | undefined;
+  lockedLanguage?: boolean;
 }) {
   const judgeCode = useJudgeCode();
   const submissionsQuery = useCodeSubmissions(assignmentId ? { assignmentId } : {});
@@ -345,7 +349,8 @@ function CodeProblemView({
       {tab === "editor" && (
         <div className="flex flex-col gap-4">
           <CodeEditor initialCode={code} initialLanguage={lang}
-            onCodeChange={setCode} onLanguageChange={setLang} height={360} />
+            onCodeChange={setCode} onLanguageChange={setLang} height={360}
+            lockedLanguage={lockedLanguage} />
 
           {/* Submit button — no test cases shown to learner */}
           {assignmentId ? (
@@ -999,6 +1004,7 @@ type CodeProblem = {
   starterCode: string;
   language: CodeLanguage;
   assignmentId: string;
+  lockedLanguage: boolean;
   testCases: Array<{ name: string; input: string; expectedOutput: string }>;
 };
 
@@ -1009,6 +1015,7 @@ function emptyProblem(idx: number): CodeProblem {
     starterCode: "# Write your solution here\n",
     language: "PYTHON",
     assignmentId: "",
+    lockedLanguage: false,
     testCases: [{ name: "Test 1", input: "", expectedOutput: "" }],
   };
 }
@@ -1022,6 +1029,7 @@ function CodeRunnerActivityEditor({ activity, children }: EditorProps) {
         starterCode: p.starterCode ?? "",
         language: (p.language ?? "PYTHON") as CodeLanguage,
         assignmentId: p.assignmentId ?? "",
+        lockedLanguage: p.lockedLanguage ?? false,
         testCases: Array.isArray(p.testCases) ? p.testCases : [{ name: "Test 1", input: "", expectedOutput: "" }],
       }))
     : [emptyProblem(0)];
@@ -1114,6 +1122,12 @@ function CodeRunnerActivityEditor({ activity, children }: EditorProps) {
                 <option key={l} value={l}>{l}</option>
               ))}
             </select>
+          </label>
+          <label className="flex items-center gap-2 text-xs font-medium">
+            <input type="checkbox" className="h-4 w-4 rounded"
+              checked={activeProblem.lockedLanguage}
+              onChange={(e) => updateProblem(activeIdx, { lockedLanguage: e.target.checked })} />
+            Lock language (learners cannot change)
           </label>
           <label className="flex flex-col gap-1 text-xs font-medium">Instructions (shown to learners)
             <textarea rows={4} className="rounded-md border border-border bg-card px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"

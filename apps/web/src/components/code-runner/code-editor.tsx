@@ -37,6 +37,7 @@ export interface CodeEditorProps {
   onExecuted?: (result: { output: string | null; error: string | null }) => void;
   height?: number;
   readOnly?: boolean;
+  lockedLanguage?: boolean;
 }
 
 export function CodeEditor({
@@ -47,6 +48,7 @@ export function CodeEditor({
   onExecuted,
   height = 340,
   readOnly = false,
+  lockedLanguage = false,
 }: CodeEditorProps) {
   const execute = useExecuteCode();
   const [language, setLanguage] = useState<CodeLanguage>(initialLanguage);
@@ -73,7 +75,15 @@ export function CodeEditor({
       setResult({ output: res.output, error: res.error, status: res.status });
       onExecuted?.({ output: res.output, error: res.error });
     } catch (err) {
-      setResult({ output: null, error: err instanceof Error ? err.message : "Execution failed", status: "ERROR" });
+      const msg = err instanceof Error ? err.message : "Execution failed";
+      const isNotInstalled = msg.toLowerCase().includes("not found") || msg.toLowerCase().includes("no such") || msg.toLowerCase().includes("command");
+      setResult({
+        output: null,
+        error: isNotInstalled
+          ? `${langMeta.label} runtime is not installed on this server. Ask your administrator to install it.`
+          : msg,
+        status: "ERROR",
+      });
     } finally {
       setBusy(false);
     }
@@ -90,14 +100,19 @@ export function CodeEditor({
             <span className="h-3 w-3 rounded-full bg-green-500/80" />
           </div>
           <select
-            className="ml-2 rounded bg-white/10 px-2 py-0.5 text-xs font-medium text-white/90 focus:outline-none"
+            className="ml-2 rounded border border-white/20 bg-[#3c3c3c] px-2 py-0.5 text-xs font-medium text-white focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
             value={language}
+            disabled={lockedLanguage}
             onChange={(e) => handleLanguageChange(e.target.value as CodeLanguage)}
+            style={{ colorScheme: "dark" }}
           >
             {LANGUAGES.map((l) => (
-              <option key={l.key} value={l.key}>{l.label}</option>
+              <option key={l.key} value={l.key} style={{ backgroundColor: "#3c3c3c", color: "#fff" }}>{l.label}</option>
             ))}
           </select>
+          {lockedLanguage && (
+            <span className="rounded bg-white/10 px-1.5 py-0.5 text-xs text-white/50">locked</span>
+          )}
         </div>
 
         <div className="flex items-center gap-1.5">
