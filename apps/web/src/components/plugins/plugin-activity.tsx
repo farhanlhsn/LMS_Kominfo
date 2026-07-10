@@ -2,6 +2,7 @@ import {
   AlertTriangle,
   ArrowUpRight,
   Box,
+  CheckCircle2,
   ClipboardList,
   Code2,
   Copy,
@@ -10,10 +11,15 @@ import {
   MonitorUp,
   PanelRight,
   PictureInPicture2,
+  Play,
+  Plus,
   Puzzle,
+  Send,
   Smartphone,
+  Trash2,
+  XCircle,
 } from "lucide-react";
-import React from "react";
+import React, { useCallback, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
 import {
   ExternalLinkCard,
@@ -27,9 +33,11 @@ import { H5PLauncher, ScormLauncher } from "../experiences/experiences-views";
 import { QuizActivityRenderer } from "../quiz/quiz";
 import { ThreeDViewer } from "../content-3d/three-d-viewer";
 import { StatusBadge } from "../ui/core";
+import { useExecuteCode, useJudgeCode, useCodeSubmissions, useThreeDAssets, useCreateThreeDAsset } from "../../lib/api-hooks";
 import type {
   Activity,
   ActivityContentResponse,
+  CodeJudgeResult,
   CodeLanguage,
   ThreeDAssetRecord,
   ThreeDFormat,
@@ -69,8 +77,8 @@ const coreEditors: Record<string, ComponentType<EditorProps>> = {
   "core.link": CoreActivityEditor,
   "core.quiz": CoreActivityEditor,
   "core.assignment": CoreActivityEditor,
-  "plugin.3d_viewer": CoreActivityEditor,
-  "plugin.code_runner": CoreActivityEditor,
+  "plugin.3d_viewer": ThreeDActivityEditor,
+  "plugin.code_runner": CodeRunnerActivityEditor,
   "plugin.h5p": CoreActivityEditor,
   "plugin.scorm": CoreActivityEditor,
 };
@@ -230,20 +238,203 @@ function CodeRunnerPluginRenderer({ response }: RendererProps) {
     readString(structured.code) ??
     "";
   const language = readCodeLanguage(structured.language);
+  const assignmentId = readString(structured.assignmentId) ?? readString(structured.assignment_id);
+
+  const judgeCode = useJudgeCode();
+  const submissionsQuery = useCodeSubmissions(assignmentId ? { assignmentId } : {});
+
+  const [code, setCode] = useState(initialCode);
+  const [lang, setLang] = useState<CodeLanguage>(language);
+  const [testCases, setTestCases] = useState<Array<{ name: string; input: string; expectedOutput: string }>>([
+    { name: "Test 1", input: "", expectedOutput: "" },
+  ]);
+  const [judgeResult, setJudgeResult] = useState<CodeJudgeResult | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<"editor" | "history">("editor");
+
+  const addTestCase = () =>
+    setTestCases((tc) => [...tc, { name: `Test ${tc.length + 1}`, input: "", expectedOutput: "" }]);
+
+  const removeTestCase = (i: number) =>
+    setTestCases((tc) => tc.filter((_, idx) => idx !== i));
+
+  const updateTestCase = (i: number, field: "name" | "input" | "expectedOutput", value: string) =>
+    setTestCases((tc) => tc.map((t, idx) => idx === i ? { ...t, [field]: value } : t));
+
+  async function handleJudge() {
+    if (!assignmentId) return;
+    const valid = testCases.filter((tc) => tc.expectedOutput.trim());
+    if (!valid.length) return;
+    setBusy(true);
+    setJudgeResult(null);
+    try {
+      const result = await judgeCode({
+        assignmentId,
+        language: lang,
+        code,
+        testCases: valid.map((tc) => ({ name: tc.name, input: tc.input || undefined, expectedOutput: tc.expectedOutput })),
+      });
+      setJudgeResult(result);
+      await submissionsQuery.reload();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
-    <section className="grid gap-4">
-      <article className="rounded-lg border border-border bg-card p-4 shadow-subtle">
-        <div className="flex flex-wrap items-center gap-2">
-          <Code2 aria-hidden="true" className="h-4 w-4 text-primary" />
-          <StatusBadge value="Code runner" tone="info" />
+    <section className="flex flex-col gap-4">
+      {/* Problem statement */}
+      <article className="rounded-xl border border-border bg-card p-5">
+        <div className="flex items-center gap-2 text-primary">
+          <Code2 className="h-5 w-5" aria-hidden="true" />
+          <StatusBadge value="Code exercise" tone="info" />
         </div>
-        <h2 className="mt-3 text-lg font-semibold">{response.activity.title}</h2>
-        <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          {instructions}
-        </p>
+        <h2 className="mt-2 text-lg font-semibold">{response.activity.title}</h2>
+        <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">{instructions}</p>
       </article>
-      <CodeEditor initialCode={initialCode} initialLanguage={language} />
+
+      {/* Tabs */}
+      <div className="flex gap-1 rounded-lg border border-border bg-card p-1">
+        {(["editor", "history"] as const).map((t) => (
+          <button key={t} type="button" onClick={() => setTab(t)}
+            className={`flex-1 rounded-md py-1.5 text-sm font-medium capitalize transition-colors ${tab === t ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+            {t === "editor" ? "Code Editor" : "Submission History"}
+          </button>
+        ))}
+      </div>
+
+      {tab === "editor" && (
+        <div className="flex flex-col gap-4">
+          {/* Monaco editor */}
+          <CodeEditor
+            initialCode={code}
+            initialLanguage={lang}
+            onCodeChange={setCode}
+            onLanguageChange={setLang}
+            height={360}
+          />
+
+          {/* Test cases */}
+          <div className="rounded-xl border border-border bg-card p-4">
+            <div className="flex items-center justify-between gap-2 pb-3">
+              <h3 className="text-sm font-semibold">Test cases</h3>
+              <button type="button" onClick={addTestCase}
+                className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:bg-muted">
+                <Plus className="h-3.5 w-3.5" /> Add
+              </button>
+            </div>
+            <div className="flex flex-col gap-3">
+              {testCases.map((tc, i) => (
+                <div key={i} className="grid gap-2 rounded-lg border border-border bg-muted/20 p-3">
+                  <div className="flex items-center gap-2">
+                    <input
+                      className="h-7 flex-1 rounded border border-border bg-card px-2 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-ring"
+                      value={tc.name}
+                      onChange={(e) => updateTestCase(i, "name", e.target.value)}
+                      placeholder="Test case name"
+                    />
+                    {testCases.length > 1 && (
+                      <button type="button" onClick={() => removeTestCase(i)}
+                        className="text-muted-foreground hover:text-destructive">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div>
+                      <p className="mb-1 text-xs text-muted-foreground">Input (stdin)</p>
+                      <textarea
+                        className="h-16 w-full rounded border border-border bg-card px-2 py-1.5 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                        value={tc.input}
+                        onChange={(e) => updateTestCase(i, "input", e.target.value)}
+                        placeholder="(optional)"
+                      />
+                    </div>
+                    <div>
+                      <p className="mb-1 text-xs text-muted-foreground">Expected output <span className="text-destructive">*</span></p>
+                      <textarea
+                        className="h-16 w-full rounded border border-border bg-card px-2 py-1.5 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                        value={tc.expectedOutput}
+                        onChange={(e) => updateTestCase(i, "expectedOutput", e.target.value)}
+                        placeholder="Expected output"
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {assignmentId ? (
+              <button type="button" onClick={handleJudge} disabled={busy}
+                className="mt-4 flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">
+                <Send className="h-4 w-4" />
+                {busy ? "Judging…" : "Submit & Judge"}
+              </button>
+            ) : (
+              <p className="mt-3 text-xs text-muted-foreground">Configure an assignment ID in the activity content to enable graded submission.</p>
+            )}
+          </div>
+
+          {/* Judge result */}
+          {judgeResult && (
+            <div className={`rounded-xl border p-5 ${judgeResult.status === "PASSED" ? "border-emerald-300 bg-emerald-50" : "border-destructive/30 bg-destructive/5"}`}>
+              <div className="flex items-center gap-3">
+                {judgeResult.status === "PASSED"
+                  ? <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+                  : <XCircle className="h-6 w-6 text-destructive" />}
+                <div>
+                  <p className="font-semibold">{judgeResult.status === "PASSED" ? "All tests passed!" : "Some tests failed"}</p>
+                  <p className="text-sm text-muted-foreground">Score: {judgeResult.score.toFixed(0)}%</p>
+                </div>
+              </div>
+              <div className="mt-4 flex flex-col gap-2">
+                {judgeResult.results.map((r) => (
+                  <div key={r.id} className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm ${r.passed ? "border-emerald-200 bg-emerald-50/50" : "border-destructive/20 bg-destructive/5"}`}>
+                    <div className="flex items-center gap-2">
+                      {r.passed ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <XCircle className="h-4 w-4 text-destructive" />}
+                      <span className="font-medium">{r.name}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">{r.durationMs}ms</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "history" && (
+        <div className="flex flex-col gap-2">
+          {submissionsQuery.loading ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : !submissionsQuery.data?.length ? (
+            <p className="rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">No submissions yet.</p>
+          ) : (
+            submissionsQuery.data.map((sub) => (
+              <div key={sub.id} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3">
+                <div className="flex flex-col gap-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium uppercase">{sub.language}</span>
+                    <StatusBadge
+                      value={sub.status}
+                      tone={sub.status === "PASSED" ? "success" : sub.status === "FAILED" ? "danger" : "neutral"}
+                    />
+                  </div>
+                  <span className="text-xs text-muted-foreground">{new Date(sub.createdAt).toLocaleString()}</span>
+                </div>
+                {sub.score != null && (
+                  <span className={`text-sm font-bold ${sub.score >= 100 ? "text-emerald-600" : sub.score >= 50 ? "text-amber-600" : "text-destructive"}`}>
+                    {sub.score.toFixed(0)}%
+                  </span>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      )}
     </section>
   );
 }
@@ -703,6 +894,127 @@ function CoreActivityEditor({ activity, children }: EditorProps) {
         <FileText aria-hidden="true" className="h-4 w-4 text-primary" />
         <StatusBadge value={activity.activityTypeKey} />
         <span className="text-sm font-medium">{activity.title}</span>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function ThreeDActivityEditor({ activity, children }: EditorProps) {
+  const assetsQuery = useThreeDAssets();
+  const createAsset = useCreateThreeDAsset();
+  const [form, setForm] = useState({ name: "", format: "GLB" as "GLB" | "GLTF" | "FBX" | "OBJ", url: "", thumbnailUrl: "" });
+  const [msg, setMsg] = useState<string | null>(null);
+  const [preview, setPreview] = useState<import("../../lib/lms-types").ThreeDAssetRecord | null>(null);
+
+  const assets: import("../../lib/lms-types").ThreeDAssetRecord[] = assetsQuery.data ?? [];
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    try {
+      const asset = await createAsset({ name: form.name, format: form.format, url: form.url, thumbnailUrl: form.thumbnailUrl || undefined });
+      setMsg(`Asset "${asset.name}" created. Save activity content with the asset URL.`);
+      await assetsQuery.reload();
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : "Failed");
+    }
+  }
+
+  return (
+    <section className="flex flex-col gap-4">
+      <div className="flex items-center gap-2">
+        <Box aria-hidden="true" className="h-4 w-4 text-primary" />
+        <StatusBadge value="3D viewer" tone="info" />
+        <span className="text-sm font-medium">{activity.title}</span>
+      </div>
+
+      {/* Asset library */}
+      <div className="rounded-xl border border-border bg-card p-4">
+        <h3 className="text-sm font-semibold">Asset library</h3>
+        {assets.length === 0 ? (
+          <p className="mt-2 text-xs text-muted-foreground">No 3D assets uploaded yet.</p>
+        ) : (
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {assets.map((a) => (
+              <button key={a.id} type="button" onClick={() => setPreview(preview?.id === a.id ? null : a)}
+                className={`flex items-start gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-muted/50 ${preview?.id === a.id ? "border-primary bg-primary/5" : "border-border"}`}>
+                {a.thumbnailUrl
+                  ? <img src={a.thumbnailUrl} alt={a.name} className="h-12 w-12 rounded object-cover" />
+                  : <div className="flex h-12 w-12 items-center justify-center rounded bg-muted"><Box className="h-6 w-6 text-muted-foreground" /></div>}
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-medium">{a.name}</p>
+                  <p className="text-xs text-muted-foreground">{a.format} · {(a.sizeBytes / 1024 / 1024).toFixed(1)} MB</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+        {preview && (
+          <div className="mt-4">
+            <ThreeDViewer asset={preview} height={280} />
+          </div>
+        )}
+      </div>
+
+      {/* Upload / register new asset */}
+      <div className="rounded-xl border border-border bg-card p-4">
+        <h3 className="text-sm font-semibold">Register new 3D asset</h3>
+        <p className="mt-0.5 text-xs text-muted-foreground">Provide a URL to a hosted GLB/GLTF/FBX/OBJ file.</p>
+        {msg && <p className="mt-2 rounded bg-muted px-3 py-1.5 text-xs">{msg}</p>}
+        <form onSubmit={handleCreate} className="mt-3 grid gap-3 sm:grid-cols-2">
+          <label className="text-xs font-medium">
+            Name
+            <input required className="mt-1 h-8 w-full rounded border border-border bg-card px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+              value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+          </label>
+          <label className="text-xs font-medium">
+            Format
+            <select className="mt-1 h-8 w-full rounded border border-border bg-card px-2 text-xs focus:outline-none"
+              value={form.format} onChange={(e) => setForm((f) => ({ ...f, format: e.target.value as any }))}>
+              {["GLB", "GLTF", "FBX", "OBJ"].map((f) => <option key={f}>{f}</option>)}
+            </select>
+          </label>
+          <label className="text-xs font-medium sm:col-span-2">
+            Asset URL <span className="text-destructive">*</span>
+            <input required type="url" className="mt-1 h-8 w-full rounded border border-border bg-card px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+              value={form.url} onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))} placeholder="https://…/model.glb" />
+          </label>
+          <label className="text-xs font-medium sm:col-span-2">
+            Thumbnail URL (optional)
+            <input type="url" className="mt-1 h-8 w-full rounded border border-border bg-card px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+              value={form.thumbnailUrl} onChange={(e) => setForm((f) => ({ ...f, thumbnailUrl: e.target.value }))} placeholder="https://…/thumb.jpg" />
+          </label>
+          <div className="sm:col-span-2">
+            <button type="submit" className="rounded-lg bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground">
+              Register asset
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {children}
+    </section>
+  );
+}
+
+function CodeRunnerActivityEditor({ activity, children }: EditorProps) {
+  return (
+    <section className="flex flex-col gap-4">
+      <div className="flex items-center gap-2">
+        <Code2 aria-hidden="true" className="h-4 w-4 text-primary" />
+        <StatusBadge value="Code runner" tone="info" />
+        <span className="text-sm font-medium">{activity.title}</span>
+      </div>
+      <div className="rounded-xl border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+        <p className="font-medium text-foreground">Code runner activity setup</p>
+        <p className="mt-1 text-xs">In the Content tab, set the following in the text field or external URL:</p>
+        <ul className="mt-2 list-disc pl-4 text-xs space-y-1">
+          <li><code className="rounded bg-muted px-1">instructions</code> — problem description shown to learners</li>
+          <li><code className="rounded bg-muted px-1">starterCode</code> — optional pre-filled code template</li>
+          <li><code className="rounded bg-muted px-1">language</code> — default language (PYTHON, JAVASCRIPT, etc.)</li>
+          <li><code className="rounded bg-muted px-1">assignmentId</code> — link to an assignment to enable graded submission</li>
+        </ul>
+        <p className="mt-2 text-xs">Store these as a JSON object in the activity content field.</p>
       </div>
       {children}
     </section>

@@ -609,6 +609,7 @@ export class CoreLmsService {
         description: dto.description,
         isRequired: dto.isRequired,
         isPublished: dto.isPublished,
+        activityTypeKey: dto.activityTypeKey,
         content: dto.content
           ? (dto.content as Prisma.InputJsonObject)
           : undefined,
