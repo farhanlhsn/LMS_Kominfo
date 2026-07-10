@@ -9,6 +9,7 @@ import { Box3, Vector3 } from "three";
 import { Download, RotateCw, ZoomIn } from "lucide-react";
 import type { ThreeDAssetRecord } from "../../lib/lms-types";
 import { LoadingState } from "../ui/states";
+import { ErrorBoundary } from "../ui/error-boundary";
 
 function ProgressLoader() {
   const { progress } = useProgress();
@@ -101,6 +102,7 @@ export function ThreeDViewer({ asset, loading, error, height = 420, showInfo = t
 
   return (
     <div className="flex flex-col gap-3">
+      <ErrorBoundary fallbackTitle="Could not load 3D model">
       <div style={{ height }} className="group relative overflow-hidden rounded-xl border border-border bg-gradient-to-b from-slate-900 to-slate-800">
         <Canvas camera={{ position: [0, 1.5, 4], fov: 45 }} shadows>
           <ambientLight intensity={0.5} />
@@ -132,6 +134,7 @@ export function ThreeDViewer({ asset, loading, error, height = 420, showInfo = t
           </div>
         )}
       </div>
+      </ErrorBoundary>
 
       {showInfo && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-border bg-card px-3 py-2">

@@ -105,6 +105,8 @@ export default function InstructorContentLibraryPage() {
         const formData = new FormData();
         formData.append("file", file);
         formData.append("purpose", "CONTENT");
+        formData.append("visibility", "PUBLIC");
+        formData.append("accessLevel", "PUBLIC");
         const asset = await api.uploadFile(formData);
         const { url } = await api.signedFileUrl(asset.id);
 
