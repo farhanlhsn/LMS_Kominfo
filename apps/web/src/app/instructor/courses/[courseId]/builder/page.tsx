@@ -598,7 +598,7 @@ function ActivityContentPanel({
   }
 
   return (
-    <PluginActivityEditor activity={activity}>
+    <PluginActivityEditor activity={activity} onSaveContent={(data) => onSaveContent(activity.id, data)}>
       <div className="flex flex-col gap-5">
         {isQuiz ? (
           <AttachSelect label="Attach quiz"

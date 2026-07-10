@@ -166,7 +166,7 @@ export function ThreeDViewer({ asset, loading, error, height = 420, showInfo = t
           <directionalLight position={[5, 8, 5]} intensity={1.2} castShadow />
           <directionalLight position={[-3, -3, -3]} intensity={0.3} />
           <Suspense fallback={<ProgressLoader />}>
-            <Bounds fit clip observe margin={1.2}>
+            <Bounds fit clip observe margin={1.6}>
               {isGltf ? <GltfModel url={asset.url} /> :
                isObj && mtlUrl ? <ObjWithMtlModel url={asset.url} mtlUrl={mtlUrl} /> :
                isObj ? <ObjModel url={asset.url} /> :

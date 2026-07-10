@@ -55,6 +55,7 @@ type RendererProps = {
 type EditorProps = {
   activity: Activity;
   children?: ReactNode;
+  onSaveContent?: (data: Record<string, unknown>) => void;
 };
 
 const coreRenderers: Record<string, ComponentType<RendererProps>> = {
@@ -118,9 +119,9 @@ export function PluginActivityRenderer(props: RendererProps) {
   return <Renderer key={props.response.activity.id} {...props} />;
 }
 
-export function PluginActivityEditor({ activity, children }: EditorProps) {
+export function PluginActivityEditor({ activity, children, onSaveContent }: EditorProps) {
   const Editor = PluginEditorRegistry.get(activity.activityTypeKey);
-  return <Editor activity={activity}>{children}</Editor>;
+  return <Editor activity={activity} onSaveContent={onSaveContent}>{children}</Editor>;
 }
 
 function activityPayload(response: ActivityContentResponse) {
@@ -887,50 +888,94 @@ function CoreActivityEditor({ activity, children }: EditorProps) {
   );
 }
 
-function ThreeDActivityEditor({ activity, children }: EditorProps) {
+function ThreeDActivityEditor({ activity, children, onSaveContent }: EditorProps) {
   const assetsQuery = useThreeDAssets();
   const createAsset = useCreateThreeDAsset();
-  const [form, setForm] = useState({ name: "", format: "GLB" as "GLB" | "GLTF" | "FBX" | "OBJ", url: "", thumbnailUrl: "" });
   const [msg, setMsg] = useState<string | null>(null);
   const [preview, setPreview] = useState<import("../../lib/lms-types").ThreeDAssetRecord | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const uploadRef = React.useRef<HTMLInputElement>(null);
 
   const assets: import("../../lib/lms-types").ThreeDAssetRecord[] = assetsQuery.data ?? [];
 
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setMsg(null);
     try {
-      const asset = await createAsset({ name: form.name, format: form.format, url: form.url, thumbnailUrl: form.thumbnailUrl || undefined });
-      setMsg(`Asset "${asset.name}" created. Save activity content with the asset URL.`);
+      const { api } = await import("../../lib/api-client");
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("purpose", "CONTENT");
+      formData.append("visibility", "PUBLIC");
+      formData.append("accessLevel", "PUBLIC");
+      const uploaded = await api.uploadFile(formData);
+      const { url } = await api.signedFileUrl(uploaded.id, 300);
+      const ext = file.name.split(".").pop()?.toUpperCase() as any;
+      const fmt = ["GLB", "GLTF", "FBX", "OBJ"].includes(ext) ? ext : "GLB";
+      const asset = await createAsset({ name: file.name.replace(/\.[^.]+$/, ""), format: fmt, url, sizeBytes: file.size });
+      await api.createContentLibraryItem({ title: asset.name, type: "THREE_D_MODEL", metadata: { url, originalFilename: file.name, size: file.size } });
       await assetsQuery.reload();
+      setPreview(asset);
+      if (onSaveContent) {
+        onSaveContent({ content: { asset: { id: asset.id, name: asset.name, format: asset.format, url: asset.url, sizeBytes: asset.sizeBytes } } });
+      }
+      setMsg(`Uploaded and selected "${asset.name}".`);
     } catch (err) {
-      setMsg(err instanceof Error ? err.message : "Failed");
+      setMsg(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(false);
+      if (uploadRef.current) uploadRef.current.value = "";
+    }
+  }
+
+  function handleSelect(a: import("../../lib/lms-types").ThreeDAssetRecord) {
+    setPreview(preview?.id === a.id ? null : a);
+    if (onSaveContent && preview?.id !== a.id) {
+      onSaveContent({ content: { asset: { id: a.id, name: a.name, format: a.format, url: a.url, sizeBytes: a.sizeBytes } } });
+      setMsg(`Selected "${a.name}" — saved to activity.`);
     }
   }
 
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex items-center gap-2">
-        <Box aria-hidden="true" className="h-4 w-4 text-primary" />
-        <StatusBadge value="3D viewer" tone="info" />
-        <span className="text-sm font-medium">{activity.title}</span>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Box aria-hidden="true" className="h-4 w-4 text-primary" />
+          <StatusBadge value="3D viewer" tone="info" />
+          <span className="text-sm font-medium">{activity.title}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button type="button" disabled={uploading}
+            onClick={() => uploadRef.current?.click()}
+            className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-50">
+            {uploading ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <Plus className="h-3.5 w-3.5" />}
+            Upload 3D file
+          </button>
+          <input ref={uploadRef} type="file" accept=".glb,.gltf,.fbx,.obj" className="hidden" onChange={handleUpload} />
+        </div>
       </div>
+
+      {msg && <p className="rounded-lg border border-border bg-muted px-3 py-2 text-xs">{msg}</p>}
 
       {/* Asset library */}
       <div className="rounded-xl border border-border bg-card p-4">
-        <h3 className="text-sm font-semibold">Asset library</h3>
+        <h3 className="text-sm font-semibold">Select from library</h3>
         {assets.length === 0 ? (
-          <p className="mt-2 text-xs text-muted-foreground">No 3D assets uploaded yet.</p>
+          <p className="mt-2 text-xs text-muted-foreground">No 3D assets yet. Upload one above.</p>
         ) : (
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             {assets.map((a) => (
-              <button key={a.id} type="button" onClick={() => setPreview(preview?.id === a.id ? null : a)}
-                className={`flex items-start gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-muted/50 ${preview?.id === a.id ? "border-primary bg-primary/5" : "border-border"}`}>
+              <button key={a.id} type="button" onClick={() => handleSelect(a)}
+                className={`flex items-start gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-muted/50 ${preview?.id === a.id ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border"}`}>
                 {a.thumbnailUrl
                   ? <img src={a.thumbnailUrl} alt={a.name} className="h-12 w-12 rounded object-cover" />
                   : <div className="flex h-12 w-12 items-center justify-center rounded bg-muted"><Box className="h-6 w-6 text-muted-foreground" /></div>}
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="truncate text-xs font-medium">{a.name}</p>
                   <p className="text-xs text-muted-foreground">{a.format} · {(a.sizeBytes / 1024 / 1024).toFixed(1)} MB</p>
+                  {preview?.id === a.id && <p className="mt-0.5 text-xs font-semibold text-primary">✓ Selected</p>}
                 </div>
               </button>
             ))}
@@ -941,42 +986,6 @@ function ThreeDActivityEditor({ activity, children }: EditorProps) {
             <ThreeDViewer asset={preview} height={280} />
           </div>
         )}
-      </div>
-
-      {/* Upload / register new asset */}
-      <div className="rounded-xl border border-border bg-card p-4">
-        <h3 className="text-sm font-semibold">Register new 3D asset</h3>
-        <p className="mt-0.5 text-xs text-muted-foreground">Provide a URL to a hosted GLB/GLTF/FBX/OBJ file.</p>
-        {msg && <p className="mt-2 rounded bg-muted px-3 py-1.5 text-xs">{msg}</p>}
-        <form onSubmit={handleCreate} className="mt-3 grid gap-3 sm:grid-cols-2">
-          <label className="text-xs font-medium">
-            Name
-            <input required className="mt-1 h-8 w-full rounded border border-border bg-card px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-              value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
-          </label>
-          <label className="text-xs font-medium">
-            Format
-            <select className="mt-1 h-8 w-full rounded border border-border bg-card px-2 text-xs focus:outline-none"
-              value={form.format} onChange={(e) => setForm((f) => ({ ...f, format: e.target.value as any }))}>
-              {["GLB", "GLTF", "FBX", "OBJ"].map((f) => <option key={f}>{f}</option>)}
-            </select>
-          </label>
-          <label className="text-xs font-medium sm:col-span-2">
-            Asset URL <span className="text-destructive">*</span>
-            <input required type="url" className="mt-1 h-8 w-full rounded border border-border bg-card px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-              value={form.url} onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))} placeholder="https://…/model.glb" />
-          </label>
-          <label className="text-xs font-medium sm:col-span-2">
-            Thumbnail URL (optional)
-            <input type="url" className="mt-1 h-8 w-full rounded border border-border bg-card px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
-              value={form.thumbnailUrl} onChange={(e) => setForm((f) => ({ ...f, thumbnailUrl: e.target.value }))} placeholder="https://…/thumb.jpg" />
-          </label>
-          <div className="sm:col-span-2">
-            <button type="submit" className="rounded-lg bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground">
-              Register asset
-            </button>
-          </div>
-        </form>
       </div>
 
       {children}
