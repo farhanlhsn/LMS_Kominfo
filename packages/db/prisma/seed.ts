@@ -937,11 +937,15 @@ async function seedLmsDemoData(input: {
   ];
 
   for (const courseInput of courses) {
+    const existing = await prisma.course.findMany({
+      where: { organizationId: input.organizationId, slug: courseInput.slug },
+      select: { id: true },
+    });
+    for (const c of existing) {
+      await prisma.learningPathCourse.deleteMany({ where: { courseId: c.id } });
+    }
     await prisma.course.deleteMany({
-      where: {
-        organizationId: input.organizationId,
-        slug: courseInput.slug,
-      },
+      where: { organizationId: input.organizationId, slug: courseInput.slug },
     });
 
     const course = await prisma.course.create({
