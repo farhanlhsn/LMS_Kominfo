@@ -182,10 +182,20 @@ export default function InstructorContentLibraryPage() {
     if (e.dataTransfer.files.length) void handleFiles(e.dataTransfer.files);
   }
 
-  async function deleteItem(id: string) {
+  async function deleteItem(item: ContentLibraryItem) {
     try {
-      await api.deleteContentLibraryItem(id);
-      await libraryQuery.reload();
+      // If 3D model, also delete the ThreeDAsset record
+      if (item.type === "THREE_D_MODEL") {
+        const assetUrl = (item.metadata as any)?.url;
+        const matched = (threeDQuery.data ?? []).find(
+          (a) => a.url === assetUrl || a.name === item.title,
+        );
+        if (matched) {
+          await api.deleteThreeDAsset(matched.id).catch(() => {});
+        }
+      }
+      await api.deleteContentLibraryItem(item.id);
+      await Promise.all([libraryQuery.reload(), threeDQuery.reload()]);
     } catch (err) {
       console.error(err);
     }
@@ -285,7 +295,7 @@ export default function InstructorContentLibraryPage() {
                   <div className="flex flex-1 flex-col gap-1 p-3">
                     <div className="flex items-start justify-between gap-2">
                       <p className="truncate text-sm font-medium">{item.title}</p>
-                      <button type="button" onClick={() => void deleteItem(item.id)}
+                      <button type="button" onClick={() => void deleteItem(item)}
                         className="shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-destructive">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
