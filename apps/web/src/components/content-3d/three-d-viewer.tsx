@@ -6,7 +6,7 @@ import { OrbitControls, Environment, Html, useProgress } from "@react-three/drei
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { MTLLoader } from "three/examples/jsm/loaders/MTLLoader.js";
-import { Box3, Vector3 } from "three";
+import { Box3, Group, Vector3 } from "three";
 import { Download, RotateCw, ZoomIn } from "lucide-react";
 import type { ThreeDAssetRecord } from "../../lib/lms-types";
 import { LoadingState } from "../ui/states";
@@ -44,8 +44,20 @@ function GltfModel({ url }: { url: string }) {
 }
 
 function ObjModel({ url }: { url: string }) {
-  const obj = useLoader(OBJLoader, url);
+  const [obj, setObj] = useState<Group | null>(null);
   const ref = useRef<any>(null);
+
+  useEffect(() => {
+    fetch(url)
+      .then((r) => r.text())
+      .then((text) => {
+        const loader = new OBJLoader();
+        const parsed = loader.parse(text);
+        setObj(parsed);
+      })
+      .catch(console.error);
+  }, [url]);
+
   if (ref.current && obj) {
     const box = new Box3().setFromObject(obj);
     const size = box.getSize(new Vector3());
@@ -57,28 +69,36 @@ function ObjModel({ url }: { url: string }) {
       ref.current.position.copy(center.multiplyScalar(-scale));
     }
   }
+
+  if (!obj) return null;
   return <primitive ref={ref} object={obj} />;
 }
 
 function ObjWithMtlModel({ url, mtlUrl }: { url: string; mtlUrl: string }) {
-  const [materials, setMaterials] = useState<any>(null);
+  const [obj, setObj] = useState<Group | null>(null);
+  const ref = useRef<any>(null);
 
   useEffect(() => {
-    fetch(mtlUrl)
-      .then((r) => r.text())
-      .then((text) => {
-        const loader = new MTLLoader();
-        const mat = loader.parse(text, "");
-        mat.preload();
-        setMaterials(mat);
-      })
-      .catch(console.error);
-  }, [mtlUrl]);
+    Promise.all([
+      fetch(url).then((r) => r.text()),
+      fetch(mtlUrl).then((r) => r.text()),
+    ]).then(([objText, mtlText]) => {
+      const mtlLoader = new MTLLoader();
+      const materials = mtlLoader.parse(mtlText, "");
+      materials.preload();
+      const objLoader = new OBJLoader();
+      objLoader.setMaterials(materials);
+      const parsed = objLoader.parse(objText);
+      setObj(parsed);
+    }).catch(() => {
+      // Fallback: load OBJ without MTL
+      fetch(url).then((r) => r.text()).then((text) => {
+        const parsed = new OBJLoader().parse(text);
+        setObj(parsed);
+      }).catch(console.error);
+    });
+  }, [url, mtlUrl]);
 
-  const obj = useLoader(OBJLoader, url, (loader) => {
-    if (materials) loader.setMaterials(materials);
-  });
-  const ref = useRef<any>(null);
   if (ref.current && obj) {
     const box = new Box3().setFromObject(obj);
     const size = box.getSize(new Vector3());
@@ -90,6 +110,8 @@ function ObjWithMtlModel({ url, mtlUrl }: { url: string; mtlUrl: string }) {
       ref.current.position.copy(center.multiplyScalar(-scale));
     }
   }
+
+  if (!obj) return null;
   return <primitive ref={ref} object={obj} />;
 }
 
