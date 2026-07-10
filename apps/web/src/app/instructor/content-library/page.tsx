@@ -49,7 +49,7 @@ const ACCEPT_MAP: Record<ContentLibraryItem["type"], string> = {
 function detectTypeFromFile(file: File): ContentLibraryItem["type"] {
   const name = file.name.toLowerCase();
   if (name.endsWith(".pdf")) return "PDF";
-  if (name.match(/\.(glb|gltf|fbx|obj)$/)) return "THREE_D_MODEL";
+  if (name.match(/\.(glb|gltf|fbx|obj|mtl)$/)) return "THREE_D_MODEL";
   if (file.type.startsWith("image/")) return "IMAGE";
   if (file.type.startsWith("video/")) return "VIDEO";
   return "FILE";
@@ -220,7 +220,7 @@ export default function InstructorContentLibraryPage() {
             <p className="text-xs text-muted-foreground">Images, videos, PDFs, files, and 3D models (GLB/GLTF/FBX/OBJ)</p>
           </div>
           <input ref={fileInputRef} type="file" multiple className="hidden"
-            accept="image/*,video/*,.pdf,.glb,.gltf,.fbx,.obj,.txt,.md"
+            accept="image/*,video/*,.pdf,.glb,.gltf,.fbx,.obj,.mtl,.txt,.md"
             onChange={(e) => e.target.files && void handleFiles(e.target.files)} />
         </div>
 
