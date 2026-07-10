@@ -321,6 +321,7 @@ function ActivityEditPanel({
   onAttachQuiz: (id: string, quizId: string) => void;
 }) {
   const [tab, setTab] = useState<"settings" | "content">("content");
+  const [selectedType, setSelectedType] = useState(activity.activityTypeKey);
 
   async function submitSettings(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -330,6 +331,7 @@ function ActivityEditPanel({
       description: String(d.get("description") ?? ""),
       isRequired: d.get("isRequired") === "on",
       isPublished: d.get("isPublished") === "on",
+      activityTypeKey: selectedType,
     });
   }
 
@@ -360,15 +362,22 @@ function ActivityEditPanel({
             <input name="description" defaultValue={activity.description ?? ""} className={INPUT} />
           </Field>
           <Field label="Activity type">
-            <div className="flex flex-wrap gap-2">
+            <p className="text-xs text-muted-foreground">Pilih tipe lalu klik Save settings.</p>
+            <div className="flex flex-wrap gap-2 pt-1">
               {(activityTypes.length ? activityTypes.filter((t) => t.implemented !== false) : [
                 { key: "core.text", name: "Text" }, { key: "core.video", name: "Video" },
                 { key: "core.file", name: "File" }, { key: "core.link", name: "Link" },
               ]).map((at) => (
-                <span key={at.key}
-                  className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${at.key === activity.activityTypeKey ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"}`}>
+                <button key={at.key} type="button"
+                  onClick={() => setSelectedType(at.key)}
+                  className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                    at.key === selectedType
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                  }`}>
                   {at.name}
-                </span>
+                  {at.key === activity.activityTypeKey && at.key !== selectedType ? " (current)" : ""}
+                </button>
               ))}
             </div>
           </Field>
