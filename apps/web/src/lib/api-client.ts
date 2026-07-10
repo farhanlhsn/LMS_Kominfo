@@ -1221,12 +1221,12 @@ export const api = {
       body: formData,
       headers: {},
     }),
-  signedFileUrl: (fileId: string) =>
+  signedFileUrl: (fileId: string, expiresInSeconds = 300) =>
     apiRequest<{ url: string; expiresInSeconds: number }>(
       `/files/${encodeURIComponent(fileId)}/signed-url`,
       {
         method: "POST",
-        body: JSON.stringify({ expiresInSeconds: 300 }),
+        body: JSON.stringify({ expiresInSeconds }),
       },
     ),
   contentLibrary: () => apiRequest<ContentLibraryItem[]>("/content-library"),

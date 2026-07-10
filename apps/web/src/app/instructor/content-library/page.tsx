@@ -99,23 +99,54 @@ export default function InstructorContentLibraryPage() {
     setUploadMsg(null);
     let success = 0;
     let fail = 0;
+
+    // First pass: upload all files and collect URLs
+    const uploaded: Array<{ file: File; url: string; assetId: string }> = [];
     for (const file of fileArr) {
       try {
         const type = detectTypeFromFile(file);
+        // Media assets (3D, image, video) → PUBLIC for permanent URL
+        // Documents (PDF, file, text) → PRIVATE with long signed URL
+        const isMedia = ["THREE_D_MODEL", "IMAGE", "VIDEO"].includes(type);
         const formData = new FormData();
         formData.append("file", file);
         formData.append("purpose", "CONTENT");
-        formData.append("visibility", "PUBLIC");
-        formData.append("accessLevel", "PUBLIC");
+        formData.append("visibility", isMedia ? "PUBLIC" : "ORGANIZATION");
+        formData.append("accessLevel", isMedia ? "PUBLIC" : "ORGANIZATION_MEMBERS");
         const asset = await api.uploadFile(formData);
-        const { url } = await api.signedFileUrl(asset.id);
+        // PUBLIC files get permanent URL, private files get 7-day signed URL
+        const { url } = await api.signedFileUrl(asset.id, isMedia ? 300 : 604800);
+        uploaded.push({ file, url, assetId: asset.id });
+      } catch (err) {
+        fail++;
+        console.error(err);
+      }
+    }
+
+    // Build a map: basename → mtlUrl for pairing OBJ+MTL
+    const mtlMap = new Map<string, string>();
+    for (const { file, url } of uploaded) {
+      if (file.name.toLowerCase().endsWith(".mtl")) {
+        const base = file.name.replace(/\.mtl$/i, "").toLowerCase();
+        mtlMap.set(base, url);
+      }
+    }
+
+    // Second pass: create library items
+    for (const { file, url, assetId } of uploaded) {
+      try {
+        const type = detectTypeFromFile(file);
+        const baseName = file.name.replace(/\.[^.]+$/, "");
+        const mtlUrl = file.name.toLowerCase().endsWith(".obj")
+          ? (mtlMap.get(baseName.toLowerCase()) ?? null)
+          : null;
 
         // For 3D models, also register in ThreeDAsset library
         if (type === "THREE_D_MODEL") {
           const ext = file.name.split(".").pop()?.toUpperCase() as any;
           const fmt = ["GLB", "GLTF", "FBX", "OBJ"].includes(ext) ? ext : "GLB";
           await api.createThreeDAsset({
-            name: file.name.replace(/\.[^.]+$/, ""),
+            name: baseName,
             format: fmt,
             url,
             sizeBytes: file.size,
@@ -123,10 +154,10 @@ export default function InstructorContentLibraryPage() {
         }
 
         await api.createContentLibraryItem({
-          title: file.name.replace(/\.[^.]+$/, ""),
+          title: baseName,
           type,
-          fileId: asset.id,
-          metadata: { url, originalFilename: file.name, size: file.size },
+          fileId: assetId,
+          metadata: { url, originalFilename: file.name, size: file.size, ...(mtlUrl ? { mtlUrl } : {}) },
         });
         success++;
       } catch (err) {
@@ -241,7 +272,8 @@ export default function InstructorContentLibraryPage() {
                       className="h-36 w-full object-cover" onError={(e) => (e.currentTarget.style.display = "none")} />
                   ) : is3D && asset3D ? (
                     <div className="h-36 cursor-pointer" onClick={() => setPreview3D(preview3D?.id === asset3D.id ? null : asset3D)}>
-                      <ThreeDViewer asset={asset3D} height={144} showInfo={false} autoRotate />
+                      <ThreeDViewer asset={asset3D} height={144} showInfo={false} autoRotate
+                        mtlUrl={(item.metadata as any)?.mtlUrl ?? null} />
                     </div>
                   ) : (
                     <div className="flex h-36 items-center justify-center bg-muted/30">
