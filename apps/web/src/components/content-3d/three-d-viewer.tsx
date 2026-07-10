@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { Canvas, useFrame, useLoader } from "@react-three/fiber";
-import { OrbitControls, Environment, Html, useProgress } from "@react-three/drei";
+import { OrbitControls, Environment, Html, useProgress, Bounds } from "@react-three/drei";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { MTLLoader } from "three/examples/jsm/loaders/MTLLoader.js";
@@ -166,10 +166,12 @@ export function ThreeDViewer({ asset, loading, error, height = 420, showInfo = t
           <directionalLight position={[5, 8, 5]} intensity={1.2} castShadow />
           <directionalLight position={[-3, -3, -3]} intensity={0.3} />
           <Suspense fallback={<ProgressLoader />}>
-            {isGltf ? <GltfModel url={asset.url} /> :
-             isObj && mtlUrl ? <ObjWithMtlModel url={asset.url} mtlUrl={mtlUrl} /> :
-             isObj ? <ObjModel url={asset.url} /> :
-             <WireframeBox />}
+            <Bounds fit clip observe margin={1.2}>
+              {isGltf ? <GltfModel url={asset.url} /> :
+               isObj && mtlUrl ? <ObjWithMtlModel url={asset.url} mtlUrl={mtlUrl} /> :
+               isObj ? <ObjModel url={asset.url} /> :
+               <WireframeBox />}
+            </Bounds>
             <Environment preset="studio" />
           </Suspense>
           <OrbitControls autoRotate={spinning} autoRotateSpeed={1.5} enablePan enableZoom enableRotate minDistance={1} maxDistance={10} />
