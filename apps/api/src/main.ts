@@ -10,6 +10,7 @@ import "reflect-metadata";
 import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { API_VERSION_PREFIX, DEFAULT_PORTS } from "@lms/config";
+import { IoAdapter } from "@nestjs/platform-socket.io";
 import { AppModule } from "./app.module";
 import { HttpExceptionFilter } from "./common/filters/http-exception.filter";
 import { ResponseInterceptor } from "./common/interceptors/response.interceptor";
@@ -45,6 +46,7 @@ async function bootstrap() {
     ].filter((value): value is string => Boolean(value)),
   );
 
+  app.useWebSocketAdapter(new IoAdapter(app));
   app.setGlobalPrefix(API_VERSION_PREFIX);
   app.enableCors({
     origin: (

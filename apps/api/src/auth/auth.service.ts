@@ -5,15 +5,17 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
   UnauthorizedException
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import bcrypt from "bcryptjs";
-import { randomUUID } from "node:crypto";
+import { randomUUID, randomBytes } from "node:crypto";
 import { Prisma } from "@lms/db";
 import { PERMISSIONS, SYSTEM_ROLES } from "@lms/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { RbacService } from "../rbac/rbac.service";
+import { EmailService } from "../email/email.service";
 import type {
   AccessTokenPayload,
   RefreshTokenPayload
@@ -57,7 +59,8 @@ export class AuthService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(JwtService) private readonly jwtService: JwtService,
-    @Inject(RbacService) private readonly rbacService: RbacService
+    @Inject(RbacService) private readonly rbacService: RbacService,
+    @Optional() @Inject(EmailService) private readonly emailService?: EmailService,
   ) {}
 
   async register(
@@ -468,6 +471,46 @@ export class AuthService {
         expiresIn: this.accessTtlSeconds()
       }
     };
+  }
+
+  async forgotPassword(email: string): Promise<{ sent: boolean }> {
+    const user = await this.prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
+    // Always return success to avoid email enumeration
+    if (!user || user.status !== "ACTIVE") return { sent: true };
+
+    // Invalidate old tokens
+    await this.prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
+
+    const token = randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    await this.prisma.passwordResetToken.create({ data: { userId: user.id, token, expiresAt } });
+
+    const appUrl = process.env.PUBLIC_APP_URL ?? "http://localhost:3000";
+    const resetUrl = `${appUrl}/reset-password?token=${token}`;
+    await this.emailService?.sendPasswordReset(user.email, user.name, resetUrl);
+
+    await this.audit({ action: "auth.forgot_password", userId: user.id, metadata: { email } });
+    return { sent: true };
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<{ reset: boolean }> {
+    const record = await this.prisma.passwordResetToken.findUnique({ where: { token } });
+    if (!record || record.usedAt || record.expiresAt < new Date()) {
+      throw new BadRequestException("Invalid or expired reset token");
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await this.prisma.user.update({ where: { id: record.userId }, data: { passwordHash } });
+    await this.prisma.passwordResetToken.update({ where: { id: record.id }, data: { usedAt: new Date() } });
+
+    // Revoke all active sessions
+    await this.prisma.userSession.updateMany({
+      where: { userId: record.userId, revokedAt: null },
+      data: { revokedAt: new Date(), revokedReason: "password_reset" },
+    });
+
+    await this.audit({ action: "auth.password_reset", userId: record.userId });
+    return { reset: true };
   }
 
   async logout(

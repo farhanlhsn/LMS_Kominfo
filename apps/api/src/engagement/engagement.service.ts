@@ -58,10 +58,19 @@ export class EngagementService {
   async createThread(org: OrganizationContext, userId: string, dto: CreateThreadDto) {
     await this.ensureCourseAccess(org, userId, dto.courseId);
     await this.validateContext(org.id, dto.courseId, dto.lessonId, dto.activityId);
-    return this.prisma.discussionThread.create({
+    const thread = await this.prisma.discussionThread.create({
       data: { organizationId: org.id, authorId: userId, courseId: dto.courseId, lessonId: dto.lessonId, activityId: dto.activityId, title: dto.title.trim(), body: dto.body.trim() },
       include: { author: { select: { id: true, name: true } }, _count: { select: { replies: true } } },
     });
+    const mentionIds = (dto.mentionedUserIds ?? []).filter((id) => id !== userId);
+    if (mentionIds.length) {
+      await Promise.all(mentionIds.map((recipientId) => this.notifications.createForUser({
+        organizationId: org.id, userId: recipientId, type: "discussion_mention", title: `${thread.author.name ?? "Someone"} mentioned you`,
+        body: `You were mentioned in "${thread.title}".`, actionUrl: `/learn/courses/${dto.courseId}/discussions/${thread.id}`,
+        entityType: "discussion_thread", entityId: thread.id, metadata: { courseId: dto.courseId, threadId: thread.id },
+      })));
+    }
+    return thread;
   }
 
   async getThread(org: OrganizationContext, userId: string, id: string) {
@@ -112,11 +121,20 @@ export class EngagementService {
     const participants = await this.prisma.discussionReply.findMany({ where: { organizationId: org.id, threadId, deletedAt: null }, select: { authorId: true } });
     participants.forEach(({ authorId }) => participantIds.add(authorId));
     participantIds.delete(userId);
-    await Promise.all([...participantIds].map((recipientId) => this.notifications.createForUser({
-      organizationId: org.id, userId: recipientId, type: "discussion_reply", title: `New reply: ${thread.title}`,
-      body: "A discussion you participate in has a new reply.", actionUrl: `/learn/courses/${thread.courseId}/discussions/${threadId}`,
-      entityType: "discussion_reply", entityId: reply.id, metadata: { courseId: thread.courseId, threadId },
-    })));
+    // mention notifications (before removing poster from participant set so mentions always fire)
+    const mentionIds = (dto.mentionedUserIds ?? []).filter((id) => id !== userId);
+    await Promise.all([
+      ...[...participantIds].map((recipientId) => this.notifications.createForUser({
+        organizationId: org.id, userId: recipientId, type: "discussion_reply", title: `New reply: ${thread.title}`,
+        body: "A discussion you participate in has a new reply.", actionUrl: `/learn/courses/${thread.courseId}/discussions/${threadId}`,
+        entityType: "discussion_reply", entityId: reply.id, metadata: { courseId: thread.courseId, threadId },
+      })),
+      ...mentionIds.map((recipientId) => this.notifications.createForUser({
+        organizationId: org.id, userId: recipientId, type: "discussion_mention", title: `${reply.author.name ?? "Someone"} mentioned you`,
+        body: `You were mentioned in a reply on "${thread.title}".`, actionUrl: `/learn/courses/${thread.courseId}/discussions/${threadId}`,
+        entityType: "discussion_reply", entityId: reply.id, metadata: { courseId: thread.courseId, threadId },
+      })),
+    ]);
     return reply;
   }
 

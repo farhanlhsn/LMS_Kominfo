@@ -1,13 +1,16 @@
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import { Prisma } from "@lms/db";
 import { PrismaService } from "../prisma/prisma.service";
 import type { OrganizationContext } from "../auth/types/authenticated-request";
 import { FileAccessPolicyService } from "../files/file-access-policy.service";
 import { ContentProcessingService } from "../content-processing/content-processing.service";
+import { RedisService } from "../redis/redis.service";
 import type {
   CreateContentLibraryItemDto,
   UpdateContentLibraryItemDto,
 } from "./dto/content-library.dto";
+
+const LIBRARY_TTL = 60;
 
 @Injectable()
 export class ContentLibraryService {
@@ -17,12 +20,28 @@ export class ContentLibraryService {
     private readonly fileAccessPolicy: FileAccessPolicyService,
     @Inject(ContentProcessingService)
     private readonly contentProcessing: ContentProcessingService,
+    @Optional() @Inject(RedisService) private readonly redis?: RedisService,
   ) {}
+
+  private libraryKey(orgId: string) {
+    return `content-library:${orgId}`;
+  }
 
   async list(
     organizationId: string,
     query: { search?: string; type?: string },
   ) {
+    if (!query.search && !query.type && this.redis) {
+      const cached = await this.redis.get<unknown[]>(this.libraryKey(organizationId));
+      if (cached !== null && cached.length > 0) return cached;
+      const result = await this.prisma.contentLibraryItem.findMany({
+        where: { organizationId, deletedAt: null },
+        include: { file: true },
+        orderBy: { createdAt: "desc" },
+      });
+      if (result.length > 0) await this.redis.set(this.libraryKey(organizationId), result, LIBRARY_TTL);
+      return result;
+    }
     return this.prisma.contentLibraryItem.findMany({
       where: {
         organizationId,
@@ -77,6 +96,7 @@ export class ContentLibraryService {
         itemId: item.id,
       });
     }
+    await this.redis?.del(this.libraryKey(organization.id));
     return item;
   }
 
@@ -113,14 +133,17 @@ export class ContentLibraryService {
       organizationId,
       itemId,
     });
+    await this.redis?.del(this.libraryKey(organizationId));
     return item;
   }
 
   async delete(organizationId: string, itemId: string) {
     await this.get(organizationId, itemId);
-    return this.prisma.contentLibraryItem.update({
+    const result = await this.prisma.contentLibraryItem.update({
       where: { id: itemId },
       data: { deletedAt: new Date() },
     });
+    await this.redis?.del(this.libraryKey(organizationId));
+    return result;
   }
 }

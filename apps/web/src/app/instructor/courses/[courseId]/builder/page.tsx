@@ -700,7 +700,7 @@ export default function BuilderPage() {
   async function run(action: () => Promise<unknown>, success: string) {
     try {
       await action();
-      await courseQuery.reload();
+      await courseQuery.refresh();
       showToast(success);
     } catch (err) {
       showToast(err instanceof Error ? err.message : String(err), false);

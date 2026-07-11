@@ -8,6 +8,8 @@ import {
 import { Prisma } from "@lms/db";
 import { PrismaService } from "../prisma/prisma.service";
 import { CertificatesService } from "../certificates/certificates.service";
+import { RedisService } from "../redis/redis.service";
+import { NotificationService } from "../engagement/notification.service";
 import type { OrganizationContext } from "../auth/types/authenticated-request";
 import type {
   CreateActivityDto,
@@ -22,12 +24,30 @@ import type {
   UpdateModuleDto,
 } from "./dto/course.dto";
 
+const COURSE_TTL = 30;
+const COURSES_LIST_TTL = 30;
+
 @Injectable()
 export class CoreLmsService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Optional() @Inject(CertificatesService) private readonly certificates?: CertificatesService,
+    @Optional() @Inject(RedisService) private readonly redis?: RedisService,
+    @Optional() @Inject(NotificationService) private readonly notifications?: NotificationService,
   ) {}
+
+  private courseKey(courseId: string) {
+    return `instructor:course:${courseId}`;
+  }
+
+  private coursesListKey(orgId: string, userId: string) {
+    return `instructor:courses:${orgId}:${userId}`;
+  }
+
+  private async invalidateCourse(courseId: string, orgId?: string, userId?: string) {
+    await this.redis?.del(this.courseKey(courseId));
+    if (orgId && userId) await this.redis?.del(this.coursesListKey(orgId, userId));
+  }
 
   async listCategories(organizationId: string): Promise<unknown> {
     return this.prisma.courseCategory.findMany({
@@ -170,34 +190,24 @@ export class CoreLmsService {
     userId: string,
     isPlatformAdmin: boolean,
   ): Promise<unknown> {
-    return this.prisma.course.findMany({
+    const key = isPlatformAdmin
+      ? `instructor:courses:${organizationId}:admin`
+      : this.coursesListKey(organizationId, userId);
+    const fetcher = () => this.prisma.course.findMany({
       where: {
         organizationId,
         deletedAt: null,
-        ...(isPlatformAdmin
-          ? {}
-          : {
-              instructors: {
-                some: { userId },
-              },
-            }),
+        ...(isPlatformAdmin ? {} : { instructors: { some: { userId } } }),
       },
       include: {
         category: true,
-        instructors: {
-          include: { user: true },
-        },
-        _count: {
-          select: {
-            modules: true,
-            lessons: true,
-            activities: true,
-            enrollments: true,
-          },
-        },
+        instructors: { include: { user: true } },
+        _count: { select: { modules: true, lessons: true, activities: true, enrollments: true } },
       },
       orderBy: { updatedAt: "desc" },
     });
+    if (this.redis) return this.redis.getOrSet(key, fetcher, COURSES_LIST_TTL);
+    return fetcher();
   }
 
   async getInstructorCourse(
@@ -206,19 +216,11 @@ export class CoreLmsService {
     courseId: string,
   ): Promise<unknown> {
     await this.ensureCanManageCourse(organization, userId, courseId);
-    return this.prisma.course.findFirstOrThrow({
-      where: {
-        id: courseId,
-        organizationId: organization.id,
-        deletedAt: null,
-      },
+    const fetcher = () => this.prisma.course.findFirstOrThrow({
+      where: { id: courseId, organizationId: organization.id, deletedAt: null },
       include: {
         category: true,
-        instructors: {
-          include: {
-            user: true,
-          },
-        },
+        instructors: { include: { user: true } },
         modules: {
           orderBy: { orderIndex: "asc" },
           include: {
@@ -233,15 +235,11 @@ export class CoreLmsService {
             },
           },
         },
-        _count: {
-          select: {
-            enrollments: true,
-            lessons: true,
-            activities: true,
-          },
-        },
+        _count: { select: { enrollments: true, lessons: true, activities: true } },
       },
     });
+    if (this.redis) return this.redis.getOrSet(this.courseKey(courseId), fetcher, COURSE_TTL);
+    return fetcher();
   }
 
   async updateCourse(
@@ -251,7 +249,7 @@ export class CoreLmsService {
     dto: UpdateCourseDto,
   ): Promise<unknown> {
     await this.ensureCanManageCourse(organization, userId, courseId);
-    return this.prisma.course.update({
+    const result = await this.prisma.course.update({
       where: { id: courseId },
       data: {
         title: dto.title,
@@ -264,6 +262,8 @@ export class CoreLmsService {
         autoCertificateTemplateId: dto.autoCertificateTemplateId,
       },
     });
+    await this.invalidateCourse(courseId, organization.id, userId);
+    return result;
   }
 
   async deleteCourse(
@@ -277,6 +277,7 @@ export class CoreLmsService {
       data: { deletedAt: new Date() },
     });
     await this.audit(organization.id, userId, "course.deleted", courseId);
+    await this.invalidateCourse(courseId, organization.id, userId);
     return course;
   }
 
@@ -288,13 +289,23 @@ export class CoreLmsService {
     await this.ensureCanManageCourse(organization, userId, courseId);
     const course = await this.prisma.course.update({
       where: { id: courseId },
-      data: {
-        status: "PUBLISHED",
-        publishedAt: new Date(),
-        archivedAt: null,
-      },
+      data: { status: "PUBLISHED", publishedAt: new Date(), archivedAt: null },
     });
     await this.audit(organization.id, userId, "course.published", courseId);
+    await this.invalidateCourse(courseId, organization.id, userId);
+    await this.notifications?.createForCourseParticipants(
+      {
+        organizationId: organization.id,
+        type: "course_published",
+        title: `${course.title} is now available`,
+        body: "A course you're enrolled in has been published.",
+        actionUrl: `/learn/courses/${courseId}`,
+        entityType: "course",
+        entityId: courseId,
+        metadata: { courseId },
+      },
+      userId,
+    );
     return course;
   }
 
@@ -312,6 +323,7 @@ export class CoreLmsService {
       },
     });
     await this.audit(organization.id, userId, "course.archived", courseId);
+    await this.invalidateCourse(courseId, organization.id, userId);
     return course;
   }
 
@@ -435,7 +447,7 @@ export class CoreLmsService {
     const orderIndex = await this.prisma.courseModule.count({
       where: { organizationId: organization.id, courseId },
     });
-    return this.prisma.courseModule.create({
+    const result = await this.prisma.courseModule.create({
       data: {
         organizationId: organization.id,
         courseId,
@@ -444,6 +456,8 @@ export class CoreLmsService {
         orderIndex,
       },
     });
+    await this.invalidateCourse(courseId);
+    return result;
   }
 
   async updateModule(
@@ -454,10 +468,9 @@ export class CoreLmsService {
   ): Promise<unknown> {
     const module = await this.getModuleOrThrow(organization.id, moduleId);
     await this.ensureCanManageCourse(organization, userId, module.courseId);
-    return this.prisma.courseModule.update({
-      where: { id: moduleId },
-      data: dto,
-    });
+    const result = await this.prisma.courseModule.update({ where: { id: moduleId }, data: dto });
+    await this.invalidateCourse(module.courseId);
+    return result;
   }
 
   async deleteModule(
@@ -467,7 +480,9 @@ export class CoreLmsService {
   ): Promise<unknown> {
     const module = await this.getModuleOrThrow(organization.id, moduleId);
     await this.ensureCanManageCourse(organization, userId, module.courseId);
-    return this.prisma.courseModule.delete({ where: { id: moduleId } });
+    const result = await this.prisma.courseModule.delete({ where: { id: moduleId } });
+    await this.invalidateCourse(module.courseId);
+    return result;
   }
 
   async reorderModules(
@@ -485,6 +500,7 @@ export class CoreLmsService {
         }),
       ),
     );
+    await this.invalidateCourse(courseId);
     return this.getCourseCurriculum(organization.id, courseId);
   }
 
@@ -499,21 +515,20 @@ export class CoreLmsService {
     const orderIndex = await this.prisma.lesson.count({
       where: { organizationId: organization.id, moduleId },
     });
-    return this.prisma.lesson.create({
+    const result = await this.prisma.lesson.create({
       data: {
         organizationId: organization.id,
         courseId: module.courseId,
         moduleId,
         title: dto.title,
-        slug: await this.uniqueLessonSlug(
-          module.courseId,
-          dto.slug ?? dto.title,
-        ),
+        slug: await this.uniqueLessonSlug(module.courseId, dto.slug ?? dto.title),
         summary: dto.summary,
         orderIndex,
         estimatedMinutes: dto.estimatedMinutes ?? 0,
       },
     });
+    await this.invalidateCourse(module.courseId);
+    return result;
   }
 
   async updateLesson(
@@ -524,10 +539,9 @@ export class CoreLmsService {
   ): Promise<unknown> {
     const lesson = await this.getLessonOrThrow(organization.id, lessonId);
     await this.ensureCanManageCourse(organization, userId, lesson.courseId);
-    return this.prisma.lesson.update({
-      where: { id: lessonId },
-      data: dto,
-    });
+    const result = await this.prisma.lesson.update({ where: { id: lessonId }, data: dto });
+    await this.invalidateCourse(lesson.courseId);
+    return result;
   }
 
   async deleteLesson(
@@ -537,7 +551,9 @@ export class CoreLmsService {
   ): Promise<unknown> {
     const lesson = await this.getLessonOrThrow(organization.id, lessonId);
     await this.ensureCanManageCourse(organization, userId, lesson.courseId);
-    return this.prisma.lesson.delete({ where: { id: lessonId } });
+    const result = await this.prisma.lesson.delete({ where: { id: lessonId } });
+    await this.invalidateCourse(lesson.courseId);
+    return result;
   }
 
   async reorderLessons(
@@ -556,6 +572,7 @@ export class CoreLmsService {
         }),
       ),
     );
+    await this.invalidateCourse(module.courseId);
     return this.getCourseCurriculum(organization.id, module.courseId);
   }
 
@@ -570,7 +587,7 @@ export class CoreLmsService {
     const orderIndex = await this.prisma.activity.count({
       where: { organizationId: organization.id, lessonId },
     });
-    return this.prisma.activity.create({
+    const result = await this.prisma.activity.create({
       data: {
         organizationId: organization.id,
         courseId: lesson.courseId,
@@ -592,6 +609,8 @@ export class CoreLmsService {
         },
       },
     });
+    await this.invalidateCourse(lesson.courseId);
+    return result;
   }
 
   async updateActivity(
@@ -602,7 +621,7 @@ export class CoreLmsService {
   ): Promise<unknown> {
     const activity = await this.getActivityOrThrow(organization.id, activityId);
     await this.ensureCanManageCourse(organization, userId, activity.courseId);
-    return this.prisma.activity.update({
+    const result = await this.prisma.activity.update({
       where: { id: activityId },
       data: {
         title: dto.title,
@@ -610,9 +629,7 @@ export class CoreLmsService {
         isRequired: dto.isRequired,
         isPublished: dto.isPublished,
         activityTypeKey: dto.activityTypeKey,
-        content: dto.content
-          ? (dto.content as Prisma.InputJsonObject)
-          : undefined,
+        content: dto.content ? (dto.content as Prisma.InputJsonObject) : undefined,
         activityContent: dto.content
           ? {
               upsert: {
@@ -627,6 +644,8 @@ export class CoreLmsService {
           : undefined,
       },
     });
+    await this.invalidateCourse(activity.courseId);
+    return result;
   }
 
   async deleteActivity(
@@ -636,7 +655,9 @@ export class CoreLmsService {
   ): Promise<unknown> {
     const activity = await this.getActivityOrThrow(organization.id, activityId);
     await this.ensureCanManageCourse(organization, userId, activity.courseId);
-    return this.prisma.activity.delete({ where: { id: activityId } });
+    const result = await this.prisma.activity.delete({ where: { id: activityId } });
+    await this.invalidateCourse(activity.courseId);
+    return result;
   }
 
   async reorderActivities(
@@ -655,6 +676,7 @@ export class CoreLmsService {
         }),
       ),
     );
+    await this.invalidateCourse(lesson.courseId);
     return this.getCourseCurriculum(organization.id, lesson.courseId);
   }
 

@@ -59,6 +59,20 @@ export class CreateOrganizationRoleDto {
   permissionKeys?: string[];
 }
 
+export class InviteOrganizationMemberDto {
+  @IsEmail()
+  email!: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  roleKeys?: string[];
+
+  @IsOptional()
+  @IsString()
+  message?: string;
+}
+
 export class UpdateOrganizationRoleDto {
   @IsOptional()
   @IsString()

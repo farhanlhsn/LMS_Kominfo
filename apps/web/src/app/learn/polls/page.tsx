@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { CircleDot } from "lucide-react";
+import { AppShell } from "../../../components/layout/shells";
 import { PageHeader, ButtonLink, FilterBar, StatusBadge } from "../../../components/ui/core";
 import { EmptyState } from "../../../components/ui/states";
 import { PollResultsView } from "../../../components/experiences/experiences-views";
@@ -21,8 +22,9 @@ export default function LearnerPollsPage() {
   }>;
 
   return (
-    <div>
-      <PageHeader
+    <AppShell>
+      <div>
+        <PageHeader
         eyebrow="Learner"
         title="Live polls"
         description="Cast your vote on instructor-led polls."
@@ -49,7 +51,8 @@ export default function LearnerPollsPage() {
           ← Back to learning
         </ButtonLink>
       </div>
-    </div>
+      </div>
+    </AppShell>
   );
 }
 

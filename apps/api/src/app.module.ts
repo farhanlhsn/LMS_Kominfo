@@ -43,6 +43,8 @@ import { PluginMarketplaceModule } from "./plugin-marketplace/plugin-marketplace
 import { PopoutModule } from "./popout/popout.module";
 import { PluginPanelsModule } from "./plugin-panels/plugin-panels.module";
 import { RealtimeModule } from "./realtime/realtime.module";
+import { RedisModule } from "./redis/redis.module";
+import { EmailModule } from "./email/email.module";
 import { BulkOperationModule } from "./bulk/bulk.module";
 import { MessagingModule } from "./messaging/messaging.module";
 import { GovernanceModule } from "./governance/governance.module";
@@ -61,6 +63,8 @@ import { TaxModule } from "./tax/tax.module";
       validate: validateEnvironment,
     }),
     PrismaModule,
+    RedisModule,
+    EmailModule,
     RbacModule,
     AiModule,
     AuthModule,

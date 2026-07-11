@@ -474,6 +474,16 @@ export const api = {
       clearSession();
     }
   },
+  forgotPassword: (email: string) =>
+    apiRequest<{ sent: boolean }>("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+  resetPassword: (token: string, password: string) =>
+    apiRequest<{ reset: boolean }>("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ token, password }),
+    }),
   refresh: () => ensureRefreshedSession(),
   me: () =>
     apiRequest<{
@@ -497,6 +507,13 @@ export const api = {
     const organizationId = activeOrganizationId();
     return apiRequest<OrganizationMemberRecord>(
       `/organizations/${encodeURIComponent(organizationId)}/members`,
+      { method: "POST", body: JSON.stringify(input) },
+    );
+  },
+  inviteOrganizationMember: (input: { email: string; roleKeys?: string[]; message?: string }) => {
+    const organizationId = activeOrganizationId();
+    return apiRequest<OrganizationMemberRecord>(
+      `/organizations/${encodeURIComponent(organizationId)}/members/invite`,
       { method: "POST", body: JSON.stringify(input) },
     );
   },

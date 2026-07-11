@@ -22,6 +22,7 @@ import type {
 import {
   CreateOrganizationMemberDto,
   CreateOrganizationRoleDto,
+  InviteOrganizationMemberDto,
   UpdateOrganizationMemberRolesDto,
   UpdateOrganizationMemberStatusDto,
   UpdateOrganizationRoleDto,
@@ -55,6 +56,18 @@ export class OrganizationsController {
     @Body() dto: CreateOrganizationMemberDto
   ): Promise<unknown> {
     return this.organizationsService.createMember(organization.id, user.id, dto);
+  }
+
+  @Post(":organizationId/members/invite")
+  @UseGuards(JwtAuthGuard, OrganizationContextGuard, PermissionsGuard)
+  @Permissions(PERMISSIONS.membershipsManage)
+  inviteMember(
+    @Param("organizationId") _organizationId: string,
+    @ActiveOrganization() organization: OrganizationContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: InviteOrganizationMemberDto
+  ): Promise<unknown> {
+    return this.organizationsService.inviteMember(organization.id, user.id, dto);
   }
 
   @Patch(":organizationId/members/:memberId/roles")

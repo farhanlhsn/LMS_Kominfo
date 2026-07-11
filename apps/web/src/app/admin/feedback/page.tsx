@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AppShell } from "../../../components/layout/shells";
 import { PageHeader, ButtonLink, FilterBar, StatusBadge } from "../../../components/ui/core";
 import { CourseFeedbackSummary } from "../../../components/experiences/experiences-views";
 import { useCourses, useCourseFeedback } from "../../../lib/api-hooks";
@@ -16,7 +17,7 @@ export default function AdminFeedbackPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const courseList = (courses.data ?? []) as Array<{ id: string; title: string; slug: string }>;
+  const courseList = (Array.isArray(courses.data) ? courses.data : (courses.data as any)?.data ?? []) as Array<{ id: string; title: string; slug: string }>;
   const active = courseList.find((c) => c.id === selectedCourseId);
 
   const handleSimulate = async () => {
@@ -35,8 +36,9 @@ export default function AdminFeedbackPage() {
   };
 
   return (
-    <div>
-      <PageHeader
+    <AppShell>
+      <div>
+        <PageHeader
         eyebrow="Admin"
         title="Course feedback"
         description="Aggregated ratings and qualitative comments from learners."
@@ -114,6 +116,7 @@ export default function AdminFeedbackPage() {
           ← Back to admin
         </ButtonLink>
       </div>
-    </div>
+      </div>
+    </AppShell>
   );
 }

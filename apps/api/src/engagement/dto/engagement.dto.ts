@@ -25,6 +25,7 @@ export class CreateThreadDto {
   @IsOptional() @IsString() activityId?: string;
   @IsString() @MinLength(3) @MaxLength(160) title!: string;
   @IsString() @MinLength(1) @MaxLength(20_000) body!: string;
+  @IsOptional() @IsArray() @IsString({ each: true }) mentionedUserIds?: string[];
 }
 
 export class UpdateDiscussionDto {
@@ -35,6 +36,7 @@ export class UpdateDiscussionDto {
 export class CreateReplyDto {
   @IsOptional() @IsString() parentReplyId?: string;
   @IsString() @MinLength(1) @MaxLength(20_000) body!: string;
+  @IsOptional() @IsArray() @IsString({ each: true }) mentionedUserIds?: string[];
 }
 
 export class ModerateThreadDto {

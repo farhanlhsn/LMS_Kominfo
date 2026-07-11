@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AppShell } from "../../../components/layout/shells";
 import {
   useCreateHelpArticle,
   useCreateHelpCategory,
@@ -31,7 +32,7 @@ export default function AdminHelpPage() {
   const [newCategory, setNewCategory] = useState({ key: "", title: "" });
   const [status, setStatus] = useState<string | null>(null);
 
-  const selected = useHelpArticles({ limit: 100 });
+  const selected = useHelpArticles({});
 
   const handleCreate = async () => {
     if (!newArticle.categoryId || !newArticle.slug || !newArticle.title || !newArticle.body) {
@@ -92,7 +93,8 @@ export default function AdminHelpPage() {
   };
 
   return (
-    <main className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8">
+    <AppShell>
+      <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold">Help Center</h1>
         <p className="text-sm text-muted-foreground">
@@ -232,6 +234,7 @@ export default function AdminHelpPage() {
           </p>
         )}
       </section>
-    </main>
+    </div>
+    </AppShell>
   );
 }

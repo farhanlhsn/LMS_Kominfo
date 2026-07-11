@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Award,
   BookOpen,
@@ -21,8 +21,6 @@ import {
   LogOut,
   Menu,
   Receipt,
-  RefreshCw,
-  Search,
   Settings,
   ShieldCheck,
   Plug,
@@ -38,11 +36,11 @@ import {
   Globe,
   Heart,
   HelpCircle,
-  History,
   LayoutGrid,
   Users,
+  Search,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { resolveOrganizationTheme } from "../../lib/theme";
 import type { OrganizationBranding } from "../../lib/theme";
@@ -54,86 +52,70 @@ import {
 } from "../../lib/api-hooks";
 import { visibleNavigationKeys } from "../../lib/authz";
 import { cn } from "../../lib/utils";
+import { SearchBar } from "../search/SearchBar";
 import { IconButton } from "../ui/core";
 import { NotificationBadge } from "../engagement/engagement";
 
-const dashboardNav = [
-  { key: "dashboard", href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { key: "catalog", href: "/courses", label: "Catalog", icon: BookOpen },
-  { key: "catalog", href: "/search", label: "Search", icon: Search },
+type NavItem = { key: string; href: string; label: string; icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }> };
+type NavGroup = { label: string; items: NavItem[] };
+
+const navGroups: NavGroup[] = [
   {
-    key: "my-learning",
-    href: "/my-learning",
-    label: "My Learning",
-    icon: GraduationCap,
+    label: "Learning",
+    items: [
+      { key: "dashboard", href: "/", label: "Dashboard", icon: LayoutDashboard },
+      { key: "catalog", href: "/courses", label: "Catalog", icon: BookOpen },
+      { key: "catalog", href: "/search", label: "Search", icon: Search },
+      { key: "my-learning", href: "/my-learning", label: "My Learning", icon: GraduationCap },
+      { key: "my-learning", href: "/live-classes", label: "Live Classes", icon: Radio },
+      { key: "my-learning", href: "/discussions", label: "Discussions", icon: MessageSquare },
+      { key: "my-learning", href: "/calendar", label: "Calendar", icon: CalendarDays },
+      { key: "my-learning", href: "/learning-paths", label: "Learning Paths", icon: BookOpen },
+      { key: "my-learning", href: "/leaderboard", label: "Leaderboard", icon: Trophy },
+      { key: "my-learning", href: "/achievements", label: "Achievements", icon: Award },
+      { key: "my-learning", href: "/wishlist", label: "Wishlist", icon: Heart },
+      { key: "my-learning", href: "/help", label: "Help Center", icon: HelpCircle },
+    ],
   },
-  { key: "my-learning", href: "/live-classes", label: "Live classes", icon: Radio },
-  { key: "my-learning", href: "/discussions", label: "Discussions", icon: MessageSquare },
-  { key: "my-learning", href: "/calendar", label: "Calendar", icon: CalendarDays },
-  { key: "my-learning", href: "/learning-paths", label: "Learning Paths", icon: BookOpen },
-  { key: "my-learning", href: "/leaderboard", label: "Leaderboard", icon: Trophy },
-  { key: "my-learning", href: "/achievements", label: "Achievements", icon: Award },
-  { key: "my-learning", href: "/wishlist", label: "Wishlist", icon: Heart },
-  { key: "my-learning", href: "/favorite-instructors", label: "Favorite Instructors", icon: UserCircle },
-  { key: "my-learning", href: "/recently-viewed", label: "Recently Viewed", icon: History },
-  { key: "my-learning", href: "/orders", label: "My Orders", icon: Receipt },
-  { key: "my-learning", href: "/subscriptions", label: "Subscriptions", icon: RefreshCw },
-  { key: "my-learning", href: "/learn/surveys", label: "My Surveys", icon: ClipboardList },
-  { key: "my-learning", href: "/learn/polls", label: "Live Polls", icon: CircleDot },
-  { key: "my-learning", href: "/learn/plugins", label: "Plugin Panels", icon: LayoutGrid },
-  { key: "my-learning", href: "/my-cohorts", label: "My Cohorts", icon: Users },
-  { key: "my-learning", href: "/help", label: "Help Center", icon: HelpCircle },
   {
-    key: "instructor",
-    href: "/instructor/courses",
     label: "Instructor",
-    icon: Settings,
-  },
-  { key: "instructor", href: "/instructor/discussions", label: "Discussions", icon: MessageSquare },
-  { key: "instructor", href: "/instructor/calendar", label: "Teaching schedule", icon: CalendarDays },
-  { key: "admin", href: "/admin", label: "Admin Dashboard", icon: LayoutDashboard },
-  { key: "admin", href: "/admin/members", label: "Members & Roles", icon: ShieldCheck },
-  { key: "admin", href: "/admin/orders", label: "Admin Orders", icon: Receipt },
-  { key: "admin", href: "/admin/payments", label: "Admin Payments", icon: Wallet },
-  { key: "admin", href: "/admin/coupons", label: "Admin Coupons", icon: Tag },
-  { key: "admin", href: "/admin/reviews", label: "Review Moderation", icon: MessageSquare },
-  { key: "admin", href: "/admin/surveys", label: "Surveys", icon: ClipboardList },
-  { key: "admin", href: "/admin/polls", label: "Polls", icon: CircleDot },
-  { key: "admin", href: "/admin/feedback", label: "Course Feedback", icon: MessageSquareQuote },
-  { key: "admin", href: "/admin/xapi", label: "xAPI Statements", icon: BarChart3 },
-  { key: "admin", href: "/admin/enterprise/branding", label: "Branding", icon: Globe },
-  { key: "admin", href: "/admin/enterprise/sso", label: "SSO Providers", icon: KeyRound },
-  { key: "admin", href: "/admin/enterprise/domains", label: "Verified Domains", icon: ShieldCheck },
-  { key: "admin", href: "/admin/enterprise/api-keys", label: "API Keys", icon: KeyRound },
-  { key: "admin", href: "/admin/enterprise/webhooks", label: "Webhooks", icon: Plug },
-  { key: "admin", href: "/admin/enterprise/login-policy", label: "Login Policy", icon: ShieldCheck },
-  { key: "moderation", href: "/admin/discussions", label: "Moderation", icon: ShieldCheck },
-  {
-    key: "quizzes",
-    href: "/instructor/quizzes",
-    label: "Quizzes",
-    icon: ListChecks,
-  },
-  { key: "files", href: "/instructor/files", label: "Files", icon: FolderOpen },
-  {
-    key: "library",
-    href: "/instructor/content-library",
-    label: "Library",
-    icon: Library,
+    items: [
+      { key: "instructor", href: "/instructor/courses", label: "My Courses", icon: Settings },
+      { key: "quizzes", href: "/instructor/quizzes", label: "Quizzes", icon: ListChecks },
+      { key: "files", href: "/instructor/files", label: "Files", icon: FolderOpen },
+      { key: "library", href: "/instructor/content-library", label: "Library", icon: Library },
+      { key: "instructor", href: "/instructor/discussions", label: "Discussions", icon: MessageSquare },
+      { key: "instructor", href: "/instructor/calendar", label: "Teaching Schedule", icon: CalendarDays },
+    ],
   },
   {
-    key: "plugins",
-    href: "/admin/plugins",
-    label: "Plugins",
-    icon: Plug,
+    label: "Administration",
+    items: [
+      { key: "admin", href: "/admin", label: "Admin Dashboard", icon: LayoutDashboard },
+      { key: "admin", href: "/admin/members", label: "Members & Roles", icon: ShieldCheck },
+      { key: "admin", href: "/admin/orders", label: "Orders", icon: Receipt },
+      { key: "admin", href: "/admin/payments", label: "Payments", icon: Wallet },
+      { key: "admin", href: "/admin/coupons", label: "Coupons", icon: Tag },
+      { key: "admin", href: "/admin/reviews", label: "Reviews", icon: MessageSquare },
+      { key: "admin", href: "/admin/surveys", label: "Surveys", icon: ClipboardList },
+      { key: "admin", href: "/admin/polls", label: "Polls", icon: CircleDot },
+      { key: "admin", href: "/admin/feedback", label: "Feedback", icon: MessageSquareQuote },
+      { key: "admin", href: "/admin/xapi", label: "xAPI Statements", icon: BarChart3 },
+      { key: "admin", href: "/admin/enterprise/branding", label: "Branding", icon: Globe },
+      { key: "admin", href: "/admin/enterprise/sso", label: "SSO Providers", icon: KeyRound },
+      { key: "admin", href: "/admin/enterprise/domains", label: "Verified Domains", icon: ShieldCheck },
+      { key: "admin", href: "/admin/enterprise/api-keys", label: "API Keys", icon: KeyRound },
+      { key: "admin", href: "/admin/enterprise/webhooks", label: "Webhooks", icon: Plug },
+      { key: "admin", href: "/admin/enterprise/login-policy", label: "Login Policy", icon: ShieldCheck },
+      { key: "moderation", href: "/admin/discussions", label: "Moderation", icon: ShieldCheck },
+      { key: "plugins", href: "/admin/plugins", label: "Plugins", icon: Plug },
+      { key: "plugins", href: "/admin/plugin-marketplace", label: "Plugin Marketplace", icon: LayoutGrid },
+    ],
   },
-  {
-    key: "plugins",
-    href: "/admin/plugin-marketplace",
-    label: "Plugin Marketplace",
-    icon: LayoutGrid,
-  },
-] as const;
+];
+
+// flat list kept for active-path matching
+const dashboardNav = navGroups.flatMap((g) => g.items);
 
 export function ThemeProvider({
   branding,
@@ -283,8 +265,13 @@ function SidebarBrand({ branding }: { branding?: OrganizationBranding | null }) 
   );
 }
 
+// Exact-match-only hrefs: these are parent/index routes that should NOT
+// light up when a child route is active.
+const EXACT_MATCH_HREFS = new Set(["/", "/admin", "/instructor/courses"]);
+
 function matchesNavigationPath(path: string, href: string) {
-  return path === href || (href !== "/" && path.startsWith(`${href}/`));
+  if (EXACT_MATCH_HREFS.has(href)) return path === href;
+  return path === href || path.startsWith(`${href}/`);
 }
 
 function DashboardNav({
@@ -296,56 +283,58 @@ function DashboardNav({
 }) {
   const session = useSession();
   const pathname = usePathname();
-  const visibleKeys = useMemo(
-    () => new Set(visibleNavigationKeys(session)),
-    [session],
-  );
-  const visibleItems = useMemo(
-    () => dashboardNav.filter((item) => visibleKeys.has(item.key)),
+  const visibleKeys = useMemo(() => new Set(visibleNavigationKeys(session)), [session]);
+
+  const visibleGroups = useMemo(() =>
+    navGroups
+      .map((group) => ({ ...group, items: group.items.filter((item) => visibleKeys.has(item.key as import("../../lib/authz").NavigationKey)) }))
+      .filter((group) => group.items.length > 0),
     [visibleKeys],
   );
+
+  const allVisibleItems = useMemo(() => visibleGroups.flatMap((g) => g.items), [visibleGroups]);
+
   const activeHref = useMemo(() => {
-    const candidates = [pathname, currentPath].filter(
-      (path): path is string => Boolean(path),
-    );
     return (
-      visibleItems
-        .filter((item) =>
-          candidates.some((path) => matchesNavigationPath(path, item.href)),
-        )
-        .sort((left, right) => right.href.length - left.href.length)[0]?.href ??
-      null
+      allVisibleItems
+        .filter((item) => matchesNavigationPath(pathname, item.href))
+        .sort((a, b) => b.href.length - a.href.length)[0]?.href ?? null
     );
-  }, [currentPath, pathname, visibleItems]);
+  }, [pathname, allVisibleItems]);
 
   return (
-    <nav
-      aria-label="Primary"
-      className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 [scrollbar-gutter:stable]"
-    >
-      <div className="space-y-1 pb-4">
-        {visibleItems.map(({ href, icon: Icon, label }) => {
-          const active = activeHref === href;
-
-          return (
-            <Link
-              key={href}
-              className={cn(
-                "flex min-h-10 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition",
-                active
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
-              )}
-              href={href}
-              onClick={onNavigate}
-              aria-current={active ? "page" : undefined}
-              title={label}
-            >
-              <Icon aria-hidden="true" className="h-4 w-4 shrink-0" />
-              <span className="min-w-0 truncate">{label}</span>
-            </Link>
-          );
-        })}
+    <nav aria-label="Primary" className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 [scrollbar-gutter:stable]">
+      <div className="pb-4 space-y-4">
+        {visibleGroups.map((group) => (
+          <div key={group.label}>
+            <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">
+              {group.label}
+            </p>
+            <div className="space-y-0.5">
+              {group.items.map(({ href, icon: Icon, label }) => {
+                const active = activeHref === href;
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    onClick={onNavigate}
+                    aria-current={active ? "page" : undefined}
+                    title={label}
+                    className={cn(
+                      "flex min-h-9 items-center gap-3 rounded-md px-3 py-1.5 text-sm font-medium transition",
+                      active
+                        ? "bg-primary/10 text-primary"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    )}
+                  >
+                    <Icon aria-hidden={true} className="h-4 w-4 shrink-0" />
+                    <span className="min-w-0 truncate">{label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
     </nav>
   );
@@ -416,6 +405,21 @@ export function DashboardTopbar({
   backLabel?: string;
   branding?: OrganizationBranding | null;
 }) {
+  const router = useRouter();
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!searchOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [searchOpen]);
+
   return (
     <header className="sticky top-0 z-20 border-b border-border bg-card/95 backdrop-blur">
       <div className="flex min-h-16 flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
@@ -445,9 +449,23 @@ export function DashboardTopbar({
           <span className="hidden text-xs font-semibold uppercase tracking-wide text-muted-foreground sm:inline">
             {branding?.name ?? "LMS Platform"}
           </span>
-          <IconButton label="Search">
-            <Search aria-hidden="true" className="h-4 w-4" />
-          </IconButton>
+          {/* Search with dropdown */}
+          <div className="relative" ref={searchRef}>
+            <IconButton label="Search" onClick={() => setSearchOpen((v) => !v)}>
+              <Search aria-hidden="true" className="h-4 w-4" />
+            </IconButton>
+            {searchOpen && (
+              <div className="absolute right-0 top-12 z-50 w-[28rem] max-w-[90vw] rounded-xl border border-border bg-card p-3 shadow-panel">
+                <SearchBar
+                  placeholder="Search courses, lessons, people…"
+                  onSelect={(hit) => {
+                    setSearchOpen(false);
+                    router.push(hit.url);
+                  }}
+                />
+              </div>
+            )}
+          </div>
           <NotificationBadge />
           <UserMenu />
         </div>

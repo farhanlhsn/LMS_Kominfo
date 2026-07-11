@@ -216,7 +216,7 @@ function useApiQuery<T>(
     loading,
     error,
     reload,
-    refresh: reload,
+    refresh,
     refetch: reload,
     isLoading: loading,
   };
@@ -291,6 +291,14 @@ export function useCreateOrganizationMember() {
       password?: string;
       roleKeys?: string[];
     }) => api.createOrganizationMember(input),
+    [],
+  );
+}
+
+export function useInviteOrganizationMember() {
+  return useCallback(
+    (input: { email: string; roleKeys?: string[]; message?: string }) =>
+      api.inviteOrganizationMember(input),
     [],
   );
 }

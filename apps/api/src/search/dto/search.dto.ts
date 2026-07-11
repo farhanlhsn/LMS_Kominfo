@@ -36,6 +36,7 @@ export class GlobalSearchQueryDto {
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Type(() => Number)
   limit?: number;
 }
 
@@ -43,10 +44,12 @@ export class SearchAnalyticsQueryDto {
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Type(() => Number)
   days?: number;
 
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Type(() => Number)
   limit?: number;
 }

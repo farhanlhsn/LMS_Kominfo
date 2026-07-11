@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { io, Socket } from "socket.io-client";
 import { api } from "../../lib/api-client";
 import type { RealtimeEvent } from "../../lib/lms-types";
 
-export type RealtimeStatus = "idle" | "polling" | "error";
+export type RealtimeStatus = "idle" | "connecting" | "connected" | "polling" | "error";
 
 export interface UseRealtimeChannelOptions {
   intervalMs?: number;
@@ -18,17 +19,20 @@ export interface UseRealtimeChannelResult {
   error: Error | null;
 }
 
-/**
- * Polling-based subscription to a realtime channel. Uses the
- * /realtime/poll endpoint with a 5 second default interval. Future
- * transports (SSE / WebSocket) can be swapped in transparently because
- * the same RealtimeEvent shape is returned.
- */
+function getWsBaseUrl(): string {
+  if (typeof window === "undefined") return "";
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
+  if (apiUrl.startsWith("http")) {
+    return apiUrl.replace(/\/api\/v1\/?$/, "");
+  }
+  return window.location.origin;
+}
+
 export function useRealtimeChannel(
   channel: string | null,
   options: UseRealtimeChannelOptions = {},
 ): UseRealtimeChannelResult {
-  const interval = options.intervalMs ?? 5000;
+  const intervalMs = options.intervalMs ?? 5000;
   const enabled = options.enabled ?? true;
   const onEventRef = useRef(options.onEvent);
   onEventRef.current = options.onEvent;
@@ -42,43 +46,85 @@ export function useRealtimeChannel(
       setStatus("idle");
       return;
     }
+
     let cancelled = false;
+    let socket: Socket | null = null;
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
     let cursor: string | undefined;
 
-    const tick = async () => {
-      setStatus("polling");
-      try {
-        const result = await api.pollRealtime({ channel, since: cursor, order: "asc", limit: 50 });
+    function startPolling() {
+      const tick = async () => {
         if (cancelled) return;
-        if (result.data.length > 0) {
+        setStatus("polling");
+        try {
+          const result = await api.pollRealtime({ channel: channel!, since: cursor, order: "asc", limit: 50 });
+          if (cancelled) return;
           for (const event of result.data) {
             onEventRef.current?.(event);
           }
           const newest = result.data[result.data.length - 1]?.createdAt;
-          if (newest) {
-            setLastEventAt(newest);
-            cursor = newest;
+          if (newest) { setLastEventAt(newest); cursor = newest; }
+          setError(null);
+        } catch (caught) {
+          if (!cancelled) {
+            setError(caught instanceof Error ? caught : new Error(String(caught)));
+            setStatus("error");
           }
         }
-        setError(null);
-      } catch (caught) {
-        if (!cancelled) {
-          setError(caught instanceof Error ? caught : new Error(String(caught)));
-          setStatus("error");
-        }
-      }
-    };
-
-    void tick();
-    const timer = setInterval(() => {
+      };
       void tick();
-    }, interval);
+      pollTimer = setInterval(() => { void tick(); }, intervalMs);
+    }
+
+    try {
+      const base = getWsBaseUrl();
+      if (!base) { startPolling(); return; }
+
+      setStatus("connecting");
+      socket = io(`${base}/realtime`, {
+        transports: ["websocket", "polling"],
+        reconnectionAttempts: 5,
+        reconnectionDelay: 2000,
+        timeout: 10000,
+      });
+
+      socket.on("connect", () => {
+        if (cancelled) return;
+        setStatus("connected");
+        setError(null);
+        socket!.emit("subscribe", { channel });
+      });
+
+      socket.on("event", (event: RealtimeEvent) => {
+        if (cancelled) return;
+        onEventRef.current?.(event);
+        setLastEventAt(event.createdAt as unknown as string ?? new Date().toISOString());
+      });
+
+      socket.on("connect_error", () => {
+        if (cancelled) return;
+        socket?.disconnect();
+        socket = null;
+        startPolling();
+      });
+
+      socket.on("disconnect", () => {
+        if (!cancelled) setStatus("error");
+      });
+    } catch {
+      startPolling();
+    }
 
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      if (pollTimer) clearInterval(pollTimer);
+      if (socket) {
+        socket.emit("unsubscribe", { channel });
+        socket.disconnect();
+      }
+      setStatus("idle");
     };
-  }, [channel, interval, enabled]);
+  }, [channel, enabled, intervalMs]);
 
   return { status, lastEventAt, error };
 }

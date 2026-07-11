@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
-import { KeyRound, Save, ShieldCheck, UserPlus } from "lucide-react";
+import { KeyRound, Mail, Save, ShieldCheck, UserPlus } from "lucide-react";
 import { PERMISSIONS } from "@lms/shared";
 import { AuthGate, PermissionGate } from "../../../components/auth/auth-gate";
 import { AppShell } from "../../../components/layout/shells";
@@ -11,6 +11,7 @@ import { ApiErrorState, LoadingState } from "../../../components/ui/states";
 import {
   useCreateOrganizationMember,
   useCreateOrganizationRole,
+  useInviteOrganizationMember,
   useOrganizationMembers,
   useOrganizationPermissions,
   useOrganizationRoles,
@@ -50,6 +51,7 @@ export default function AdminMembersPage() {
   const roles = useOrganizationRoles();
   const permissions = useOrganizationPermissions();
   const createMember = useCreateOrganizationMember();
+  const inviteMember = useInviteOrganizationMember();
   const updateMemberRoles = useUpdateOrganizationMemberRoles();
   const updateMemberStatus = useUpdateOrganizationMemberStatus();
   const createRole = useCreateOrganizationRole();
@@ -88,6 +90,22 @@ export default function AdminMembersPage() {
           roleKeys: formRoleKeys(form),
         }),
       "Member saved.",
+    );
+    formElement.reset();
+  }
+
+  async function submitInvite(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    await run(
+      () =>
+        inviteMember({
+          email: String(form.get("email") ?? ""),
+          message: String(form.get("message") ?? "") || undefined,
+          roleKeys: formRoleKeys(form),
+        }),
+      "Invitation created — member status set to INVITED.",
     );
     formElement.reset();
   }
@@ -177,6 +195,49 @@ export default function AdminMembersPage() {
                 </form>
               </section>
 
+              <section className="rounded-md border border-border bg-card p-4 shadow-subtle">
+                <div className="flex items-center gap-2">
+                  <Mail aria-hidden="true" className="h-5 w-5 text-primary" />
+                  <h2 className="font-semibold">Invite Member</h2>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Send an invitation — the member record is created with status INVITED, no password required.
+                </p>
+                <form className="mt-4 grid gap-3 md:grid-cols-2" onSubmit={submitInvite}>
+                  <input
+                    className="h-10 rounded-md border border-input bg-background px-3 text-sm md:col-span-2"
+                    name="email"
+                    placeholder="email@example.com"
+                    required
+                    type="email"
+                  />
+                  <textarea
+                    className="min-h-16 rounded-md border border-input bg-background px-3 py-2 text-sm md:col-span-2"
+                    name="message"
+                    placeholder="Optional message"
+                  />
+                  <div className="grid gap-2 rounded-md border border-border bg-background p-3 md:col-span-2">
+                    {(roles.data ?? []).map((role) => (
+                      <label className="flex items-center gap-2 text-sm" key={role.id}>
+                        <input
+                          className="h-4 w-4"
+                          defaultChecked={role.key === "learner"}
+                          name="roleKeys"
+                          type="checkbox"
+                          value={role.key}
+                        />
+                        <span>{role.name}</span>
+                        <span className="text-xs text-muted-foreground">({role.key})</span>
+                      </label>
+                    ))}
+                  </div>
+                  <Button className="md:w-fit" disabled={saving} type="submit">
+                    <Mail aria-hidden="true" className="h-4 w-4" />
+                    Send invite
+                  </Button>
+                </form>
+              </section>
+
               <MembersTable
                 members={members.data ?? []}
                 roles={roles.data ?? []}
@@ -224,6 +285,9 @@ export default function AdminMembersPage() {
   );
 }
 
+const STATUS_FILTERS = ["All", "ACTIVE", "INVITED", "SUSPENDED"] as const;
+type StatusFilter = (typeof STATUS_FILTERS)[number];
+
 function MembersTable({
   members,
   roles,
@@ -244,93 +308,149 @@ function MembersTable({
     status: OrganizationMemberRecord["status"],
   ) => Promise<void>;
 }) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
+
   const roleByKey = useMemo(
     () => new Map(roles.map((role) => [role.key, role])),
     [roles],
   );
+
+  const filtered = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return members.filter((member) => {
+      const matchesSearch =
+        !q ||
+        member.user.email.toLowerCase().includes(q) ||
+        (member.user.name ?? "").toLowerCase().includes(q);
+      const matchesStatus =
+        statusFilter === "All" || member.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [members, searchQuery, statusFilter]);
 
   if (loading) return <LoadingState title="Loading members" />;
   if (error) return <ApiErrorState error={error} fallbackTitle="Could not load members" />;
 
   return (
     <section className="rounded-md border border-border bg-card p-4 shadow-subtle">
-      <div className="flex items-center gap-2">
-        <ShieldCheck aria-hidden="true" className="h-5 w-5 text-primary" />
-        <h2 className="font-semibold">Organization Members</h2>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <ShieldCheck aria-hidden="true" className="h-5 w-5 text-primary" />
+          <h2 className="font-semibold">Organization Members</h2>
+        </div>
+        <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+          {filtered.length} / {members.length}
+        </span>
       </div>
-      <div className="mt-4">
-        <DataTable
-          columns={["Member", "Status", "Roles", "Actions"]}
-          rows={members.map((member) => [
-            <div key="member" className="min-w-48">
-              <p className="font-medium">{member.user.name ?? member.user.email}</p>
-              <p className="text-xs text-muted-foreground">{member.user.email}</p>
-            </div>,
-            <StatusBadge key="status" value={member.status} />,
-            <form
-              className="grid min-w-64 gap-2"
-              key="roles"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void onSaveRoles(member.id, formRoleKeys(new FormData(event.currentTarget)));
-              }}
-            >
-              <div className="grid gap-1">
-                {roles.map((role) => (
-                  <label className="flex items-center gap-2 text-xs" key={role.id}>
-                    <input
-                      className="h-4 w-4"
-                      defaultChecked={member.roles.includes(role.key)}
-                      name="roleKeys"
-                      type="checkbox"
-                      value={role.key}
-                    />
-                    <span>{roleByKey.get(role.key)?.name ?? role.key}</span>
-                  </label>
-                ))}
-              </div>
-              <button
-                className="inline-flex min-h-9 w-fit items-center gap-2 rounded-md border border-border px-3 text-xs font-semibold hover:bg-muted disabled:opacity-60"
-                disabled={saving}
-                type="submit"
-              >
-                <Save aria-hidden="true" className="h-3.5 w-3.5" />
-                Save roles
-              </button>
-            </form>,
-            <form
-              className="flex flex-wrap items-center gap-2"
-              key="actions"
-              onSubmit={(event) => {
-                event.preventDefault();
-                const form = new FormData(event.currentTarget);
-                void onSaveStatus(
-                  member.id,
-                  String(form.get("status")) as OrganizationMemberRecord["status"],
-                );
-              }}
-            >
-              <select
-                className="h-9 rounded-md border border-input bg-background px-2 text-xs"
-                defaultValue={member.status}
-                name="status"
-              >
-                {memberStatuses.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
-              </select>
-              <button
-                className="inline-flex min-h-9 items-center gap-2 rounded-md border border-border px-3 text-xs font-semibold hover:bg-muted disabled:opacity-60"
-                disabled={saving}
-                type="submit"
-              >
-                Save
-              </button>
-            </form>,
-          ])}
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <input
+          className="h-8 flex-1 rounded-md border border-input bg-background px-3 text-sm placeholder:text-muted-foreground"
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search by name or email…"
+          type="search"
+          value={searchQuery}
         />
+        <div className="flex gap-1">
+          {STATUS_FILTERS.map((s) => (
+            <button
+              className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                statusFilter === s
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-background text-muted-foreground hover:bg-muted"
+              }`}
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              type="button"
+            >
+              {s === "All" ? "All" : s.charAt(0) + s.slice(1).toLowerCase()}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-3">
+        {filtered.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">No members match the current filter.</p>
+        ) : (
+          <DataTable
+            columns={["Member", "Status", "Roles", "Actions"]}
+            rows={filtered.map((member) => [
+              <div key="member" className="min-w-40">
+                <p className="text-sm font-medium leading-tight">
+                  {member.user.name ?? member.user.email}
+                </p>
+                {member.user.name ? (
+                  <p className="text-xs text-muted-foreground">{member.user.email}</p>
+                ) : null}
+              </div>,
+              <StatusBadge key="status" value={member.status} />,
+              <form
+                className="grid min-w-52 gap-1.5"
+                key="roles"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void onSaveRoles(member.id, formRoleKeys(new FormData(event.currentTarget)));
+                }}
+              >
+                <div className="grid gap-0.5">
+                  {roles.map((role) => (
+                    <label className="flex items-center gap-2 text-xs" key={role.id}>
+                      <input
+                        className="h-3.5 w-3.5"
+                        defaultChecked={member.roles.includes(role.key)}
+                        name="roleKeys"
+                        type="checkbox"
+                        value={role.key}
+                      />
+                      <span>{roleByKey.get(role.key)?.name ?? role.key}</span>
+                    </label>
+                  ))}
+                </div>
+                <button
+                  className="inline-flex h-7 w-fit items-center gap-1.5 rounded-md border border-border px-2.5 text-xs font-semibold hover:bg-muted disabled:opacity-60"
+                  disabled={saving}
+                  type="submit"
+                >
+                  <Save aria-hidden="true" className="h-3 w-3" />
+                  Save roles
+                </button>
+              </form>,
+              <form
+                className="flex flex-wrap items-center gap-1.5"
+                key="actions"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const form = new FormData(event.currentTarget);
+                  void onSaveStatus(
+                    member.id,
+                    String(form.get("status")) as OrganizationMemberRecord["status"],
+                  );
+                }}
+              >
+                <select
+                  className="h-7 rounded-md border border-input bg-background px-2 text-xs"
+                  defaultValue={member.status}
+                  name="status"
+                >
+                  {memberStatuses.map((status) => (
+                    <option key={status} value={status}>
+                      {status}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs font-semibold hover:bg-muted disabled:opacity-60"
+                  disabled={saving}
+                  type="submit"
+                >
+                  Save
+                </button>
+              </form>,
+            ])}
+          />
+        )}
       </div>
     </section>
   );

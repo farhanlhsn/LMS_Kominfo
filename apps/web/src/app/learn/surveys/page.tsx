@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AppShell } from "../../../components/layout/shells";
 import { PageHeader, ButtonLink, FilterBar, StatusBadge } from "../../../components/ui/core";
 import { EmptyState } from "../../../components/ui/states";
 import { CheckSquare } from "lucide-react";
@@ -24,8 +25,9 @@ export default function LearnerSurveysPage() {
   }>;
 
   return (
-    <div>
-      <PageHeader
+    <AppShell>
+      <div>
+        <PageHeader
         eyebrow="Learner"
         title="My surveys"
         description="Share your feedback and help improve the course experience."
@@ -61,7 +63,8 @@ export default function LearnerSurveysPage() {
           ← Back to learning
         </ButtonLink>
       </div>
-    </div>
+      </div>
+    </AppShell>
   );
 }
 

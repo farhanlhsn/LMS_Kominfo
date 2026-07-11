@@ -4,14 +4,18 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
 import bcrypt from "bcryptjs";
 import { Prisma } from "@lms/db";
 import { SYSTEM_ROLES } from "@lms/shared";
 import { PrismaService } from "../prisma/prisma.service";
+import { NotificationService } from "../engagement/notification.service";
+import { EmailService } from "../email/email.service";
 import type {
   CreateOrganizationMemberDto,
   CreateOrganizationRoleDto,
+  InviteOrganizationMemberDto,
   UpdateOrganizationMemberRolesDto,
   UpdateOrganizationMemberStatusDto,
   UpdateOrganizationRoleDto,
@@ -19,7 +23,11 @@ import type {
 
 @Injectable()
 export class OrganizationsService {
-  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+  constructor(
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Optional() @Inject(NotificationService) private readonly notifications?: NotificationService,
+    @Optional() @Inject(EmailService) private readonly emailService?: EmailService,
+  ) {}
 
   async listMembers(organizationId: string): Promise<
     Array<{
@@ -157,6 +165,102 @@ export class OrganizationsService {
       targetUserId: member.userId,
       roleKeys,
     });
+
+    return this.memberPayload(member);
+  }
+
+  async inviteMember(
+    organizationId: string,
+    actorUserId: string,
+    dto: InviteOrganizationMemberDto,
+  ) {
+    const email = dto.email.trim().toLowerCase();
+    const roleKeys = dto.roleKeys?.length ? dto.roleKeys : [SYSTEM_ROLES.learner];
+    const roles = await this.getRolesByKeys(organizationId, roleKeys);
+    const existingUser = await this.prisma.user.findUnique({ where: { email } });
+
+    if (existingUser) {
+      const existingMember = await this.prisma.organizationMember.findUnique({
+        where: { organizationId_userId: { organizationId, userId: existingUser.id } },
+      });
+      if (existingMember?.status === "ACTIVE") {
+        throw new ConflictException("Already a member");
+      }
+    }
+
+    const member = await this.prisma.$transaction(async (tx) => {
+      const user =
+        existingUser ??
+        (await tx.user.create({
+          data: {
+            email,
+            status: "ACTIVE",
+            identities: {
+              create: {
+                providerType: "PASSWORD",
+                providerSubject: email,
+                providerEmail: email,
+                providerEmailVerified: false,
+              },
+            },
+          },
+        }));
+
+      const organizationMember = await tx.organizationMember.upsert({
+        where: { organizationId_userId: { organizationId, userId: user.id } },
+        update: {
+          status: "INVITED",
+          invitedAt: new Date(),
+        },
+        create: {
+          organizationId,
+          userId: user.id,
+          status: "INVITED",
+          invitedAt: new Date(),
+        },
+      });
+
+      await tx.memberRole.deleteMany({ where: { memberId: organizationMember.id } });
+      await tx.memberRole.createMany({
+        data: roles.map((role) => ({ memberId: organizationMember.id, roleId: role.id })),
+      });
+
+      return tx.organizationMember.findFirstOrThrow({
+        where: { id: organizationMember.id, organizationId },
+        include: { user: true, memberRoles: { include: { role: true } } },
+      });
+    });
+
+    await this.audit(organizationId, actorUserId, "organization_member.invited", member.id, {
+      targetUserId: member.userId,
+      roleKeys,
+    });
+
+    // fire notification + invite email (best-effort, non-blocking)
+    const [org, actor] = await Promise.all([
+      this.prisma.organization.findUnique({ where: { id: organizationId }, select: { name: true } }),
+      this.prisma.user.findUnique({ where: { id: actorUserId }, select: { name: true } }),
+    ]);
+    const orgName = org?.name ?? "the organization";
+    const actorName = actor?.name ?? "Someone";
+    await this.notifications?.createForUser({
+      organizationId,
+      userId: member.userId,
+      type: "organization_invite",
+      title: "You've been invited",
+      body: `${actorName} has invited you to join ${orgName}.`,
+      actionUrl: "/login",
+      entityType: "organization_member",
+      entityId: member.id,
+      metadata: { organizationId },
+    });
+    await this.emailService?.sendOrganizationInvite(
+      member.user.email,
+      actorName,
+      orgName,
+      `${process.env["APP_URL"] ?? ""}/login`,
+      dto.message,
+    );
 
     return this.memberPayload(member);
   }
