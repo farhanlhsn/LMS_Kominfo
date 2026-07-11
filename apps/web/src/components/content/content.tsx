@@ -1,6 +1,7 @@
 import {
   ArrowUpRight,
   Bold,
+  Box,
   Copy,
   File,
   FileText,
@@ -14,6 +15,7 @@ import {
   PictureInPicture,
   Upload,
   Video,
+  type LucideIcon,
 } from "lucide-react";
 import { FormEvent, ReactNode, useEffect, useMemo, useRef } from "react";
 import { sanitizeRichTextHtml } from "@lms/shared";
@@ -26,13 +28,14 @@ import type {
 import { ButtonLink, DataTable, StatusBadge } from "../ui/core";
 import { EmptyState } from "../ui/states";
 
-const itemTypeIcons = {
+const itemTypeIcons: Record<ContentLibraryItem["type"], LucideIcon> = {
   RICH_TEXT: FileText,
   VIDEO: Video,
   FILE: File,
   PDF: FileText,
   LINK: Link2,
   IMAGE: Image,
+  THREE_D_MODEL: Box,
 };
 
 export function formatBytes(value: number) {

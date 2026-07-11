@@ -32,12 +32,12 @@ export class ErrorBoundary extends React.Component<Props, State> {
     return { error, refCode: generateRefCode(error) };
   }
 
-  componentDidCatch(error: Error) {
+  override componentDidCatch(error: Error) {
     // Log to console for developer debug only — not shown to user
     console.error("[ErrorBoundary]", error);
   }
 
-  render() {
+  override render() {
     if (this.state.error) {
       return (
         <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-warning/30 bg-warning/5 p-6 text-center">
