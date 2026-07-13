@@ -1,6 +1,7 @@
 import {
   CanActivate,
   ExecutionContext,
+  ForbiddenException,
   Inject,
   Injectable,
   UnauthorizedException
@@ -39,12 +40,22 @@ export class OrganizationContextGuard implements CanActivate {
     const headerOrganizationId = Array.isArray(headerValue)
       ? headerValue[0]
       : headerValue;
+    const activeOrganizationId = request.user.activeOrganizationId ?? null;
+    const paramOrganizationId = params.organizationId ?? null;
 
-    return (
-      params.organizationId ??
-      headerOrganizationId ??
-      request.user.activeOrganizationId ??
-      null
+    // Prefer explicit sources; reject mismatched multi-source claims.
+    const explicit = [paramOrganizationId, headerOrganizationId].filter(
+      (value): value is string => Boolean(value),
     );
+    if (explicit.length > 1) {
+      const [first, ...rest] = explicit;
+      if (rest.some((value) => value !== first)) {
+        throw new ForbiddenException("Conflicting organization context");
+      }
+    }
+
+    if (paramOrganizationId) return paramOrganizationId;
+    if (headerOrganizationId) return headerOrganizationId;
+    return activeOrganizationId;
   }
 }

@@ -10,6 +10,7 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
+import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { PERMISSIONS } from "@lms/shared";
 import type {
   AuthenticatedUser,
@@ -33,8 +34,10 @@ import {
 } from "./dto/messaging.dto";
 import { MessagingService } from "./messaging.service";
 
+@ApiTags("Messaging")
+@ApiBearerAuth()
 @Controller("messages")
-@UseGuards(JwtAuthGuard, OrganizationContextGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard, OrganizationContextGuard)
 export class MessagingController {
   constructor(
     @Inject(MessagingService) private readonly service: MessagingService,
@@ -76,6 +79,7 @@ export class MessagingController {
   }
 
   @Get("conversations/:id/messages")
+  @ApiOperation({ summary: "List messages (cursor pagination)" })
   listMessages(
     @Param("id") id: string,
     @Query() query: ListMessagesQueryDto,
@@ -84,7 +88,7 @@ export class MessagingController {
   ) {
     return this.service
       .listMessages(org.id, user.id, id, { cursor: query.cursor, limit: query.limit })
-      .then((data) => ({ data }));
+      .then(({ data, meta }) => ({ data, meta }));
   }
 
   @Post("conversations/:id/messages")
@@ -141,6 +145,7 @@ export class MessagingController {
   }
 
   @Post("blocks")
+  @UseGuards(PermissionsGuard)
   @Permissions(PERMISSIONS.usersUpdate)
   block(
     @Body() body: BlockUserDto,
@@ -153,6 +158,7 @@ export class MessagingController {
   }
 
   @Delete("blocks/:userId")
+  @UseGuards(PermissionsGuard)
   @Permissions(PERMISSIONS.usersUpdate)
   unblock(
     @Param("userId") targetId: string,

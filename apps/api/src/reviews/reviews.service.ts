@@ -1,4 +1,5 @@
 import { Inject, Injectable, NotFoundException, ForbiddenException, BadRequestException } from "@nestjs/common";
+import { normalizePageLimit, pageMeta } from "@lms/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import type { OrganizationContext } from "../auth/types/authenticated-request";
 import type { CreateReviewDto, ModerateReviewDto, AddWishlistDto, FavoriteInstructorDto, ReviewQueryDto } from "./dto/reviews.dto";
@@ -8,10 +9,6 @@ const ADMIN_ROLES = new Set(["org_admin", "course_manager"]);
 @Injectable()
 export class ReviewsService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
-
-  private paginationMeta(page: number, limit: number, total: number) {
-    return { page, limit, total, totalPages: Math.ceil(total / limit) };
-  }
 
   private async ensureEnrolled(org: OrganizationContext, userId: string, courseId: string) {
     const enrollment = await this.prisma.enrollment.findUnique({
@@ -61,26 +58,24 @@ export class ReviewsService {
   }
 
   async listForCourse(org: OrganizationContext, courseId: string, query: ReviewQueryDto) {
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 20;
+    const { page, limit, skip } = normalizePageLimit(query.page, query.limit);
     const where: Record<string, unknown> = { organizationId: org.id, courseId, status: "APPROVED" };
     const [data, total] = await Promise.all([
       this.prisma.courseReview.findMany({
         where: where as any,
         include: { user: { select: { id: true, name: true } } },
         orderBy: { createdAt: "desc" },
-        skip: (page - 1) * limit,
+        skip,
         take: limit,
       }),
       this.prisma.courseReview.count({ where: where as any }),
     ]);
     const aggregate = await this.prisma.courseReview.aggregate({ where: { organizationId: org.id, courseId, status: "APPROVED" }, _avg: { rating: true }, _count: { rating: true } });
-    return { data, meta: this.paginationMeta(page, limit, total), average: aggregate._avg.rating ?? 0, totalReviews: aggregate._count.rating };
+    return { data, meta: pageMeta(page, limit, total), average: aggregate._avg.rating ?? 0, totalReviews: aggregate._count.rating };
   }
 
   async listModeration(org: OrganizationContext, query: ReviewQueryDto) {
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 20;
+    const { page, limit, skip } = normalizePageLimit(query.page, query.limit);
     const where: Record<string, unknown> = { organizationId: org.id };
     if (query.status) where.status = query.status; else where.status = { not: "APPROVED" };
     const [data, total] = await Promise.all([
@@ -88,12 +83,12 @@ export class ReviewsService {
         where: where as any,
         include: { user: { select: { id: true, name: true, email: true } }, course: { select: { id: true, title: true, slug: true } } },
         orderBy: { createdAt: "desc" },
-        skip: (page - 1) * limit,
+        skip,
         take: limit,
       }),
       this.prisma.courseReview.count({ where: where as any }),
     ]);
-    return { data, meta: this.paginationMeta(page, limit, total) };
+    return { data, meta: pageMeta(page, limit, total) };
   }
 
   async moderate(org: OrganizationContext, userId: string, id: string, dto: ModerateReviewDto) {
@@ -131,6 +126,7 @@ export class ReviewsService {
       where: { organizationId: org.id, userId },
       include: { course: { select: { id: true, title: true, slug: true, thumbnailUrl: true, level: true } } },
       orderBy: { createdAt: "desc" },
+      take: 100,
     });
   }
 
@@ -157,6 +153,7 @@ export class ReviewsService {
       where: { organizationId: org.id, userId },
       include: { instructor: { select: { id: true, name: true, email: true } } },
       orderBy: { createdAt: "desc" },
+      take: 100,
     });
   }
 

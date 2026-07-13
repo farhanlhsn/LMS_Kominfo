@@ -42,6 +42,7 @@ export class AiGeneratedItemService {
         activityId,
       },
       orderBy: { createdAt: "desc" },
+      take: 100,
     });
   }
 
@@ -72,6 +73,7 @@ export class AiGeneratedItemService {
           activityId: query.activityId,
         },
         orderBy: { createdAt: "desc" },
+        take: 100,
       });
     }
     return this.prisma.aiGeneratedItem.findMany({
@@ -82,6 +84,7 @@ export class AiGeneratedItemService {
         activityId: query.activityId,
       },
       orderBy: { createdAt: "desc" },
+      take: 100,
     });
   }
 

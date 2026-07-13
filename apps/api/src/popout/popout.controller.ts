@@ -23,11 +23,12 @@ import { PopoutService } from "./popout.service";
 import { IssuePopoutTokenDto } from "./dto/popout.dto";
 
 @Controller("popout")
-@UseGuards(JwtAuthGuard, OrganizationContextGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard, OrganizationContextGuard)
 export class PopoutController {
   constructor(@Inject(PopoutService) private readonly service: PopoutService) {}
 
   @Post("issue")
+  @UseGuards(PermissionsGuard)
   @Permissions(PERMISSIONS.coursesRead)
   issue(
     @ActiveOrganization() organization: OrganizationContext,
@@ -45,6 +46,7 @@ export class PopoutController {
   }
 
   @Delete(":token")
+  @UseGuards(PermissionsGuard)
   @Permissions(PERMISSIONS.coursesRead)
   revoke(
     @ActiveOrganization() organization: OrganizationContext,

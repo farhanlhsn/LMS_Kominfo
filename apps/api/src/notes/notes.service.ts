@@ -38,6 +38,7 @@ export class TranscriptNoteService {
         ...(lessonId ? { lessonId } : {}),
       },
       orderBy: { timestampSeconds: "asc" },
+      take: 200,
     });
   }
 

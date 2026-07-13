@@ -208,7 +208,11 @@ export class RbacService {
     context: OrganizationContext,
     requiredPermissions: readonly string[]
   ) {
-    if (requiredPermissions.length === 0 || context.isPlatformAdmin) {
+    // Empty list is not "allow all" — callers (PermissionsGuard) must deny.
+    if (requiredPermissions.length === 0) {
+      return false;
+    }
+    if (context.isPlatformAdmin) {
       return true;
     }
 

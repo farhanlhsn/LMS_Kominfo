@@ -38,10 +38,18 @@ const allowedMimeTypes = new Set([
   // 3D model formats
   "model/gltf-binary",
   "model/gltf+json",
-  "application/octet-stream", // GLB, FBX, OBJ fallback
+  "application/octet-stream", // only with 3D extension allowlist below
   "model/obj",
   "model/mtl",
   "text/x-wavefront-obj",
+]);
+const OCTET_STREAM_EXTENSIONS = new Set([
+  "glb",
+  "gltf",
+  "fbx",
+  "obj",
+  "mtl",
+  "bin",
 ]);
 
 const FILES_LIST_TTL = 30;
@@ -280,6 +288,7 @@ export class FilesService {
     return this.prisma.folder.findMany({
       where: { organizationId, deletedAt: null },
       orderBy: { name: "asc" },
+      take: 200,
     });
   }
 
@@ -342,6 +351,14 @@ export class FilesService {
     const extension = extname(file.originalname).replace(".", "").toLowerCase();
     if (!extension) {
       throw new BadRequestException("File extension is required");
+    }
+    if (
+      file.mimetype === "application/octet-stream" &&
+      !OCTET_STREAM_EXTENSIONS.has(extension)
+    ) {
+      throw new BadRequestException(
+        "application/octet-stream only allowed for 3D model extensions",
+      );
     }
   }
 

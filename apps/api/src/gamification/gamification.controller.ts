@@ -18,6 +18,7 @@ export class GamificationController {
   // ── Skills ──────────────────────────────────────────
 
   @Post("skills")
+  @UseGuards(PermissionsGuard)
   @Permissions(PERMISSIONS.coursesUpdate)
   async createSkill(@Req() req: AuthenticatedRequest, @Body() dto: CreateSkillDto) {
     return { data: await this.gamification.createSkill(req.organization!, dto) };
@@ -29,18 +30,21 @@ export class GamificationController {
   }
 
   @Patch("skills/:id")
+  @UseGuards(PermissionsGuard)
   @Permissions(PERMISSIONS.coursesUpdate)
   async updateSkill(@Req() req: AuthenticatedRequest, @Param("id") id: string, @Body() dto: UpdateSkillDto) {
     return { data: await this.gamification.updateSkill(req.organization!, id, dto) };
   }
 
   @Delete("skills/:id")
+  @UseGuards(PermissionsGuard)
   @Permissions(PERMISSIONS.coursesUpdate)
   async deleteSkill(@Req() req: AuthenticatedRequest, @Param("id") id: string) {
     return await this.gamification.deleteSkill(req.organization!, id);
   }
 
   @Post("courses/:courseId/skills")
+  @UseGuards(PermissionsGuard)
   @Permissions(PERMISSIONS.coursesUpdate)
   async setCourseSkills(@Req() req: AuthenticatedRequest, @Param("courseId") courseId: string, @Body() skills: CourseSkillDto[]) {
     return { data: await this.gamification.setCourseSkills(req.organization!, courseId, skills) };
@@ -59,6 +63,7 @@ export class GamificationController {
   // ── XP ──────────────────────────────────────────────
 
   @Post("xp/award")
+  @UseGuards(PermissionsGuard)
   @Permissions(PERMISSIONS.analyticsView)
   async awardXp(@Req() req: AuthenticatedRequest, @Body() body: { userId: string; amount: number; reason: string; sourceType?: string; sourceId?: string }) {
     return { data: await this.gamification.awardXp(req.organization!, body.userId, body.amount, body.reason, body.sourceType, body.sourceId) };
@@ -77,6 +82,7 @@ export class GamificationController {
   }
 
   @Post("leaderboard/snapshot")
+  @UseGuards(PermissionsGuard)
   @Permissions(PERMISSIONS.analyticsView)
   async takeSnapshot(@Req() req: AuthenticatedRequest, @Body() body: { period: string; courseId?: string }) {
     return { data: await this.gamification.takeSnapshot(req.organization!, body.period, body.courseId) };
@@ -85,6 +91,7 @@ export class GamificationController {
   // ── Achievements ────────────────────────────────────
 
   @Post("achievements")
+  @UseGuards(PermissionsGuard)
   @Permissions(PERMISSIONS.analyticsView)
   async createAchievement(@Req() req: AuthenticatedRequest, @Body() dto: CreateAchievementDto) {
     return { data: await this.gamification.createAchievement(req.organization!, dto) };

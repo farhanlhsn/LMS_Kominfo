@@ -1,8 +1,8 @@
 import { Inject, Injectable, NotFoundException, ForbiddenException } from "@nestjs/common";
+import { normalizePageLimit, pageMeta, PERMISSIONS } from "@lms/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import type { OrganizationContext } from "../auth/types/authenticated-request";
 import type { AnalyticsQueryDto, EventQueryDto, AuditLogQueryDto } from "./dto/analytics.dto";
-import { PERMISSIONS } from "@lms/shared";
 
 const ADMIN_ROLES = new Set(["org_admin", "course_manager"]);
 
@@ -44,9 +44,7 @@ export class AnalyticsService {
     return (await this.prisma.courseInstructor.findMany({ where: { organizationId: org.id, userId }, select: { courseId: true } })).map(({ courseId: id }) => id);
   }
 
-  private paginationMeta(page: number, limit: number, total: number) {
-    return { page, limit, total, totalPages: Math.ceil(total / limit) };
-  }
+
 
   private dateRange(from?: string, to?: string) {
     const gte = from ? new Date(from) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
@@ -76,13 +74,12 @@ export class AnalyticsService {
     const where: Record<string, unknown> = { organizationId: org.id, courseId: { in: courseIds }, createdAt: { gte, lte } };
     if (query.eventType) where.eventType = query.eventType;
     if (query.userId) where.userId = query.userId;
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 20;
+    const { page, limit, skip } = normalizePageLimit(query.page, query.limit);
     const [data, total] = await Promise.all([
-      this.prisma.learningEvent.findMany({ where: where as any, orderBy: { createdAt: "desc" }, skip: (page - 1) * limit, take: limit }),
+      this.prisma.learningEvent.findMany({ where: where as any, orderBy: { createdAt: "desc" }, skip, take: limit }),
       this.prisma.learningEvent.count({ where: where as any }),
     ]);
-    return { data, meta: this.paginationMeta(page, limit, total) };
+    return { data, meta: pageMeta(page, limit, total) };
   }
 
   // ── Learner dashboard ─────────────────────────────────
@@ -169,17 +166,16 @@ export class AnalyticsService {
     const managedIds = await this.managedCourseIds(org, userId);
     if (!managedIds.includes(courseId)) throw new ForbiddenException("Access denied");
 
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 20;
+    const { page, limit, skip } = normalizePageLimit(query.page, query.limit);
     const enrollments = await this.prisma.enrollment.findMany({
       where: { organizationId: org.id, courseId },
       include: { user: { select: { id: true, name: true, email: true } } },
       orderBy: { enrolledAt: "desc" },
-      skip: (page - 1) * limit,
+      skip,
       take: limit,
     });
     const total = await this.prisma.enrollment.count({ where: { organizationId: org.id, courseId } });
-    return { data: enrollments, meta: this.paginationMeta(page, limit, total) };
+    return { data: enrollments, meta: pageMeta(page, limit, total) };
   }
 
   async getInstructorCourseEngagement(org: OrganizationContext, userId: string, courseId: string, query: AnalyticsQueryDto) {
@@ -235,15 +231,14 @@ export class AnalyticsService {
   }
 
   async getAdminCourseMetrics(org: OrganizationContext, query: AnalyticsQueryDto) {
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 20;
+    const { page, limit, skip } = normalizePageLimit(query.page, query.limit);
     const where: Record<string, unknown> = { organizationId: org.id, deletedAt: null };
     const [courses, total] = await Promise.all([
       this.prisma.course.findMany({
         where: where as any,
         select: { id: true, title: true, slug: true, status: true, createdAt: true },
         orderBy: { createdAt: "desc" },
-        skip: (page - 1) * limit,
+        skip,
         take: limit,
       }),
       this.prisma.course.count({ where: where as any }),
@@ -252,7 +247,7 @@ export class AnalyticsService {
     const enrollments = await this.prisma.enrollment.groupBy({ by: ["courseId"], where: { organizationId: org.id, courseId: { in: courseIds } }, _count: { id: true } });
     const enrollmentMap = new Map(enrollments.map((e) => [e.courseId, e._count.id]));
     const data = courses.map((c) => ({ ...c, enrollments: enrollmentMap.get(c.id) ?? 0 }));
-    return { data, meta: this.paginationMeta(page, limit, total) };
+    return { data, meta: pageMeta(page, limit, total) };
   }
 
   async getAdminTrends(org: OrganizationContext, query: AnalyticsQueryDto) {
@@ -293,19 +288,18 @@ export class AnalyticsService {
       const { gte, lte } = this.dateRange(query.from, query.to);
       where.createdAt = { gte, lte };
     }
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 50;
+    const { page, limit, skip } = normalizePageLimit(query.page, query.limit, 50);
     const [data, total] = await Promise.all([
       this.prisma.auditLog.findMany({
         where: where as any,
         include: { user: { select: { id: true, name: true, email: true } } },
         orderBy: { createdAt: "desc" },
-        skip: (page - 1) * limit,
+        skip,
         take: limit,
       }),
       this.prisma.auditLog.count({ where: where as any }),
     ]);
-    return { data, meta: this.paginationMeta(page, limit, total) };
+    return { data, meta: pageMeta(page, limit, total) };
   }
 
   // ── Daily aggregation ─────────────────────────────────

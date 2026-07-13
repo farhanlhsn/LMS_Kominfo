@@ -50,6 +50,7 @@ export class Content3DService {
         _count: { select: { scenes: true } },
       },
       orderBy: { createdAt: "desc" },
+      take: 100,
     });
   }
 
@@ -151,6 +152,7 @@ export class Content3DService {
       where: { organizationId, assetId },
       include: { interactions: true },
       orderBy: { createdAt: "desc" },
+      take: 50,
     });
   }
 

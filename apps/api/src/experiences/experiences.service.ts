@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { normalizePageLimit, pageMeta } from "@lms/shared";
 import type { OrganizationContext } from "../auth/types/authenticated-request";
 import { PrismaService } from "../prisma/prisma.service";
 import type {
@@ -32,9 +33,7 @@ const ADMIN_ROLES = new Set(["org_admin", "course_manager"]);
 export class ExperiencesService {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  private paginationMeta(page: number, limit: number, total: number) {
-    return { page, limit, total, totalPages: Math.ceil(total / limit) };
-  }
+
 
   private async canManage(org: OrganizationContext, courseId?: string | null) {
     if (org.isPlatformAdmin || org.roleKeys.some((r) => ADMIN_ROLES.has(r))) return true;
@@ -64,6 +63,7 @@ export class ExperiencesService {
     return this.prisma.scormPackage.findMany({
       where: { organizationId: org.id, courseId },
       orderBy: { createdAt: "desc" },
+      take: 100,
     });
   }
 
@@ -163,6 +163,7 @@ export class ExperiencesService {
     return this.prisma.h5PContent.findMany({
       where: { organizationId: org.id, courseId },
       orderBy: { createdAt: "desc" },
+      take: 100,
     });
   }
 
@@ -320,6 +321,7 @@ export class ExperiencesService {
       where: { organizationId: org.id, courseId, status },
       include: { _count: { select: { questions: true, responses: true } } },
       orderBy: { createdAt: "desc" },
+      take: 100,
     });
   }
 
@@ -494,6 +496,7 @@ export class ExperiencesService {
       where: { organizationId: org.id, courseId, status },
       include: { _count: { select: { votes: true } } },
       orderBy: { createdAt: "desc" },
+      take: 100,
     });
   }
 
@@ -598,24 +601,32 @@ export class ExperiencesService {
     });
   }
 
-  async listCourseFeedback(org: OrganizationContext, courseId: string) {
+  async listCourseFeedback(
+    org: OrganizationContext,
+    courseId: string,
+    query: { page?: number; limit?: number } = {},
+  ) {
     if (!(await this.canManage(org, courseId))) throw new ForbiddenException("Not allowed");
-    const [data, aggregate] = await Promise.all([
+    const { page, limit, skip } = normalizePageLimit(query.page, query.limit);
+    const where = { organizationId: org.id, courseId };
+    const [data, total, aggregate] = await Promise.all([
       this.prisma.courseFeedback.findMany({
-        where: { organizationId: org.id, courseId },
+        where,
         include: { user: { select: { id: true, name: true, email: true } } },
         orderBy: { submittedAt: "desc" },
-        take: 500,
+        skip,
+        take: limit,
       }),
+      this.prisma.courseFeedback.count({ where }),
       this.prisma.courseFeedback.aggregate({
-        where: { organizationId: org.id, courseId },
+        where,
         _avg: { rating: true },
         _count: { rating: true },
       }),
     ]);
     return {
       data,
-      meta: this.paginationMeta(1, data.length, data.length),
+      meta: pageMeta(page, limit, total),
       average: aggregate._avg.rating ?? 0,
       totalFeedback: aggregate._count.rating,
     };
@@ -626,6 +637,8 @@ export class ExperiencesService {
     const rows = await this.prisma.courseFeedback.findMany({
       where: { organizationId: org.id, courseId },
       include: { user: { select: { id: true, name: true, email: true } } },
+      take: 5000,
+      orderBy: { submittedAt: "desc" },
     });
     const header = ["feedback_id", "submitted_at", "user_email", "rating", "comment"];
     const data = rows.map((row) => [

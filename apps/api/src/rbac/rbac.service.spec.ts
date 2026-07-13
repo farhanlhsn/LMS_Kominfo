@@ -97,6 +97,24 @@ describe("RbacService", () => {
     ).toBe(false);
   });
 
+  it("denies empty required permissions list", () => {
+    const { service } = createService(null);
+    expect(
+      service.hasPermissions(
+        {
+          id: "org-1",
+          slug: "org-one",
+          name: "Org One",
+          memberId: "member-1",
+          roleKeys: ["learner"],
+          permissionKeys: [PERMISSIONS.coursesRead],
+          isPlatformAdmin: false
+        },
+        []
+      )
+    ).toBe(false);
+  });
+
   it("provisions organization roles with the permissions needed by learning flows", async () => {
     const permissions = Object.values(PERMISSIONS).map((key, index) => ({
       id: `perm-${index}`,

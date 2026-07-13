@@ -20,16 +20,20 @@ export class PermissionsGuard implements CanActivate {
   ) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const requiredPermissions =
-      this.reflector.getAllAndOverride<string[]>(REQUIRED_PERMISSIONS_KEY, [
-        context.getHandler(),
-        context.getClass()
-      ]) ?? [];
+    const requiredPermissions = this.reflector.getAllAndOverride<string[]>(
+      REQUIRED_PERMISSIONS_KEY,
+      [context.getHandler(), context.getClass()]
+    );
 
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
 
     if (!request.organization) {
       throw new ForbiddenException("Organization context is required");
+    }
+
+    // Fail closed: PermissionsGuard requires explicit @Permissions(...).
+    if (!requiredPermissions || requiredPermissions.length === 0) {
+      throw new ForbiddenException("Insufficient permissions");
     }
 
     if (

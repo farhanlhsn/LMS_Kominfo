@@ -7,6 +7,8 @@ import {
 } from "@nestjs/common";
 import { Prisma } from "@lms/db";
 import { PrismaService } from "../prisma/prisma.service";
+import { ensureEnrollment } from "../common/enrollment/ensure-enrollment";
+import { recalculateEnrollment } from "../common/enrollment/course-progress";
 import type { OrganizationContext } from "../auth/types/authenticated-request";
 import type {
   AddQuizQuestionDto,
@@ -858,18 +860,12 @@ export class QuizService {
     });
   }
 
-  private async ensureEnrollment(
+  private ensureEnrollment(
     organizationId: string,
     userId: string,
     courseId: string,
   ) {
-    const enrollment = await this.prisma.enrollment.findUnique({
-      where: { organizationId_courseId_userId: { organizationId, courseId, userId } },
-    });
-    if (!enrollment || (enrollment.status !== "ACTIVE" && enrollment.status !== "COMPLETED")) {
-      throw new ForbiddenException("Course enrollment is required");
-    }
-    return enrollment;
+    return ensureEnrollment(this.prisma, organizationId, userId, courseId);
   }
 
   private async getOwnAttempt(
@@ -1111,34 +1107,12 @@ export class QuizService {
     });
   }
 
-  private async recalculateEnrollment(
+  private recalculateEnrollment(
     organizationId: string,
     userId: string,
     courseId: string,
   ) {
-    const requiredActivities = await this.prisma.activity.findMany({
-      where: { organizationId, courseId, isRequired: true, isPublished: true },
-      select: { id: true },
-    });
-    const completedRequired = await this.prisma.activityProgress.count({
-      where: {
-        organizationId,
-        userId,
-        activityId: { in: requiredActivities.map((activity) => activity.id) },
-        status: "COMPLETED",
-      },
-    });
-    const progressPercent = requiredActivities.length
-      ? Math.round((completedRequired / requiredActivities.length) * 100)
-      : 0;
-    await this.prisma.enrollment.update({
-      where: { organizationId_courseId_userId: { organizationId, courseId, userId } },
-      data: {
-        status: progressPercent === 100 && requiredActivities.length ? "COMPLETED" : "ACTIVE",
-        progressPercent,
-        completedAt: progressPercent === 100 && requiredActivities.length ? new Date() : null,
-      },
-    });
+    return recalculateEnrollment(this.prisma, organizationId, userId, courseId);
   }
 
   private stringArray(value: unknown): string[] {

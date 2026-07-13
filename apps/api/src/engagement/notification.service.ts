@@ -54,6 +54,10 @@ export class NotificationService {
     return Promise.all(enrollments.map(({ userId }) => this.createForUser({ ...input, userId })));
   }
 
+  // ponytail: throttle reminder refresh per user (in-process; Redis later if multi-node)
+  private readonly reminderRefreshAt = new Map<string, number>();
+  private static readonly REMINDER_TTL_MS = 5 * 60_000;
+
   async list(organizationId: string, userId: string, unreadOnly = false) {
     await this.refreshLearningReminders(organizationId, userId);
     return this.prisma.notification.findMany({
@@ -64,19 +68,103 @@ export class NotificationService {
   }
 
   async refreshLearningReminders(organizationId: string, userId: string, now = new Date()) {
-    const enrollments = await this.prisma.enrollment.findMany({ where: { organizationId, userId, status: { in: ["ACTIVE", "COMPLETED"] } }, select: { courseId: true } });
+    const throttleKey = `${organizationId}:${userId}`;
+    const last = this.reminderRefreshAt.get(throttleKey) ?? 0;
+    if (now.getTime() - last < NotificationService.REMINDER_TTL_MS) {
+      return [];
+    }
+    this.reminderRefreshAt.set(throttleKey, now.getTime());
+    if (this.reminderRefreshAt.size > 5000) {
+      for (const [key, ts] of this.reminderRefreshAt) {
+        if (now.getTime() - ts >= NotificationService.REMINDER_TTL_MS) {
+          this.reminderRefreshAt.delete(key);
+        }
+      }
+    }
+
+    const enrollments = await this.prisma.enrollment.findMany({
+      where: { organizationId, userId, status: { in: ["ACTIVE", "COMPLETED"] } },
+      select: { courseId: true },
+      take: 100,
+    });
     const courseIds = enrollments.map(({ courseId }) => courseId);
     if (!courseIds.length) return [];
-    const inThirtyMinutes = new Date(now.getTime() + 30 * 60_000); const tomorrow = new Date(now.getTime() + 24 * 60 * 60_000);
+    const inThirtyMinutes = new Date(now.getTime() + 30 * 60_000);
+    const tomorrow = new Date(now.getTime() + 24 * 60 * 60_000);
     const [sessions, assignments, quizzes] = await Promise.all([
-      this.prisma.liveClass.findMany({ where: { organizationId, courseId: { in: courseIds }, status: "SCHEDULED", startAt: { gt: now, lte: inThirtyMinutes } }, select: { id: true, courseId: true, title: true, startAt: true } }),
-      this.prisma.assignment.findMany({ where: { organizationId, courseId: { in: courseIds }, status: "PUBLISHED", deletedAt: null, dueAt: { gt: now, lte: tomorrow } }, select: { id: true, courseId: true, title: true, dueAt: true } }),
-      this.prisma.quiz.findMany({ where: { organizationId, courseId: { in: courseIds }, status: "PUBLISHED", deletedAt: null, dueAt: { gt: now, lte: tomorrow } }, select: { id: true, courseId: true, activityId: true, title: true, dueAt: true } }),
+      this.prisma.liveClass.findMany({
+        where: {
+          organizationId,
+          courseId: { in: courseIds },
+          status: "SCHEDULED",
+          startAt: { gt: now, lte: inThirtyMinutes },
+        },
+        select: { id: true, courseId: true, title: true, startAt: true },
+        take: 20,
+      }),
+      this.prisma.assignment.findMany({
+        where: {
+          organizationId,
+          courseId: { in: courseIds },
+          status: "PUBLISHED",
+          deletedAt: null,
+          dueAt: { gt: now, lte: tomorrow },
+        },
+        select: { id: true, courseId: true, title: true, dueAt: true },
+        take: 20,
+      }),
+      this.prisma.quiz.findMany({
+        where: {
+          organizationId,
+          courseId: { in: courseIds },
+          status: "PUBLISHED",
+          deletedAt: null,
+          dueAt: { gt: now, lte: tomorrow },
+        },
+        select: { id: true, courseId: true, activityId: true, title: true, dueAt: true },
+        take: 20,
+      }),
     ]);
     return Promise.all([
-      ...sessions.map((item) => this.createForUser({ organizationId, userId, type: "live_class_reminder", title: `${item.title} starts soon`, body: "Your live class starts within 30 minutes.", actionUrl: `/learn/courses/${item.courseId}/live-classes`, entityType: "live_class", entityId: item.id, metadata: { courseId: item.courseId, startAt: item.startAt.toISOString() } })),
-      ...assignments.map((item) => this.createForUser({ organizationId, userId, type: "assignment_due_reminder", title: `${item.title} is due soon`, body: "This assignment is due within 24 hours.", actionUrl: `/learn/assignments/${item.id}`, entityType: "assignment", entityId: item.id, metadata: { courseId: item.courseId, dueAt: item.dueAt!.toISOString() } })),
-      ...quizzes.map((item) => this.createForUser({ organizationId, userId, type: "quiz_due_reminder", title: `${item.title} is due soon`, body: "This quiz is due within 24 hours.", actionUrl: item.activityId ? `/learn/courses/${item.courseId}` : undefined, entityType: "quiz", entityId: item.id, metadata: { courseId: item.courseId, dueAt: item.dueAt!.toISOString() } })),
+      ...sessions.map((item) =>
+        this.createForUser({
+          organizationId,
+          userId,
+          type: "live_class_reminder",
+          title: `${item.title} starts soon`,
+          body: "Your live class starts within 30 minutes.",
+          actionUrl: `/learn/courses/${item.courseId}/live-classes`,
+          entityType: "live_class",
+          entityId: item.id,
+          metadata: { courseId: item.courseId, startAt: item.startAt.toISOString() },
+        }),
+      ),
+      ...assignments.map((item) =>
+        this.createForUser({
+          organizationId,
+          userId,
+          type: "assignment_due_reminder",
+          title: `${item.title} is due soon`,
+          body: "This assignment is due within 24 hours.",
+          actionUrl: `/learn/assignments/${item.id}`,
+          entityType: "assignment",
+          entityId: item.id,
+          metadata: { courseId: item.courseId, dueAt: item.dueAt!.toISOString() },
+        }),
+      ),
+      ...quizzes.map((item) =>
+        this.createForUser({
+          organizationId,
+          userId,
+          type: "quiz_due_reminder",
+          title: `${item.title} is due soon`,
+          body: "This quiz is due within 24 hours.",
+          actionUrl: item.activityId ? `/learn/courses/${item.courseId}` : undefined,
+          entityType: "quiz",
+          entityId: item.id,
+          metadata: { courseId: item.courseId, dueAt: item.dueAt!.toISOString() },
+        }),
+      ),
     ]);
   }
 

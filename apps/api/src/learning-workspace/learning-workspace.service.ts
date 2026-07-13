@@ -7,6 +7,7 @@ import {
 } from "@nestjs/common";
 import { Prisma } from "@lms/db";
 import { PrismaService } from "../prisma/prisma.service";
+import { ensureEnrollment } from "../common/enrollment/ensure-enrollment";
 import { AiIndexingService } from "../ai/ai-indexing.service";
 import type { OrganizationContext } from "../auth/types/authenticated-request";
 import type {
@@ -884,20 +885,12 @@ export class LearningWorkspaceService {
     return activity;
   }
 
-  private async ensureEnrollment(
+  private ensureEnrollment(
     organizationId: string,
     userId: string,
     courseId: string,
   ) {
-    const enrollment = await this.prisma.enrollment.findUnique({
-      where: {
-        organizationId_courseId_userId: { organizationId, courseId, userId },
-      },
-    });
-    if (!enrollment || !["ACTIVE", "COMPLETED"].includes(enrollment.status)) {
-      throw new ForbiddenException("Course enrollment is required");
-    }
-    return enrollment;
+    return ensureEnrollment(this.prisma, organizationId, userId, courseId);
   }
 
   private async ensureCanManageActivity(

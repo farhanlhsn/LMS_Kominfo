@@ -38,6 +38,7 @@ export class ContentLibraryService {
         where: { organizationId, deletedAt: null },
         include: { file: true },
         orderBy: { createdAt: "desc" },
+        take: 100,
       });
       if (result.length > 0) await this.redis.set(this.libraryKey(organizationId), result, LIBRARY_TTL);
       return result;
@@ -56,6 +57,7 @@ export class ContentLibraryService {
       },
       include: { file: true },
       orderBy: { createdAt: "desc" },
+      take: 100,
     });
   }
 

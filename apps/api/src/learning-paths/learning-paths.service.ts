@@ -1,4 +1,5 @@
 ﻿import { Inject, Injectable, NotFoundException, ForbiddenException, BadRequestException } from "@nestjs/common";
+import { normalizePageLimit, pageMeta } from "@lms/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import type { OrganizationContext } from "../auth/types/authenticated-request";
 import type { CreateLearningPathDto, UpdateLearningPathDto, AddCourseToPathDto, LearningPathQueryDto } from "./dto/learning-path.dto";
@@ -10,10 +11,6 @@ export class LearningPathsService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService
   ) {}
-
-  private paginationMeta(page: number, limit: number, total: number) {
-    return { page, limit, total, totalPages: Math.ceil(total / limit) };
-  }
 
   private slugify(value: string) {
     return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -42,19 +39,18 @@ export class LearningPathsService {
     const where: Record<string, unknown> = { organizationId: org.id };
     if (query.status) where.status = query.status;
     if (query.search) where.title = { contains: query.search, mode: "insensitive" };
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 20;
+    const { page, limit, skip } = normalizePageLimit(query.page, query.limit);
     const [data, total] = await Promise.all([
       this.prisma.learningPath.findMany({
         where: where as any,
         include: { _count: { select: { courses: true, enrollments: true } } },
         orderBy: { createdAt: "desc" },
-        skip: (page - 1) * limit,
+        skip,
         take: limit,
       }),
       this.prisma.learningPath.count({ where: where as any }),
     ]);
-    return { data, meta: this.paginationMeta(page, limit, total) };
+    return { data, meta: pageMeta(page, limit, total) };
   }
 
   async findOne(org: OrganizationContext, idOrSlug: string) {

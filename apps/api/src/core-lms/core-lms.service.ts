@@ -6,7 +6,13 @@ import {
   Optional,
 } from "@nestjs/common";
 import { Prisma } from "@lms/db";
+import { normalizePageLimit, pageMeta } from "@lms/shared";
 import { PrismaService } from "../prisma/prisma.service";
+import { ensureEnrollment } from "../common/enrollment/ensure-enrollment";
+import {
+  calculateCourseProgress,
+  recalculateEnrollment,
+} from "../common/enrollment/course-progress";
 import { CertificatesService } from "../certificates/certificates.service";
 import { RedisService } from "../redis/redis.service";
 import { NotificationService } from "../engagement/notification.service";
@@ -26,6 +32,7 @@ import type {
 
 const COURSE_TTL = 30;
 const COURSES_LIST_TTL = 30;
+const CURRICULUM_TTL = 60;
 
 @Injectable()
 export class CoreLmsService {
@@ -44,8 +51,23 @@ export class CoreLmsService {
     return `instructor:courses:${orgId}:${userId}`;
   }
 
+  private curriculumKey(orgId: string, courseId: string, userId?: string) {
+    return userId
+      ? `curriculum:${orgId}:${courseId}:${userId}`
+      : `curriculum:${orgId}:${courseId}`;
+  }
+
+  private catalogPrefix(orgId: string) {
+    return `catalog:${orgId}:`;
+  }
+
   private async invalidateCourse(courseId: string, orgId?: string, userId?: string) {
     await this.redis?.del(this.courseKey(courseId));
+    if (orgId) {
+      await this.redis?.del(this.curriculumKey(orgId, courseId));
+      // Invalidate all catalog pages for this org (publish/unpublish/title edits).
+      await this.redis?.delByPrefix(this.catalogPrefix(orgId));
+    }
     if (orgId && userId) await this.redis?.del(this.coursesListKey(orgId, userId));
   }
 
@@ -53,6 +75,7 @@ export class CoreLmsService {
     return this.prisma.courseCategory.findMany({
       where: { organizationId },
       orderBy: [{ orderIndex: "asc" }, { name: "asc" }],
+      take: 100,
     });
   }
 
@@ -60,51 +83,55 @@ export class CoreLmsService {
     organizationId: string,
     query: { page?: number; limit?: number; search?: string },
   ): Promise<unknown> {
-    const page = Math.max(Number(query.page ?? 1), 1);
-    const limit = Math.min(Math.max(Number(query.limit ?? 20), 1), 50);
-    const where: Prisma.CourseWhereInput = {
-      organizationId,
-      status: "PUBLISHED",
-      deletedAt: null,
-      OR: query.search
-        ? [
-            { title: { contains: query.search, mode: "insensitive" } },
-            { subtitle: { contains: query.search, mode: "insensitive" } },
-            { description: { contains: query.search, mode: "insensitive" } },
-          ]
-        : undefined,
-    };
+    const { page, limit, skip } = normalizePageLimit(query.page, query.limit, 50);
+    const search = query.search?.trim() || "";
+    const cacheKey = `catalog:${organizationId}:${page}:${limit}:${search.toLowerCase()}`;
 
-    const [courses, total] = await Promise.all([
-      this.prisma.course.findMany({
-        where,
-        include: {
-          category: true,
-          _count: {
-            select: {
-              enrollments: true,
-              modules: true,
-              lessons: true,
-              activities: true,
+    const fetcher = async () => {
+      const where: Prisma.CourseWhereInput = {
+        organizationId,
+        status: "PUBLISHED",
+        deletedAt: null,
+        OR: search
+          ? [
+              { title: { contains: search, mode: "insensitive" } },
+              { subtitle: { contains: search, mode: "insensitive" } },
+              { description: { contains: search, mode: "insensitive" } },
+            ]
+          : undefined,
+      };
+
+      const [courses, total] = await Promise.all([
+        this.prisma.course.findMany({
+          where,
+          include: {
+            category: true,
+            _count: {
+              select: {
+                enrollments: true,
+                modules: true,
+                lessons: true,
+                activities: true,
+              },
             },
           },
-        },
-        orderBy: { publishedAt: "desc" },
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      this.prisma.course.count({ where }),
-    ]);
+          orderBy: { publishedAt: "desc" },
+          skip,
+          take: limit,
+        }),
+        this.prisma.course.count({ where }),
+      ]);
 
-    return {
-      data: courses,
-      meta: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+      return {
+        data: courses,
+        meta: pageMeta(page, limit, total),
+      };
     };
+
+    if (this.redis) {
+      return this.redis.getOrSet(cacheKey, fetcher, COURSE_TTL);
+    }
+    return fetcher();
   }
 
   async getCourseDetail(
@@ -205,6 +232,7 @@ export class CoreLmsService {
         _count: { select: { modules: true, lessons: true, activities: true, enrollments: true } },
       },
       orderBy: { updatedAt: "desc" },
+      take: 100,
     });
     if (this.redis) return this.redis.getOrSet(key, fetcher, COURSES_LIST_TTL);
     return fetcher();
@@ -742,6 +770,7 @@ export class CoreLmsService {
           deletedAt: null,
         },
       },
+      take: 100,
       include: {
         course: {
           include: {
@@ -1093,8 +1122,55 @@ export class CoreLmsService {
     courseId: string,
     userId?: string,
   ) {
+    const fetcher = () => this.loadCourseCurriculum(organizationId, courseId, userId);
+    if (!this.redis) return fetcher();
+    // Cache skeleton only (no user progress) — progress is user-specific.
+    if (userId) return fetcher();
+    return this.redis.getOrSet(
+      this.curriculumKey(organizationId, courseId),
+      fetcher,
+      CURRICULUM_TTL,
+    );
+  }
+
+  private async loadCourseCurriculum(
+    organizationId: string,
+    courseId: string,
+    userId?: string,
+  ) {
     const orderAsc = Prisma.SortOrder.asc;
     const orderDesc = Prisma.SortOrder.desc;
+    // Skeleton only: full body loads via /learn/activities/:id/content (avoids mega payload).
+    const activitySelect = {
+      id: true,
+      organizationId: true,
+      courseId: true,
+      lessonId: true,
+      title: true,
+      description: true,
+      activityTypeKey: true,
+      pluginKey: true,
+      pluginVersion: true,
+      orderIndex: true,
+      isRequired: true,
+      isPublished: true,
+      estimatedMinutes: true,
+      config: true,
+      completionRule: true,
+      gradingRule: true,
+      metadata: true,
+      createdAt: true,
+      updatedAt: true,
+      activityContent: {
+        select: {
+          id: true,
+          activityId: true,
+          externalUrl: true,
+          fileId: true,
+          metadata: true,
+        },
+      },
+    } as const;
 
     if (!userId) {
       return this.prisma.course.findFirstOrThrow({
@@ -1108,9 +1184,7 @@ export class CoreLmsService {
                 include: {
                   activities: {
                     orderBy: { orderIndex: orderAsc },
-                    include: {
-                      activityContent: true,
-                    },
+                    select: activitySelect,
                   },
                 },
               },
@@ -1131,8 +1205,8 @@ export class CoreLmsService {
               include: {
                 activities: {
                   orderBy: { orderIndex: orderAsc },
-                  include: {
-                    activityContent: true,
+                  select: {
+                    ...activitySelect,
                     progress: {
                       where: { organizationId, userId },
                       orderBy: { updatedAt: orderDesc },
@@ -1147,64 +1221,25 @@ export class CoreLmsService {
     });
   }
 
-  private async ensureEnrollment(
+  private ensureEnrollment(
     organizationId: string,
     userId: string,
     courseId: string,
   ) {
-    const enrollment = await this.prisma.enrollment.findUnique({
-      where: {
-        organizationId_courseId_userId: {
-          organizationId,
-          courseId,
-          userId,
-        },
-      },
-    });
-
-    if (!enrollment || !["ACTIVE", "COMPLETED"].includes(enrollment.status)) {
-      throw new ForbiddenException("Course enrollment is required");
-    }
-
-    return enrollment;
+    return ensureEnrollment(this.prisma, organizationId, userId, courseId);
   }
 
-  private async calculateCourseProgress(
+  private calculateCourseProgress(
     organizationId: string,
     userId: string,
     courseId: string,
   ) {
-    const requiredActivities = await this.prisma.activity.findMany({
-      where: {
-        organizationId,
-        courseId,
-        isRequired: true,
-        isPublished: true,
-      },
-      select: { id: true },
-    });
-
-    if (requiredActivities.length === 0) {
-      return { progressPercent: 0, completedRequired: 0, requiredTotal: 0 };
-    }
-
-    const completedRequired = await this.prisma.activityProgress.count({
-      where: {
-        organizationId,
-        userId,
-        activityId: { in: requiredActivities.map((activity) => activity.id) },
-        status: "COMPLETED",
-      },
-    });
-    const progressPercent = Math.round(
-      (completedRequired / requiredActivities.length) * 100,
+    return calculateCourseProgress(
+      this.prisma,
+      organizationId,
+      userId,
+      courseId,
     );
-
-    return {
-      progressPercent,
-      completedRequired,
-      requiredTotal: requiredActivities.length,
-    };
   }
 
   private async recalculateEnrollment(
@@ -1212,26 +1247,14 @@ export class CoreLmsService {
     userId: string,
     courseId: string,
   ) {
-    const progress = await this.calculateCourseProgress(
+    const progress = await recalculateEnrollment(
+      this.prisma,
       organizationId,
       userId,
       courseId,
     );
-    const completed = progress.progressPercent === 100 && progress.requiredTotal > 0;
-    await this.prisma.enrollment.update({
-      where: {
-        organizationId_courseId_userId: {
-          organizationId,
-          courseId,
-          userId,
-        },
-      },
-      data: {
-        status: completed ? "COMPLETED" : "ACTIVE",
-        progressPercent: progress.progressPercent,
-        completedAt: completed ? new Date() : null,
-      },
-    });
+    const completed =
+      progress.progressPercent === 100 && progress.requiredTotal > 0;
     // Trigger auto-certificate if course just reached 100% completion
     if (completed && this.certificates) {
       this.certificates.autoIssue(organizationId, userId, courseId).catch(() => {

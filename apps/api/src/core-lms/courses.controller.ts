@@ -7,6 +7,7 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
+import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { JwtAuthGuard } from "../rbac/guards/jwt-auth.guard";
 import { OrganizationContextGuard } from "../rbac/guards/organization-context.guard";
 import { ActiveOrganization } from "../rbac/decorators/active-organization.decorator";
@@ -17,6 +18,8 @@ import type {
 } from "../auth/types/authenticated-request";
 import { CoreLmsService } from "./core-lms.service";
 
+@ApiTags("Catalog")
+@ApiBearerAuth()
 @Controller()
 @UseGuards(JwtAuthGuard, OrganizationContextGuard)
 export class CoursesController {
@@ -30,6 +33,7 @@ export class CoursesController {
   }
 
   @Get("courses")
+  @ApiOperation({ summary: "Published course catalog (paginated)" })
   listCourses(
     @ActiveOrganization() organization: OrganizationContext,
     @Query("page") page?: string,

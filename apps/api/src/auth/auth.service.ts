@@ -16,6 +16,7 @@ import { PERMISSIONS, SYSTEM_ROLES } from "@lms/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { RbacService } from "../rbac/rbac.service";
 import { EmailService } from "../email/email.service";
+import { jwtAccessSecret, jwtRefreshSecret } from "../common/security/jwt-secrets";
 import type {
   AccessTokenPayload,
   RefreshTokenPayload
@@ -573,7 +574,7 @@ export class AuthService {
           type: "refresh"
         } satisfies RefreshTokenPayload,
         {
-          secret: process.env.JWT_REFRESH_SECRET ?? "dev-refresh-secret",
+          secret: jwtRefreshSecret(),
           expiresIn: `${this.refreshTtlDays()}d`
         }
       )
@@ -599,7 +600,7 @@ export class AuthService {
         type: "access"
       } satisfies AccessTokenPayload,
       {
-        secret: process.env.JWT_ACCESS_SECRET ?? "dev-access-secret",
+        secret: jwtAccessSecret(),
         expiresIn: this.accessTtlSeconds()
       }
     );
@@ -610,7 +611,7 @@ export class AuthService {
       const payload = await this.jwtService.verifyAsync<RefreshTokenPayload>(
         token,
         {
-          secret: process.env.JWT_REFRESH_SECRET ?? "dev-refresh-secret"
+          secret: jwtRefreshSecret()
         }
       );
 

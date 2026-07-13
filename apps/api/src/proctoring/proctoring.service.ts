@@ -203,6 +203,7 @@ export class ProctoringService {
         ...(filters.userId ? { userId: filters.userId } : {}),
         ...(filters.status ? { status: filters.status } : {}),
       },
+      take: 100,
       include: {
         user: { select: { id: true, email: true, name: true } },
         _count: { select: { events: true, flags: true } },
@@ -221,6 +222,7 @@ export class ProctoringService {
         ...(filters.status ? { status: filters.status } : {}),
         ...(filters.sessionId ? { sessionId: filters.sessionId } : {}),
       },
+      take: 100,
       include: {
         event: true,
         session: {

@@ -106,6 +106,7 @@ export class PushService {
     const records = await this.prisma.pushSubscription.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
+      take: 50,
     });
     return records.map((r) => ({
       id: r.id,
@@ -124,6 +125,7 @@ export class PushService {
   ) {
     const subs = await this.prisma.pushSubscription.findMany({
       where: { userId, organizationId },
+      take: 50,
     });
     const result = { attempted: subs.length, delivered: 0, failed: 0, removed: 0 };
     if (subs.length === 0) return result;
@@ -158,6 +160,7 @@ export class PushService {
   async sendToOrganization(organizationId: string, payload: PushPayload) {
     const subs = await this.prisma.pushSubscription.findMany({
       where: { organizationId },
+      take: 500,
     });
     const result = { attempted: subs.length, delivered: 0, failed: 0, removed: 0 };
     for (const sub of subs) {

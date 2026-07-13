@@ -30,6 +30,7 @@ export class PayoutService {
     return this.prisma.revenueShareRule.findMany({
       where: { organizationId },
       orderBy: [{ scope: "asc" }, { percent: "desc" }],
+      take: 100,
     });
   }
 
@@ -78,6 +79,7 @@ export class PayoutService {
     return this.prisma.payoutMethod.findMany({
       where: { organizationId },
       orderBy: { createdAt: "desc" },
+      take: 50,
     });
   }
 
@@ -113,6 +115,7 @@ export class PayoutService {
       where: { organizationId },
       orderBy: { periodStart: "desc" },
       include: { _count: { select: { payouts: true } } },
+      take: 50,
     });
   }
 
@@ -295,6 +298,7 @@ export class PayoutService {
         beneficiaryId: userId,
       },
       orderBy: { createdAt: "desc" },
+      take: 100,
       include: { period: { select: { id: true, periodStart: true, periodEnd: true } } },
     });
   }

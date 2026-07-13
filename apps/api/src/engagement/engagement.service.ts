@@ -52,6 +52,7 @@ export class EngagementService {
       },
       include: { author: { select: { id: true, name: true } }, _count: { select: { replies: true } } },
       orderBy: [{ pinned: "desc" }, { updatedAt: "desc" }],
+      take: 100,
     });
   }
 
@@ -211,6 +212,7 @@ export class EngagementService {
       where: { organizationId: org.id, OR: [{ thread: { courseId: { in: courseIds } } }, { reply: { thread: { courseId: { in: courseIds } } } }] },
       include: { reporter: { select: { id: true, name: true } }, thread: { select: { id: true, title: true, courseId: true, status: true } }, reply: { select: { id: true, body: true, status: true, thread: { select: { id: true, title: true, courseId: true } } } } },
       orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+      take: 100,
     });
   }
 
@@ -233,6 +235,7 @@ export class EngagementService {
     const sessions = await this.prisma.liveClass.findMany({
       where: { organizationId: org.id, courseId: { in: courseIds }, startAt: { gte: query.from ? new Date(query.from) : undefined, lte: query.to ? new Date(query.to) : undefined } },
       include: { course: { select: { id: true, title: true } } }, orderBy: { startAt: "asc" },
+      take: 100,
     });
     await Promise.all(sessions.filter((session) => session.status === "SCHEDULED" && session.startAt.getTime() > Date.now() && session.startAt.getTime() - Date.now() <= 30 * 60_000).map((session) => this.notifications.createForUser({ organizationId: org.id, userId, type: "live_class_reminder", title: `${session.title} starts soon`, body: "Your live class starts within 30 minutes.", actionUrl: `/learn/courses/${session.courseId}/live-classes`, entityType: "live_class", entityId: session.id, metadata: { courseId: session.courseId, startAt: session.startAt.toISOString() } })));
     return sessions;

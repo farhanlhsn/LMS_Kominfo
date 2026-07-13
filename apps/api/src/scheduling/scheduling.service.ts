@@ -48,6 +48,7 @@ export class SchedulingService {
         _count: { select: { members: true, schedule: true } },
       },
       orderBy: { startAt: "asc" },
+      take: 100,
     });
   }
 
@@ -62,6 +63,7 @@ export class SchedulingService {
         _count: { select: { members: true } },
       },
       orderBy: { startAt: "asc" },
+      take: 50,
     });
   }
 
@@ -214,6 +216,7 @@ export class SchedulingService {
     return this.prisma.cohortSchedule.findMany({
       where: { organizationId: organization.id, cohortId },
       orderBy: [{ weekday: "asc" }, { startTime: "asc" }],
+      take: 100,
     });
   }
 

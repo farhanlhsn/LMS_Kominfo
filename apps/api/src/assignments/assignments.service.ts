@@ -8,6 +8,8 @@ import {
 } from "@nestjs/common";
 import { Prisma } from "@lms/db";
 import { PrismaService } from "../prisma/prisma.service";
+import { ensureEnrollment } from "../common/enrollment/ensure-enrollment";
+import { recalculateEnrollment } from "../common/enrollment/course-progress";
 import type { OrganizationContext } from "../auth/types/authenticated-request";
 import { NotificationService } from "../engagement/notification.service";
 import type {
@@ -34,6 +36,7 @@ export class AssignmentsService {
       where: { organizationId: organization.id, courseId, deletedAt: null },
       include: { activity: true, rubric: true, _count: { select: { submissions: true } } },
       orderBy: { updatedAt: "desc" },
+      take: 100,
     });
   }
 
@@ -200,6 +203,7 @@ export class AssignmentsService {
       },
       include: { criteria: { include: { levels: { orderBy: { orderIndex: "asc" } } }, orderBy: { orderIndex: "asc" } } },
       orderBy: { updatedAt: "desc" },
+      take: 100,
     });
   }
 
@@ -323,6 +327,7 @@ export class AssignmentsService {
       where: { organizationId: organization.id, assignmentId },
       include: { user: true, rubricScores: true },
       orderBy: [{ submittedAt: "desc" }, { updatedAt: "desc" }],
+      take: 200,
     });
   }
 
@@ -642,14 +647,8 @@ export class AssignmentsService {
     return activity;
   }
 
-  private async ensureEnrollment(organizationId: string, userId: string, courseId: string) {
-    const enrollment = await this.prisma.enrollment.findUnique({
-      where: { organizationId_courseId_userId: { organizationId, courseId, userId } },
-    });
-    if (!enrollment || !["ACTIVE", "COMPLETED"].includes(enrollment.status)) {
-      throw new ForbiddenException("Course enrollment is required");
-    }
-    return enrollment;
+  private ensureEnrollment(organizationId: string, userId: string, courseId: string) {
+    return ensureEnrollment(this.prisma, organizationId, userId, courseId);
   }
 
   private assertAvailable(assignment: {
@@ -746,30 +745,8 @@ export class AssignmentsService {
     await this.recalculateEnrollment(organizationId, userId, submission.courseId);
   }
 
-  private async recalculateEnrollment(organizationId: string, userId: string, courseId: string) {
-    const requiredActivities = await this.prisma.activity.findMany({
-      where: { organizationId, courseId, isRequired: true, isPublished: true },
-      select: { id: true },
-    });
-    const completedRequired = await this.prisma.activityProgress.count({
-      where: {
-        organizationId,
-        userId,
-        activityId: { in: requiredActivities.map((activity) => activity.id) },
-        status: "COMPLETED",
-      },
-    });
-    const progressPercent = requiredActivities.length
-      ? Math.round((completedRequired / requiredActivities.length) * 100)
-      : 0;
-    await this.prisma.enrollment.update({
-      where: { organizationId_courseId_userId: { organizationId, courseId, userId } },
-      data: {
-        status: progressPercent === 100 && requiredActivities.length ? "COMPLETED" : "ACTIVE",
-        progressPercent,
-        completedAt: progressPercent === 100 && requiredActivities.length ? new Date() : null,
-      },
-    });
+  private recalculateEnrollment(organizationId: string, userId: string, courseId: string) {
+    return recalculateEnrollment(this.prisma, organizationId, userId, courseId);
   }
 
   private date(value?: string) {

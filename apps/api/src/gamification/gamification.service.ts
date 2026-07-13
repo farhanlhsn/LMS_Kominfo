@@ -1,4 +1,5 @@
 ﻿import { Inject, Injectable, NotFoundException, ForbiddenException, BadRequestException } from "@nestjs/common";
+import { normalizePageLimit, pageMeta } from "@lms/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import type { OrganizationContext } from "../auth/types/authenticated-request";
 import type { CreateSkillDto, UpdateSkillDto, CourseSkillDto, XpQueryDto, LeaderboardQueryDto, CreateAchievementDto, UpdateAchievementDto } from "./dto/gamification.dto";
@@ -8,10 +9,6 @@ export class GamificationService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService
   ) {}
-
-  private paginationMeta(page: number, limit: number, total: number) {
-    return { page, limit, total, totalPages: Math.ceil(total / limit) };
-  }
 
   private slugify(value: string) {
     return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -29,7 +26,12 @@ export class GamificationService {
   async listSkills(org: OrganizationContext, category?: string) {
     const where: Record<string, unknown> = { organizationId: org.id };
     if (category) where.category = category;
-    return this.prisma.skill.findMany({ where: where as any, orderBy: { name: "asc" }, include: { _count: { select: { courseSkills: true } } } });
+    return this.prisma.skill.findMany({
+      where: where as any,
+      orderBy: { name: "asc" },
+      include: { _count: { select: { courseSkills: true } } },
+      take: 200,
+    });
   }
 
   async updateSkill(org: OrganizationContext, id: string, dto: UpdateSkillDto) {
@@ -76,6 +78,7 @@ export class GamificationService {
       where: { userId },
       include: { skill: true },
       orderBy: { proficiency: "desc" },
+      take: 200,
     });
   }
 
@@ -91,19 +94,18 @@ export class GamificationService {
   }
 
   async getXpHistory(org: OrganizationContext, userId: string, query: XpQueryDto) {
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 20;
+    const { page, limit, skip } = normalizePageLimit(query.page, query.limit);
     const [data, total] = await Promise.all([
       this.prisma.xpTransaction.findMany({
         where: { organizationId: org.id, userId },
         orderBy: { createdAt: "desc" },
-        skip: (page - 1) * limit,
+        skip,
         take: limit,
       }),
       this.prisma.xpTransaction.count({ where: { organizationId: org.id, userId } }),
     ]);
     const totalXp = await this.prisma.xpTransaction.aggregate({ where: { organizationId: org.id, userId }, _sum: { amount: true } });
-    return { data, meta: this.paginationMeta(page, limit, total), totalXp: totalXp._sum.amount ?? 0 };
+    return { data, meta: pageMeta(page, limit, total), totalXp: totalXp._sum.amount ?? 0 };
   }
 
   // ── Leaderboard ──────────────────────────────────────

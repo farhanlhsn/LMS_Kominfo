@@ -55,4 +55,16 @@ describe("OrganizationContextGuard", () => {
     } as any;
     await expect(guard.canActivate(createContext(request))).resolves.toBe(true);
   });
+
+  it("rejects conflicting param and header organization ids", async () => {
+    const guard = new OrganizationContextGuard(createRbacStub({ id: "org-1" }));
+    const request = {
+      user: { id: "u1", activeOrganizationId: "active" },
+      headers: { "x-organization-id": "org-header" },
+      params: { organizationId: "org-param" },
+    } as any;
+    await expect(guard.canActivate(createContext(request))).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
 });

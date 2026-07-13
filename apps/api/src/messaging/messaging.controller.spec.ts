@@ -45,7 +45,10 @@ describe("MessagingController", () => {
       createConversation: vi.fn().mockResolvedValue({ id: "conv_1" }),
       getConversation: vi.fn().mockResolvedValue({ id: "conv_1" }),
       addMembers: vi.fn().mockResolvedValue({ id: "conv_1" }),
-      listMessages: vi.fn().mockResolvedValue([]),
+      listMessages: vi.fn().mockResolvedValue({
+        data: [],
+        meta: { limit: 20, nextCursor: null, hasMore: false },
+      }),
       sendMessage: vi.fn().mockResolvedValue({ id: "msg_1" }),
       editMessage: vi.fn().mockResolvedValue({ id: "msg_1", content: "x" }),
       deleteMessage: vi.fn().mockResolvedValue({ id: "msg_1" }),
@@ -94,7 +97,10 @@ describe("MessagingController", () => {
       user as never,
       org as never,
     );
-    expect((result as { data: unknown[] }).data).toEqual([]);
+    expect((result as { data: unknown[]; meta: { hasMore: boolean } }).data).toEqual(
+      [],
+    );
+    expect((result as { meta: { hasMore: boolean } }).meta.hasMore).toBe(false);
   });
 
   it("sends a message", async () => {

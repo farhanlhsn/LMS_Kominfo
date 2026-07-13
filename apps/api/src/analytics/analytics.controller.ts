@@ -18,6 +18,7 @@ export class AnalyticsController {
   // ── Events ──────────────────────────────────────────
 
   @Post("events")
+  @UseGuards(PermissionsGuard)
   @Permissions(PERMISSIONS.analyticsView)
   async recordEvent(@Req() req: AuthenticatedRequest, @Body() body: { eventType: string; metadata?: Record<string, unknown>; courseId?: string; lessonId?: string; activityId?: string }) {
     const org = req.organization!;
@@ -26,6 +27,7 @@ export class AnalyticsController {
   }
 
   @Get("events")
+  @UseGuards(PermissionsGuard)
   @Permissions(PERMISSIONS.analyticsView)
   async listEvents(@Req() req: AuthenticatedRequest, @Query() query: EventQueryDto) {
     return this.analytics.listEvents(req.organization!, req.user.id, query);
@@ -63,18 +65,21 @@ export class AnalyticsController {
   // ── Admin ───────────────────────────────────────────
 
   @Get("admin/overview")
+  @UseGuards(PermissionsGuard)
   @Permissions(PERMISSIONS.analyticsView)
   async getAdminOverview(@Req() req: AuthenticatedRequest) {
     return { data: await this.analytics.getAdminOverview(req.organization!) };
   }
 
   @Get("admin/courses")
+  @UseGuards(PermissionsGuard)
   @Permissions(PERMISSIONS.analyticsView)
   async getAdminCourseMetrics(@Req() req: AuthenticatedRequest, @Query() query: AnalyticsQueryDto) {
     return this.analytics.getAdminCourseMetrics(req.organization!, query);
   }
 
   @Get("admin/trends")
+  @UseGuards(PermissionsGuard)
   @Permissions(PERMISSIONS.analyticsView)
   async getAdminTrends(@Req() req: AuthenticatedRequest, @Query() query: AnalyticsQueryDto) {
     return { data: await this.analytics.getAdminTrends(req.organization!, query) };
@@ -83,6 +88,7 @@ export class AnalyticsController {
   // ── Audit Logs ─────────────────────────────────────
 
   @Get("audit-logs")
+  @UseGuards(PermissionsGuard)
   @Permissions(PERMISSIONS.auditRead)
   async getAuditLogs(@Req() req: AuthenticatedRequest, @Query() query: AuditLogQueryDto) {
     return this.analytics.getAuditLogs(req.organization!, query);
@@ -91,6 +97,7 @@ export class AnalyticsController {
   // ── Daily aggregation trigger (admin only) ─────────
 
   @Post("aggregate")
+  @UseGuards(PermissionsGuard)
   @Permissions(PERMISSIONS.analyticsView)
   async triggerAggregation(@Req() req: AuthenticatedRequest) {
     return { data: await this.analytics.runDailyAggregation(req.organization!.id) };
@@ -99,6 +106,7 @@ export class AnalyticsController {
   // ── Report export trigger ──────────────────────────
 
   @Post("reports/export")
+  @UseGuards(PermissionsGuard)
   @Permissions(PERMISSIONS.analyticsExport)
   async requestExport(@Req() req: AuthenticatedRequest, @Body() dto: ReportExportDto) {
     // Placeholder: actual queue-based export to be implemented in report module

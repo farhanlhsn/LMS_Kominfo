@@ -16,6 +16,7 @@ export class LearningPathsController {
   ) {}
 
   @Post()
+  @UseGuards(PermissionsGuard)
   @Permissions(PERMISSIONS.coursesCreate)
   async create(@Req() req: AuthenticatedRequest, @Body() dto: CreateLearningPathDto) {
     return { data: await this.paths.create(req.organization!, dto) };
@@ -32,30 +33,35 @@ export class LearningPathsController {
   }
 
   @Patch(":id")
+  @UseGuards(PermissionsGuard)
   @Permissions(PERMISSIONS.coursesUpdate)
   async update(@Req() req: AuthenticatedRequest, @Param("id") id: string, @Body() dto: UpdateLearningPathDto) {
     return { data: await this.paths.update(req.organization!, id, dto) };
   }
 
   @Delete(":id")
+  @UseGuards(PermissionsGuard)
   @Permissions(PERMISSIONS.coursesUpdate)
   async delete(@Req() req: AuthenticatedRequest, @Param("id") id: string) {
     return await this.paths.delete(req.organization!, id);
   }
 
   @Post(":id/courses")
+  @UseGuards(PermissionsGuard)
   @Permissions(PERMISSIONS.coursesUpdate)
   async addCourse(@Req() req: AuthenticatedRequest, @Param("id") id: string, @Body() dto: AddCourseToPathDto) {
     return { data: await this.paths.addCourse(req.organization!, id, dto) };
   }
 
   @Delete(":id/courses/:courseId")
+  @UseGuards(PermissionsGuard)
   @Permissions(PERMISSIONS.coursesUpdate)
   async removeCourse(@Req() req: AuthenticatedRequest, @Param("id") id: string, @Param("courseId") courseId: string) {
     return await this.paths.removeCourse(req.organization!, id, courseId);
   }
 
   @Post(":id/courses/reorder")
+  @UseGuards(PermissionsGuard)
   @Permissions(PERMISSIONS.coursesUpdate)
   async reorderCourses(@Req() req: AuthenticatedRequest, @Param("id") id: string, @Body() body: { courseIds: string[] }) {
     return { data: await this.paths.reorderCourses(req.organization!, id, body.courseIds) };

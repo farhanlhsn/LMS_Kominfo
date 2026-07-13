@@ -1,6 +1,7 @@
 import { ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@lms/db";
 import { PrismaService } from "../prisma/prisma.service";
+import { ensureEnrollment } from "../common/enrollment/ensure-enrollment";
 import type { CreateLearningGoalDto, UpdateLearningGoalDto } from "./dto/goal.dto";
 
 @Injectable()
@@ -12,6 +13,7 @@ export class GoalsService {
       where: { organizationId, userId },
       include: { course: true },
       orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
+      take: 100,
     });
     return Promise.all(goals.map((goal) => this.withProgress(goal)));
   }
@@ -151,12 +153,8 @@ export class GoalsService {
     return goal;
   }
 
-  private async ensureEnrollment(organizationId: string, userId: string, courseId: string) {
-    const enrollment = await this.prisma.enrollment.findUnique({
-      where: { organizationId_courseId_userId: { organizationId, courseId, userId } },
-    });
-    if (!enrollment) throw new ForbiddenException("Course enrollment is required");
-    return enrollment;
+  private ensureEnrollment(organizationId: string, userId: string, courseId: string) {
+    return ensureEnrollment(this.prisma, organizationId, userId, courseId);
   }
 
   private date(value?: string) {

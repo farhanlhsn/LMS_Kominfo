@@ -61,6 +61,7 @@ export class AdvancedAssignmentService {
     );
     return this.prisma.assignmentGroup.findMany({
       where: { organizationId: organization.id, assignmentId: assignment.id },
+      take: 100,
       include: {
         members: {
           include: {
@@ -419,6 +420,7 @@ export class AdvancedAssignmentService {
         review: true,
       },
       orderBy: { createdAt: "desc" },
+      take: 200,
     });
   }
 
@@ -428,6 +430,7 @@ export class AdvancedAssignmentService {
   ) {
     return this.prisma.peerReviewMatch.findMany({
       where: { organizationId, reviewerUserId: userId },
+      take: 100,
       include: {
         submission: {
           select: {
@@ -519,6 +522,7 @@ export class AdvancedAssignmentService {
         resolvedBy: { select: { id: true, email: true, name: true } },
       },
       orderBy: { startOffset: "asc" },
+      take: 500,
     });
   }
 
@@ -608,6 +612,7 @@ export class AdvancedAssignmentService {
     return this.prisma.plagiarismCheck.findMany({
       where: { organizationId: organization.id, submissionId },
       orderBy: { createdAt: "desc" },
+      take: 50,
     });
   }
 
@@ -691,6 +696,7 @@ export class AdvancedAssignmentService {
         createdBy: { select: { id: true, email: true, name: true } },
       },
       orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+      take: 100,
     });
   }
 
@@ -777,6 +783,7 @@ export class AdvancedAssignmentService {
     return this.prisma.projectShowcase.findMany({
       where: { organizationId, courseId, publishedAt: { not: null } },
       orderBy: [{ featured: "desc" }, { publishedAt: "desc" }],
+      take: 100,
     });
   }
 

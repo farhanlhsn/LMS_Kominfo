@@ -7,6 +7,7 @@ import {
   Req,
   UseGuards
 } from "@nestjs/common";
+import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import type { Request } from "express";
 import { JwtAuthGuard } from "../rbac/guards/jwt-auth.guard";
 import { CurrentUser } from "../rbac/decorators/current-user.decorator";
@@ -21,21 +22,25 @@ import { RegisterDto } from "./dto/register.dto";
 import { SwitchOrganizationDto } from "./dto/switch-organization.dto";
 import { ForgotPasswordDto, ResetPasswordDto } from "./dto/password-reset.dto";
 
+@ApiTags("Auth")
 @Controller("auth")
 export class AuthController {
   constructor(@Inject(AuthService) private readonly authService: AuthService) {}
 
   @Post("register")
+  @ApiOperation({ summary: "Register a new user" })
   register(@Body() dto: RegisterDto, @Req() request: Request): Promise<unknown> {
     return this.authService.register(dto, this.metadata(request));
   }
 
   @Post("login")
+  @ApiOperation({ summary: "Login with email and password" })
   login(@Body() dto: LoginDto, @Req() request: Request): Promise<unknown> {
     return this.authService.login(dto, this.metadata(request));
   }
 
   @Post("refresh")
+  @ApiOperation({ summary: "Refresh access token" })
   refresh(
     @Body() dto: RefreshTokenDto,
     @Req() request: Request
@@ -44,6 +49,8 @@ export class AuthController {
   }
 
   @Get("me")
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Current authenticated user" })
   @UseGuards(JwtAuthGuard)
   me(@CurrentUser() user: AuthenticatedUser): Promise<unknown> {
     return this.authService.me(user);

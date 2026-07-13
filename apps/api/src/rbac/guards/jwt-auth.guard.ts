@@ -8,6 +8,7 @@ import {
 import { JwtService } from "@nestjs/jwt";
 import { PrismaService } from "../../prisma/prisma.service";
 import type { AuthenticatedRequest } from "../../auth/types/authenticated-request";
+import { jwtAccessSecret } from "../../common/security/jwt-secrets";
 import type { AccessTokenPayload } from "../types/jwt-payload";
 
 @Injectable()
@@ -28,7 +29,7 @@ export class JwtAuthGuard implements CanActivate {
     let payload: AccessTokenPayload;
     try {
       payload = await this.jwtService.verifyAsync<AccessTokenPayload>(token, {
-        secret: process.env.JWT_ACCESS_SECRET ?? "dev-access-secret"
+        secret: jwtAccessSecret()
       });
     } catch {
       throw new UnauthorizedException("Invalid access token");

@@ -36,6 +36,7 @@ export class GovernanceService {
     type?: string,
   ) {
     return this.prisma.legalDocument.findMany({
+      take: 100,
       where: {
         organizationId: organization.id,
         ...(type ? { type: type as Prisma.LegalDocumentWhereInput["type"] } : {}),
@@ -48,6 +49,7 @@ export class GovernanceService {
     const all = await this.prisma.legalDocument.findMany({
       where: { organizationId: organization.id, publishedAt: { not: null } },
       orderBy: [{ type: "asc" }, { effectiveAt: "desc" }],
+      take: 200,
     });
     const latestByType = new Map<string, (typeof all)[number]>();
     for (const doc of all) {
@@ -154,6 +156,7 @@ export class GovernanceService {
     return this.prisma.consentRecord.findMany({
       where: { organizationId, userId },
       orderBy: { grantedAt: "desc" },
+      take: 100,
     });
   }
 
@@ -327,6 +330,7 @@ export class GovernanceService {
     return this.prisma.retentionPolicy.findMany({
       where: { organizationId: organization.id },
       orderBy: { entityType: "asc" },
+      take: 100,
     });
   }
 

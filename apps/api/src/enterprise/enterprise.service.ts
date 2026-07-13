@@ -1,4 +1,5 @@
 import { Inject, Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
+import { normalizePageLimit, pageMeta } from "@lms/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import type { OrganizationContext } from "../auth/types/authenticated-request";
 import type { UpdateBrandingDto, CreateSsoProviderDto, UpdateSsoProviderDto, UpdateLoginPolicyDto, CreateDomainDto, CreateApiKeyDto, CreateWebhookDto, EnterpriseQueryDto } from "./dto/enterprise.dto";
@@ -10,18 +11,17 @@ export class EnterpriseService {
     @Inject(PrismaService) private readonly prisma: PrismaService
   ) {}
 
-  private paginationMeta(page: number, limit: number, total: number) {
-    return { page, limit, total, totalPages: Math.ceil(total / limit) };
-  }
-
   private keyPrefix() { return "lms_" + crypto.randomBytes(4).toString("hex"); }
 
   private encryptionKey() {
-    const secret =
-      process.env.ENTERPRISE_SECRET_KEY ??
-      process.env.JWT_REFRESH_SECRET ??
-      process.env.JWT_ACCESS_SECRET ??
-      "dev-enterprise-secret";
+    const secret = process.env.ENTERPRISE_SECRET_KEY;
+    if (!secret) {
+      if (process.env.NODE_ENV === "production") {
+        throw new Error("ENTERPRISE_SECRET_KEY is required in production");
+      }
+      // ponytail: dev-only fallback; set ENTERPRISE_SECRET_KEY before prod
+      return crypto.createHash("sha256").update("dev-enterprise-secret").digest();
+    }
     return crypto.createHash("sha256").update(secret).digest();
   }
 
@@ -227,6 +227,7 @@ export class EnterpriseService {
       where: { organizationId: org.id },
       select: { id: true, name: true, keyPrefix: true, scopes: true, status: true, expiresAt: true, lastUsedAt: true, createdAt: true },
       orderBy: { createdAt: "desc" },
+      take: 100,
     });
   }
 
@@ -298,17 +299,16 @@ export class EnterpriseService {
   async getWebhookDeliveries(org: OrganizationContext, endpointId: string, query: EnterpriseQueryDto) {
     const ep = await this.prisma.webhookEndpoint.findFirst({ where: { id: endpointId, organizationId: org.id } });
     if (!ep) throw new NotFoundException("Webhook endpoint not found");
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 20;
+    const { page, limit, skip } = normalizePageLimit(query.page, query.limit);
     const [data, total] = await Promise.all([
       this.prisma.webhookDelivery.findMany({
         where: { endpointId },
         orderBy: { createdAt: "desc" },
-        skip: (page - 1) * limit,
+        skip,
         take: limit,
       }),
       this.prisma.webhookDelivery.count({ where: { endpointId } }),
     ]);
-    return { data, meta: this.paginationMeta(page, limit, total) };
+    return { data, meta: pageMeta(page, limit, total) };
   }
 }

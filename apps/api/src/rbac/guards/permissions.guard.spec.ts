@@ -28,10 +28,20 @@ describe("PermissionsGuard", () => {
     ).toThrow(ForbiddenException);
   });
 
-  it("allows when no permissions are required", () => {
+  it("denies when no permissions metadata is set", () => {
+    const guard = new PermissionsGuard(createReflector(undefined), createRbac(true));
+    const request = { organization: { id: "o" } };
+    expect(() => guard.canActivate(createContext(request, null))).toThrow(
+      ForbiddenException,
+    );
+  });
+
+  it("denies when permissions list is empty", () => {
     const guard = new PermissionsGuard(createReflector([]), createRbac(true));
     const request = { organization: { id: "o" } };
-    expect(guard.canActivate(createContext(request, null))).toBe(true);
+    expect(() => guard.canActivate(createContext(request, null))).toThrow(
+      ForbiddenException,
+    );
   });
 
   it("rejects when rbac says no", () => {

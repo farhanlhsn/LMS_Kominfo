@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 import { ConversationType, Prisma } from "@lms/db";
 import { randomUUID } from "crypto";
+import { cursorMeta, normalizeCursorLimit } from "@lms/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeService } from "../realtime/realtime.service";
 import {
@@ -43,7 +44,7 @@ export class MessagingService {
         },
       },
       orderBy: { lastMessageAt: { sort: "desc", nulls: "last" } },
-      take: 100,
+      take: 50,
     });
   }
 
@@ -146,8 +147,8 @@ export class MessagingService {
     options: { cursor?: string; limit?: number } = {},
   ) {
     await this.getConversation(organizationId, userId, conversationId);
-    const take = Math.min(Math.max(options.limit ?? 50, 1), 200);
-    return this.prisma.message.findMany({
+    const limit = normalizeCursorLimit(options.limit ?? 50);
+    const rows = await this.prisma.message.findMany({
       where: {
         organizationId,
         conversationId,
@@ -155,12 +156,13 @@ export class MessagingService {
         ...(options.cursor ? { createdAt: { lt: new Date(options.cursor) } } : {}),
       },
       orderBy: { createdAt: "desc" },
-      take,
+      take: limit + 1,
       include: {
         reactions: true,
         reads: { where: { userId } },
       },
     });
+    return cursorMeta(rows, limit, (row) => row.createdAt.toISOString());
   }
 
   async sendMessage(

@@ -1,9 +1,10 @@
-import { HttpException, HttpStatus, Inject, Injectable } from "@nestjs/common";
+import { HttpException, HttpStatus, Inject, Injectable, Optional } from "@nestjs/common";
 import { AI_CONFIG, type AiConfig } from "@lms/config";
 import { Prisma } from "@lms/db";
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { Observable } from "rxjs";
 import { PrismaService } from "../prisma/prisma.service";
+import { RedisService } from "../redis/redis.service";
 import type { AskAiTutorDto } from "./dto/ai.dto";
 import { AiCanonicalCacheService } from "./ai-canonical-cache.service";
 import { AiChatProviderFactory } from "./ai-provider.factories";
@@ -33,12 +34,13 @@ export class AiTutorService {
     private readonly retriever: AiRetrieverService,
     private readonly routing: AiRoutingService,
     private readonly canonicalCache: AiCanonicalCacheService,
+    @Optional() private readonly redis?: RedisService,
   ) {}
 
   async ask(organizationId: string, userId: string, dto: AskAiTutorDto) {
     const startedAt = Date.now();
     const scope = await this.ensureScope(organizationId, userId, dto);
-    this.enforceRateLimit(organizationId, userId);
+    await this.enforceRateLimit(organizationId, userId);
 
     if (!scope.allowAIAssistant) {
       return this.finalize({
@@ -230,7 +232,7 @@ export class AiTutorService {
         try {
           const startedAt = Date.now();
           const scope = await this.ensureScope(organizationId, userId, dto);
-          this.enforceRateLimit(organizationId, userId);
+          await this.enforceRateLimit(organizationId, userId);
 
           if (!scope.allowAIAssistant) {
             const result = await this.finalize({
@@ -843,8 +845,16 @@ export class AiTutorService {
     });
   }
 
-  private enforceRateLimit(organizationId: string, userId: string) {
+  private async enforceRateLimit(organizationId: string, userId: string) {
     if (!this.config.rateLimit.enabled) return;
+    if (this.redis) {
+      await this.enforceRateLimitRedis(organizationId, userId);
+      return;
+    }
+    this.enforceRateLimitMemory(organizationId, userId);
+  }
+
+  private enforceRateLimitMemory(organizationId: string, userId: string) {
     const now = Date.now();
     const cutoff = now - 60_000;
     const check = (
@@ -874,6 +884,33 @@ export class AiTutorService {
       organizationId,
       this.config.rateLimit.perOrgPerMinute,
     );
+  }
+
+  private async enforceRateLimitRedis(organizationId: string, userId: string) {
+    try {
+      const client = this.redis!.getClient();
+      const userKey = `ai:rl:user:${organizationId}:${userId}`;
+      const orgKey = `ai:rl:org:${organizationId}`;
+      const userCount = await client.incr(userKey);
+      if (userCount === 1) await client.expire(userKey, 60);
+      if (userCount > this.config.rateLimit.perUserPerMinute) {
+        throw new HttpException(
+          "AI request rate limit exceeded",
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+      const orgCount = await client.incr(orgKey);
+      if (orgCount === 1) await client.expire(orgKey, 60);
+      if (orgCount > this.config.rateLimit.perOrgPerMinute) {
+        throw new HttpException(
+          "AI request rate limit exceeded",
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+    } catch (err) {
+      if (err instanceof HttpException) throw err;
+      this.enforceRateLimitMemory(organizationId, userId);
+    }
   }
 
   private sourceLabel(sourceType: SourceType) {
