@@ -39,7 +39,10 @@ export default defineConfig({
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
   workers: 1,
-  reporter: [["list"], ["html", { open: "never" }]],
+  // list prints per-test duration; html for post-run drill-down (9.4).
+  reporter: process.env.CI
+    ? [["list"], ["html", { open: "never" }], ["github"]]
+    : [["list"], ["html", { open: "never" }]],
   use: {
     baseURL: webBaseURL,
     trace: "retain-on-failure",
@@ -55,6 +58,7 @@ export default defineConfig({
       env: {
         ...process.env,
         NEXT_PUBLIC_API_URL: apiBaseURL,
+        DISABLE_RATE_LIMIT: "true",
       },
     },
     {
@@ -79,8 +83,17 @@ export default defineConfig({
     {
       name: "chromium",
       testMatch: /ui\/.*\.spec\.ts/,
+      testIgnore: /ui\/mobile-.*\.spec\.ts/,
       use: {
         ...devices["Desktop Chrome"],
+        baseURL: webBaseURL,
+      },
+    },
+    {
+      name: "mobile-chrome",
+      testMatch: /ui\/mobile-.*\.spec\.ts/,
+      use: {
+        ...devices["Pixel 5"],
         baseURL: webBaseURL,
       },
     },

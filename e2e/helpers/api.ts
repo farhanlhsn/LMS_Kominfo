@@ -5,6 +5,10 @@ export const seededUsers = {
     email: "learner.one@example.com",
     password: "ChangeMe123!",
   },
+  learnerTwo: {
+    email: "learner.two@example.com",
+    password: "ChangeMe123!",
+  },
   instructor: {
     email: "instructor@example.com",
     password: "ChangeMe123!",
@@ -201,4 +205,65 @@ export async function expectUnauthorized(
 ) {
   const response = await requestPromise;
   expect(response.status()).toBe(401);
+}
+
+/** IDOR / ownership denials often surface as 403 or 404 (no resource leak). */
+export async function expectDenied(
+  requestPromise: Promise<Awaited<ReturnType<APIRequestContext["get"]>>>,
+  allowed: number[] = [403, 404],
+) {
+  const response = await requestPromise;
+  const status = response.status();
+  const body = await response.text();
+  expect(
+    allowed.includes(status),
+    `expected denied status ${allowed.join("|")}, got ${status}: ${body}`,
+  ).toBe(true);
+  return response;
+}
+
+export async function rawGet(
+  request: APIRequestContext,
+  session: E2ESession,
+  path: string,
+  headers: Record<string, string> = {},
+) {
+  return request.get(apiUrl(path), {
+    headers: { ...authHeaders(session), ...headers },
+  });
+}
+
+export async function rawPost(
+  request: APIRequestContext,
+  session: E2ESession,
+  path: string,
+  data?: unknown,
+  headers: Record<string, string> = {},
+) {
+  return request.post(apiUrl(path), {
+    headers: { ...authHeaders(session), ...headers },
+    data,
+  });
+}
+
+export async function rawPatch(
+  request: APIRequestContext,
+  session: E2ESession,
+  path: string,
+  data?: unknown,
+) {
+  return request.patch(apiUrl(path), {
+    headers: authHeaders(session),
+    data,
+  });
+}
+
+export async function rawDelete(
+  request: APIRequestContext,
+  session: E2ESession,
+  path: string,
+) {
+  return request.delete(apiUrl(path), {
+    headers: authHeaders(session),
+  });
 }
