@@ -7,5 +7,6 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["prisma/**/*.ts"]
+  "include": ["prisma/**/*.ts"],
+  "exclude": ["prisma/seed.ts"]
 }

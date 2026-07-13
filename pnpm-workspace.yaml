@@ -5,6 +5,7 @@ packages:
 onlyBuiltDependencies:
   - "@prisma/client"
   - "@prisma/engines"
+  - "@swc/core"
   - "esbuild"
   - "onnxruntime-node"
   - "protobufjs"
@@ -13,11 +14,13 @@ onlyBuiltDependencies:
 allowBuilds:
   "@prisma/client": true
   "@prisma/engines": true
-  cpu-features: set this to true or false
+  '@scarf/scarf': false
+  "@swc/core": true
+  cpu-features: false
   esbuild: true
   msgpackr-extract: true
   onnxruntime-node: true
   prisma: true
   protobufjs: true
   sharp: true
-  ssh2: set this to true or false
+  ssh2: false

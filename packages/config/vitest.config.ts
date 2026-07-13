@@ -1,9 +1,6 @@
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
-  esbuild: {
-    jsx: "automatic",
-  },
   test: {
     environment: "node",
     forbidOnly: Boolean(process.env.CI),
@@ -11,13 +8,13 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],
-      include: ["src/**/*.{ts,tsx}"],
-      exclude: ["src/**/*.spec.{ts,tsx}", "src/**/*.d.ts"],
+      include: ["src/**/*.ts"],
+      exclude: ["src/**/*.spec.ts", "src/**/*.d.ts"],
       thresholds: {
-        lines: 10,
-        functions: 20,
-        branches: 20,
-        statements: 10,
+        lines: 95,
+        functions: 70,
+        branches: 70,
+        statements: 95,
       },
     },
   },
