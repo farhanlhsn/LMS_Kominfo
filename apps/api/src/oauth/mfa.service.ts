@@ -5,7 +5,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from "@nestjs/common";
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { Prisma } from "@lms/db";
 import { PrismaService } from "../prisma/prisma.service";
 import type { AuthenticatedUser } from "../auth/types/authenticated-request";
@@ -34,19 +34,18 @@ function base32Encode(buffer: Buffer): string {
   return output;
 }
 
-function generateTotpCode(secret: Buffer, timestamp: number, digits = 6): string {
+export function generateTotpCode(secret: Buffer, timestamp: number, digits = 6): string {
+  // RFC 6238 TOTP with HMAC-SHA1.
   const counter = Math.floor(timestamp / 30_000);
   const counterBuffer = Buffer.alloc(8);
   counterBuffer.writeBigUInt64BE(BigInt(counter));
-  const hmac = createHash("sha1");
-  hmac.update(secret);
-  hmac.update(counterBuffer);
-  const digest = hmac.digest();
+  const digest = createHmac("sha1", secret).update(counterBuffer).digest();
   const offset = digest[digest.length - 1]! & 0x0f;
-  const binary = ((digest[offset]! & 0x7f) << 24)
-    | ((digest[offset + 1]! & 0xff) << 16)
-    | ((digest[offset + 2]! & 0xff) << 8)
-    | (digest[offset + 3]! & 0xff);
+  const binary =
+    ((digest[offset]! & 0x7f) << 24) |
+    ((digest[offset + 1]! & 0xff) << 16) |
+    ((digest[offset + 2]! & 0xff) << 8) |
+    (digest[offset + 3]! & 0xff);
   const otp = binary % 10 ** digits;
   return otp.toString().padStart(digits, "0");
 }

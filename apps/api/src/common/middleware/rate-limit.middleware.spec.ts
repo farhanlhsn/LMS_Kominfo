@@ -2,19 +2,22 @@ import { describe, expect, it, vi } from "vitest";
 import type { NextFunction, Request, Response } from "express";
 import { RateLimitMiddleware } from "./rate-limit.middleware";
 
-function makeReq(ip: string, headers: Record<string, string> = {}): Request {
+function makeReq(
+  ip: string,
+  headers: Record<string, string> = {},
+  path = "/api/v1/courses",
+): Request {
   return {
     ip,
     headers: { "x-forwarded-for": "", ...headers },
+    originalUrl: path,
+    url: path,
   } as unknown as Request;
 }
 
 function makeRes(): Response {
-  const headers: Record<string, string | number> = {};
   const res: any = {
-    setHeader: vi.fn((k: string, v: string | number) => {
-      headers[k] = v;
-    }),
+    setHeader: vi.fn(),
     status: vi.fn().mockReturnThis(),
     json: vi.fn().mockReturnThis(),
   };
@@ -25,17 +28,23 @@ function makeNext() {
   return vi.fn() as unknown as NextFunction;
 }
 
+async function flush() {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
 describe("RateLimitMiddleware", () => {
-  it("lets requests through under the limit", () => {
+  it("lets requests through under the limit", async () => {
     const middleware = new RateLimitMiddleware({ windowMs: 1000, max: 5 });
     const next = makeNext();
     for (let i = 0; i < 5; i++) {
       middleware.use(makeReq("1.1.1.1"), makeRes(), next);
     }
+    await flush();
     expect(next).toHaveBeenCalledTimes(5);
   });
 
-  it("blocks requests over the limit and sets 429", () => {
+  it("blocks requests over the limit and sets 429", async () => {
     const middleware = new RateLimitMiddleware({ windowMs: 1000, max: 2 });
     const next = makeNext();
     const req = makeReq("2.2.2.2");
@@ -43,19 +52,24 @@ describe("RateLimitMiddleware", () => {
     middleware.use(req, res, next);
     middleware.use(req, res, next);
     middleware.use(req, res, next);
+    await flush();
     expect(res.status).toHaveBeenCalledWith(429);
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ success: false, error: expect.objectContaining({ code: "RATE_LIMITED" }) }),
+      expect.objectContaining({
+        success: false,
+        error: expect.objectContaining({ code: "RATE_LIMITED" }),
+      }),
     );
   });
 
-  it("uses X-Forwarded-For for keying when present", () => {
+  it("uses X-Forwarded-For for keying when present", async () => {
     const middleware = new RateLimitMiddleware({ windowMs: 1000, max: 1 });
     const next = makeNext();
     const req = makeReq("0.0.0.0", { "x-forwarded-for": "9.9.9.9, 1.1.1.1" });
     const res = makeRes();
     middleware.use(req, res, next);
     middleware.use(req, res, next);
+    await flush();
     expect(res.status).toHaveBeenCalledWith(429);
   });
 
@@ -66,19 +80,59 @@ describe("RateLimitMiddleware", () => {
     const res = makeRes();
     middleware.use(req, res, next);
     middleware.use(req, res, next);
+    await flush();
     expect(res.status).toHaveBeenCalledWith(429);
     await new Promise((resolve) => setTimeout(resolve, 30));
     const res2 = makeRes();
     middleware.use(req, res2, next);
+    await flush();
     expect(res2.status).not.toHaveBeenCalled();
   });
 
-  it("sets X-RateLimit-* headers on each request", () => {
+  it("sets X-RateLimit-* headers on each request", async () => {
     const middleware = new RateLimitMiddleware({ windowMs: 1000, max: 10 });
     const next = makeNext();
     const res = makeRes();
     middleware.use(makeReq("4.4.4.4"), res, next);
+    await flush();
     expect(res.setHeader).toHaveBeenCalledWith("X-RateLimit-Limit", "10");
     expect(res.setHeader).toHaveBeenCalledWith("X-RateLimit-Remaining", "9");
   });
+
+  it("applies a stricter limit on auth login path", async () => {
+    const middleware = new RateLimitMiddleware({ windowMs: 1000, max: 100 });
+    const next = makeNext();
+    const req = makeReq("5.5.5.5", {}, "/api/v1/auth/login");
+    for (let i = 0; i < 20; i++) {
+      middleware.use(req, makeRes(), next);
+    }
+    await flush();
+    const res = makeRes();
+    middleware.use(req, res, next);
+    await flush();
+    expect(res.status).toHaveBeenCalledWith(429);
+  });
+
+  it("uses redis incr when redis is ready", async () => {
+    let n = 0;
+    const redis = {
+      incrWithTtl: vi.fn(async () => {
+        n += 1;
+        return { count: n, ttlMs: 1000 };
+      }),
+    };
+    const middleware = new RateLimitMiddleware(
+      { windowMs: 1000, max: 2 },
+      redis as never,
+    );
+    const next = makeNext();
+    const res = makeRes();
+    middleware.use(makeReq("6.6.6.6"), res, next);
+    middleware.use(makeReq("6.6.6.6"), res, next);
+    middleware.use(makeReq("6.6.6.6"), res, next);
+    await flush();
+    expect(res.status).toHaveBeenCalledWith(429);
+    expect(n).toBeGreaterThanOrEqual(3);
+  });
 });
+

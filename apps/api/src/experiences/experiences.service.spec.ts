@@ -90,6 +90,7 @@ function setup(overrides: Record<string, unknown> = {}) {
     },
     courseFeedback: {
       findMany: vi.fn().mockResolvedValue([]),
+      count: vi.fn().mockResolvedValue(7),
       create: vi.fn().mockResolvedValue({ id: "fb-1" }),
       aggregate: vi.fn().mockResolvedValue({ _avg: { rating: 4.2 }, _count: { rating: 7 } }),
     },

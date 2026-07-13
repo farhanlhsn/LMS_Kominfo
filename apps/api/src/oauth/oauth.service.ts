@@ -248,10 +248,16 @@ export class OAuthService {
   }
 
   private stateSecret() {
-    return (
+    const secret =
+      process.env.OAUTH_STATE_SECRET ??
       process.env.JWT_REFRESH_SECRET ??
-      process.env.JWT_ACCESS_SECRET ??
-      "dev-oauth-state-secret"
-    );
+      process.env.JWT_ACCESS_SECRET;
+    if (!secret) {
+      if (process.env.NODE_ENV === "production") {
+        throw new Error("OAUTH_STATE_SECRET (or JWT secrets) required in production");
+      }
+      return "dev-oauth-state-secret";
+    }
+    return secret;
   }
 }

@@ -33,6 +33,7 @@ export class CertificatesService {
     return this.prisma.certificateTemplate.findMany({
       where: { organizationId: organization.id, deletedAt: null },
       orderBy: { updatedAt: "desc" },
+      take: 100,
     });
   }
 
@@ -98,6 +99,7 @@ export class CertificatesService {
       where: { organizationId: organization.id, courseId },
       include: { user: true, course: true, template: true },
       orderBy: { issuedAt: "desc" },
+      take: 200,
     });
   }
 
@@ -158,7 +160,7 @@ export class CertificatesService {
       include: { user: true, course: true, template: true },
     });
     await this.audit(organization.id, issuerId, "certificate.issued", certificate.id);
-    let result = certificate;
+    let result: typeof certificate;
     try {
       result = await this.certificatePdf.ensureGenerated(organization.id, certificate.id);
     } catch {
@@ -243,6 +245,7 @@ export class CertificatesService {
       where: { organizationId, userId },
       include: { course: true, template: true },
       orderBy: { issuedAt: "desc" },
+      take: 100,
     });
   }
 
@@ -302,7 +305,7 @@ export class CertificatesService {
 
     await this.audit(organizationId, userId, "certificate.auto_issued", certificate.id);
 
-    let result = certificate;
+    let result: typeof certificate;
     try {
       result = await this.certificatePdf.ensureGenerated(organizationId, certificate.id);
     } catch {
@@ -392,18 +395,21 @@ export class CertificatesService {
   }
 
   private async uniqueCertificateNumber(organizationId: string) {
-    let value = "";
-    do {
-      value = `CERT-${new Date().getUTCFullYear()}-${randomBytes(5).toString("hex").toUpperCase()}`;
-    } while (await this.prisma.certificate.findUnique({ where: { certificateNumber: value } }));
+    const build = () =>
+      `CERT-${new Date().getUTCFullYear()}-${randomBytes(5).toString("hex").toUpperCase()}`;
+    let value = build();
+    while (await this.prisma.certificate.findUnique({ where: { certificateNumber: value } })) {
+      value = build();
+    }
     return value;
   }
 
   private async uniqueVerificationCode() {
-    let value = "";
-    do {
-      value = randomBytes(12).toString("hex").toUpperCase();
-    } while (await this.prisma.certificate.findUnique({ where: { verificationCode: value } }));
+    const build = () => randomBytes(12).toString("hex").toUpperCase();
+    let value = build();
+    while (await this.prisma.certificate.findUnique({ where: { verificationCode: value } })) {
+      value = build();
+    }
     return value;
   }
 

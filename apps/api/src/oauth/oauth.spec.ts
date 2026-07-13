@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { createHash } from "node:crypto";
 import { BadRequestException, ForbiddenException, NotFoundException, UnauthorizedException } from "@nestjs/common";
-import { MfaService } from "./mfa.service";
+import { MfaService, generateTotpCode } from "./mfa.service";
 import { OAuthService } from "./oauth.service";
 import { SessionService } from "./session.service";
 import { MockCaptchaProvider } from "./captcha.provider";
@@ -202,21 +201,9 @@ describe("MfaService", () => {
     const prisma: any = buildPrisma();
     const service = new MfaService(prisma);
     const enroll = await service.enroll(organization, user, "TOTP");
-    // Compute the current TOTP code from the secret used in enrollment.
+    // Compute the current TOTP code using the service's own generator.
     const secret = Buffer.from(prisma.mfaFactor.create.mock.calls[0][0].data.secret, "hex");
-    const counter = Math.floor(Date.now() / 30_000);
-    const counterBuffer = Buffer.alloc(8);
-    counterBuffer.writeBigUInt64BE(BigInt(counter));
-    const hmac = createHash("sha1");
-    hmac.update(secret);
-    hmac.update(counterBuffer);
-    const digest = hmac.digest();
-    const offset = digest[digest.length - 1]! & 0x0f;
-    const binary = ((digest[offset]! & 0x7f) << 24)
-      | ((digest[offset + 1]! & 0xff) << 16)
-      | ((digest[offset + 2]! & 0xff) << 8)
-      | (digest[offset + 3]! & 0xff);
-    const otp = (binary % 1_000_000).toString().padStart(6, "0");
+    const otp = generateTotpCode(secret, Date.now());
     const result = await service.verify(user.id, otp);
     expect(result.valid).toBe(true);
   });

@@ -40,6 +40,37 @@ export class RedisService {
     }
   }
 
+  /** Best-effort SCAN+DEL for prefix invalidation (catalog caches). */
+  async delByPrefix(prefix: string): Promise<number> {
+    try {
+      if (this.client.status === "wait") {
+        await this.client.connect().catch(() => undefined);
+      }
+      if (this.client.status !== "ready" && this.client.status !== "connect") {
+        return 0;
+      }
+      let cursor = "0";
+      let removed = 0;
+      do {
+        const [next, keys] = await this.client.scan(
+          cursor,
+          "MATCH",
+          `${prefix}*`,
+          "COUNT",
+          100,
+        );
+        cursor = next;
+        if (keys.length) {
+          removed += await this.client.del(...keys);
+        }
+      } while (cursor !== "0");
+      return removed;
+    } catch (err) {
+      this.logger.warn(`Redis delByPrefix failed for ${prefix}: ${String(err)}`);
+      return 0;
+    }
+  }
+
   async publish(channel: string, message: unknown): Promise<void> {
     try {
       await this.client.publish(channel, JSON.stringify(message));
@@ -58,5 +89,29 @@ export class RedisService {
 
   getClient(): Redis {
     return this.client;
+  }
+
+  /** Atomic INCR with first-hit TTL (rate limits). Returns null if Redis unavailable. */
+  async incrWithTtl(
+    key: string,
+    ttlMs: number,
+  ): Promise<{ count: number; ttlMs: number } | null> {
+    try {
+      if (this.client.status === "wait") {
+        await this.client.connect().catch(() => undefined);
+      }
+      if (this.client.status !== "ready" && this.client.status !== "connect") {
+        return null;
+      }
+      const count = await this.client.incr(key);
+      if (count === 1) {
+        await this.client.pexpire(key, ttlMs);
+      }
+      const ttl = await this.client.pttl(key);
+      return { count, ttlMs: ttl > 0 ? ttl : ttlMs };
+    } catch (err) {
+      this.logger.warn(`Redis incrWithTtl failed for ${key}: ${String(err)}`);
+      return null;
+    }
   }
 }

@@ -17,6 +17,7 @@ export class SessionService {
     const sessions = await this.prisma.userSession.findMany({
       where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
       orderBy: { lastUsedAt: "desc" },
+      take: 50,
     });
     return sessions.map((session) => ({
       id: session.id,
@@ -35,6 +36,7 @@ export class SessionService {
     return this.prisma.userSession.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
+      take: 50,
     });
   }
 

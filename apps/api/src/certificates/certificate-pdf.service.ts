@@ -171,7 +171,7 @@ export class CertificatePdfService {
   }
 
   private clean(value: string) {
-    return value.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 300);
+    return value.replace(/\p{Control}/gu, " ").replace(/\s+/g, " ").trim().slice(0, 300);
   }
 
   private date(value: Date) {

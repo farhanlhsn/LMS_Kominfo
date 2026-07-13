@@ -66,9 +66,15 @@ describe("RealtimeService", () => {
   });
 
   it("publishes a realtime event with payload", async () => {
-    const event = await service.publish("org_1", "user_1", "org:org_1:course:c1", "course.updated", {
-      foo: "bar",
-    });
+    const event = await service.publish(
+      "org_1",
+      "user_1",
+      "org:org_1:course:c1",
+      "course.updated",
+      {
+        foo: "bar",
+      },
+    );
     expect(event.id).toBe(baseEvent.id);
     expect(prisma.realtimeEvent.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -78,6 +84,13 @@ describe("RealtimeService", () => {
         actorId: "user_1",
       }),
     });
+  });
+
+  it("fans out to local listeners on publish", async () => {
+    const handler = vi.fn();
+    service.registerListener("org:org_1:course:c1", handler);
+    await service.publish("org_1", "user_1", "org:org_1:course:c1", "ping", {});
+    expect(handler).toHaveBeenCalledWith(baseEvent);
   });
 
   it("returns events newer than since and orders by createdAt", async () => {

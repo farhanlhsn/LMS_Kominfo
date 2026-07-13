@@ -29,7 +29,7 @@ import {
 import { RealtimeService } from "./realtime.service";
 
 @Controller("realtime")
-@UseGuards(JwtAuthGuard, OrganizationContextGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard, OrganizationContextGuard)
 export class RealtimeController {
   constructor(
     @Inject(RealtimeService) private readonly service: RealtimeService,
@@ -72,6 +72,7 @@ export class RealtimeController {
   }
 
   @Post("publish")
+  @UseGuards(PermissionsGuard)
   @Permissions(PERMISSIONS.platformAdmin)
   publish(
     @Body() body: PublishRealtimeDto,

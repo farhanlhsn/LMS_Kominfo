@@ -197,7 +197,6 @@ class OpenAiCompatibleChatProvider implements AiChatProvider {
         if (content) yield content;
       }
     }
-    buffer += decoder.decode();
   }
 }
 

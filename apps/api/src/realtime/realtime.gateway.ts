@@ -14,7 +14,27 @@ import { Server, Socket } from "socket.io";
 import { RealtimeService } from "./realtime.service";
 
 @WebSocketGateway({
-  cors: { origin: "*", credentials: true },
+  cors: {
+    origin: (origin, callback) => {
+      // Mirror API CORS loosely for websocket; empty origin = non-browser clients.
+      if (!origin || process.env.NODE_ENV !== "production") {
+        callback(null, true);
+        return;
+      }
+      const allowed = new Set(
+        [
+          process.env.PUBLIC_APP_URL,
+          process.env.NEXT_PUBLIC_APP_URL,
+          ...(process.env.CORS_ALLOWED_ORIGINS ?? "")
+            .split(",")
+            .map((v) => v.trim())
+            .filter(Boolean),
+        ].filter(Boolean),
+      );
+      callback(null, allowed.has(origin));
+    },
+    credentials: true,
+  },
   namespace: "/realtime",
   transports: ["websocket", "polling"],
 })
@@ -28,7 +48,7 @@ export class RealtimeGateway
 
   constructor(private readonly service: RealtimeService) {}
 
-  afterInit(server: Server) {
+  afterInit() {
     this.logger.log(`WebSocket gateway initialized on namespace /realtime`);
   }
 

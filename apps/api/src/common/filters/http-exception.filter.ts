@@ -3,20 +3,39 @@ import {
   Catch,
   ExceptionFilter,
   HttpException,
-  HttpStatus
+  HttpStatus,
+  Logger,
 } from "@nestjs/common";
-import type { Response } from "express";
+import type { Request, Response } from "express";
 import type { ApiErrorPayload } from "@lms/shared";
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(HttpExceptionFilter.name);
+
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest<Request>();
     const status =
       exception instanceof HttpException
         ? exception.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
+
+    if (status >= 500) {
+      const message =
+        exception instanceof Error ? exception.stack ?? exception.message : String(exception);
+      this.logger.error(
+        `${request?.method ?? "?"} ${request?.originalUrl ?? "?"} -> ${status}`,
+        message,
+      );
+    } else if (status >= 400 && status !== 401 && status !== 404) {
+      const message =
+        exception instanceof Error ? exception.message : String(exception);
+      this.logger.warn(
+        `${request?.method ?? "?"} ${request?.originalUrl ?? "?"} -> ${status} ${message}`,
+      );
+    }
 
     response.status(status).json({
       success: false,

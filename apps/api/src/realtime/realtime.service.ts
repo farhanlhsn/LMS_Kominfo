@@ -1,7 +1,16 @@
-import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  OnModuleDestroy,
+  Optional,
+} from "@nestjs/common";
 import { Prisma, RealtimeEvent } from "@lms/db";
 import { randomUUID } from "crypto";
+import type Redis from "ioredis";
 import { PrismaService } from "../prisma/prisma.service";
+import { REDIS_CLIENT } from "../redis/redis.constants";
 
 export interface RealtimeTransportInfo {
   preferred: "polling" | "sse" | "websocket";
@@ -10,12 +19,34 @@ export interface RealtimeTransportInfo {
 
 const MAX_EVENTS_PER_POLL = 200;
 const RETENTION_MS = 24 * 60 * 60 * 1000;
+const REDIS_BUS = "lms:realtime:events";
 
 @Injectable()
-export class RealtimeService {
-  private readonly publisherRegistry = new Map<string, Set<(event: RealtimeEvent) => void>>();
+export class RealtimeService implements OnModuleDestroy {
+  private readonly publisherRegistry = new Map<
+    string,
+    Set<(event: RealtimeEvent) => void>
+  >();
+  private subscriber: Redis | null = null;
+  private readonly instanceId = randomUUID();
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
+  ) {
+    void this.initRedisBus();
+  }
+
+  async onModuleDestroy() {
+    if (this.subscriber) {
+      try {
+        await this.subscriber.quit();
+      } catch {
+        // ignore
+      }
+      this.subscriber = null;
+    }
+  }
 
   getTransports(): RealtimeTransportInfo {
     return {
@@ -24,7 +55,11 @@ export class RealtimeService {
     };
   }
 
-  buildChannel(organizationId: string, entity: string, entityId: string): string {
+  buildChannel(
+    organizationId: string,
+    entity: string,
+    entityId: string,
+  ): string {
     if (!organizationId || !entity || !entityId) {
       throw new ForbiddenException("Cannot build channel without org/entity/id");
     }
@@ -58,23 +93,20 @@ export class RealtimeService {
       },
     });
 
-    const subscribers = this.publisherRegistry.get(channel);
-    if (subscribers) {
-      for (const handler of subscribers) {
-        try {
-          handler(event);
-        } catch {
-          // Swallow handler errors to avoid breaking publishing for other listeners
-        }
-      }
-    }
+    this.dispatchLocal(event);
+    await this.publishRedis(event);
 
     return event;
   }
 
   async poll(
     organizationId: string,
-    options: { channel?: string; since?: string; limit?: number; order?: "asc" | "desc" } = {},
+    options: {
+      channel?: string;
+      since?: string;
+      limit?: number;
+      order?: "asc" | "desc";
+    } = {},
   ): Promise<RealtimeEvent[]> {
     const where: Prisma.RealtimeEventWhereInput = { organizationId };
     if (options.channel) {
@@ -126,14 +158,23 @@ export class RealtimeService {
     });
   }
 
-  async unsubscribe(organizationId: string, userId: string, channel: string): Promise<void> {
+  async unsubscribe(
+    organizationId: string,
+    userId: string,
+    channel: string,
+  ): Promise<void> {
     this.assertChannelScope(organizationId, channel);
     await this.prisma.realtimeSubscription.deleteMany({
       where: { organizationId, userId, channel },
     });
   }
 
-  async ack(organizationId: string, userId: string, channel: string, eventId: string): Promise<{ acked: boolean }> {
+  async ack(
+    organizationId: string,
+    userId: string,
+    channel: string,
+    eventId: string,
+  ): Promise<{ acked: boolean }> {
     this.assertChannelScope(organizationId, channel);
     const event = await this.prisma.realtimeEvent.findFirst({
       where: { id: eventId, organizationId, channel },
@@ -157,12 +198,77 @@ export class RealtimeService {
     return result.count;
   }
 
-  registerListener(channel: string, handler: (event: RealtimeEvent) => void): () => void {
+  registerListener(
+    channel: string,
+    handler: (event: RealtimeEvent) => void,
+  ): () => void {
     if (!this.publisherRegistry.has(channel)) {
       this.publisherRegistry.set(channel, new Set());
     }
     const set = this.publisherRegistry.get(channel)!;
     set.add(handler);
     return () => set.delete(handler);
+  }
+
+  private dispatchLocal(event: RealtimeEvent) {
+    const subscribers = this.publisherRegistry.get(event.channel);
+    if (!subscribers) return;
+    for (const handler of subscribers) {
+      try {
+        handler(event);
+      } catch {
+        // Swallow handler errors to avoid breaking publishing for other listeners
+      }
+    }
+  }
+
+  private async publishRedis(event: RealtimeEvent) {
+    if (!this.redis) return;
+    try {
+      await this.redis.publish(
+        REDIS_BUS,
+        JSON.stringify({
+          origin: this.instanceId,
+          event: {
+            ...event,
+            createdAt:
+              event.createdAt instanceof Date
+                ? event.createdAt.toISOString()
+                : event.createdAt,
+          },
+        }),
+      );
+    } catch {
+      // multi-node fanout best-effort
+    }
+  }
+
+  private async initRedisBus() {
+    if (!this.redis) return;
+    try {
+      this.subscriber = this.redis.duplicate();
+      if (this.subscriber.status === "wait") {
+        await this.subscriber.connect().catch(() => undefined);
+      }
+      await this.subscriber.subscribe(REDIS_BUS);
+      this.subscriber.on("message", (_channel, message) => {
+        try {
+          const parsed = JSON.parse(message) as {
+            origin?: string;
+            event?: RealtimeEvent & { createdAt: string };
+          };
+          if (!parsed?.event || parsed.origin === this.instanceId) return;
+          const event: RealtimeEvent = {
+            ...parsed.event,
+            createdAt: new Date(parsed.event.createdAt),
+          };
+          this.dispatchLocal(event);
+        } catch {
+          // ignore bad payloads
+        }
+      });
+    } catch {
+      this.subscriber = null;
+    }
   }
 }
