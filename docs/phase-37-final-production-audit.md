@@ -455,3 +455,39 @@ Before production deploy, decide whether to keep the split files or use the cons
 - The audit deliberately did not modify the production schema or any code under `apps/`, `packages/`, or `docs/`. The only audit-time changes were diagnostic captures written to the repo root (`audit_*.txt`, `full_*.txt`, `prisma_errors.txt`); these are explicitly flagged in the report and are not part of the build or runtime.
 - Once the 9 missing Prisma opposite relations are added, the only remaining follow-up is housekeeping (cleanup of audit-time artifacts, choice of consolidated vs split migration strategy, and one round of `prisma migrate deploy` on a host with database access to confirm runtime migration).
 
+## 2026-07-09 Follow-up Audit
+
+This follow-up checked the current codebase against the canonical phase files through Phase 37 and the architecture requirements in `docs/README.md`, `docs/01-architecture-decisions.md`, `docs/03-database-model.md`, `docs/04-api-standards.md`, `docs/05-rbac-multitenant.md`, `docs/06-sso-strategy.md`, `docs/07-plugin-architecture.md`, `docs/08-advanced-learning-workspace.md`, `docs/09-ai-rag.md`, `docs/10-security-compliance.md`, `docs/16-ui-design-system.md`, and `docs/17-theme-branding-customization.md`.
+
+### Verification
+
+- `pnpm typecheck` passes after making package TypeScript scripts use an explicit 4 GB Node heap.
+- `pnpm test` passes across API, web, and packages after stabilizing the popout TTL boundary test with fake timers.
+- `pnpm build` passes for backend and frontend.
+- `pnpm --filter @lms/db exec prisma validate` passes.
+- `pnpm --filter @lms/db prisma:status` reports the local database schema as up to date.
+
+### Compliance Summary
+
+- Phases 00-18 are substantially implemented with the expected monorepo, `/api/v1` API prefix, Prisma/PostgreSQL model base, authentication, RBAC, organization scoping, core LMS, assignments, quizzes, certificates, AI/RAG foundations, plugin architecture, and learner workspace surfaces.
+- Phases 19-37 have broad structural coverage in models, controllers, services, migrations, and UI routes, but several late-phase capabilities remain foundation/provider-complete rather than production-provider-complete. These include external semantic/vector provider hardening, real proctoring vendors, exchange-rate/tax provider integration, hardened out-of-process code runner infrastructure, and full plugin marketplace governance for externally supplied code.
+- The only fully unguarded controller found in the broad controller scan is the health controller, which is expected for health/readiness endpoints. Sensitive modules generally use guards and permissions, though several learner/public-facing controllers still warrant manual endpoint-level authorization review before production.
+- Activity extensibility follows the documented direction by using `activityTypeKey` / plugin keys rather than locking learning activities to rigid database enums.
+- Tenant-scoped models and services broadly include `organizationId`; production hardening should continue to audit every new query for explicit tenant filters or authorization.
+- The frontend route surface is broad and token-based, but the previous local dev UI issue was caused by a stale Next dev server serving missing chunks/CSS on port 3000. A fresh dev server rendered the UI correctly on port 3001.
+
+### Follow-up Fixes Applied
+
+- Allowed non-production localhost/127.0.0.1 web origins in API CORS so alternate dev ports can call `/api/v1` without weakening production CORS.
+- Restored mobile zoom by removing the restrictive viewport scale lock.
+- Fixed dead/duplicated filter reset controls in Courses and My Learning.
+- Replaced one non-ASCII UI separator in the curriculum sidebar.
+- Updated the default browser theme color to align with the design-token primary color.
+
+### Remaining Production Gaps
+
+- Run the seed flow deliberately before release if demo data changed; this follow-up did not run seed because no seed file was changed.
+- Add an end-to-end production smoke against Docker Compose or deployment infrastructure, including login, course enrollment, lesson workspace, quiz, assignment, certificate, admin plugin governance, and payment/tax paths.
+- Replace mock/provider placeholders with configured production providers where required by the deployment target.
+- Continue a focused security review for tenant isolation and permission checks in every controller introduced after Phase 18.
+

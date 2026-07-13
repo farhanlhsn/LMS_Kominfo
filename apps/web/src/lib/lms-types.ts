@@ -156,6 +156,7 @@ export interface Enrollment {
   status: string;
   progressPercent: number;
   lastActivityId?: string | null;
+  completedAt?: string | null;
   lastAccessedAt?: string | null;
   course: Course;
 }
@@ -191,7 +192,7 @@ export interface ContentLibraryItem {
   id: string;
   title: string;
   description?: string | null;
-  type: "RICH_TEXT" | "VIDEO" | "FILE" | "PDF" | "LINK" | "IMAGE";
+  type: "RICH_TEXT" | "VIDEO" | "FILE" | "PDF" | "LINK" | "IMAGE" | "THREE_D_MODEL";
   tags?: string[];
   metadata?: Record<string, unknown>;
   fileId?: string | null;
@@ -225,6 +226,32 @@ export interface OrganizationSummary {
   slug: string;
   name: string;
   membershipStatus?: string;
+}
+
+export interface PermissionRecord {
+  id?: string;
+  key: string;
+  description?: string | null;
+}
+
+export interface OrganizationRoleRecord {
+  id: string;
+  key: string;
+  name: string;
+  description?: string | null;
+  isSystem: boolean;
+  permissions: PermissionRecord[];
+}
+
+export interface OrganizationMemberRecord {
+  id: string;
+  status: "INVITED" | "ACTIVE" | "SUSPENDED" | "DEACTIVATED";
+  user: {
+    id: string;
+    email: string;
+    name?: string | null;
+  };
+  roles: string[];
 }
 
 export type PluginCategory =

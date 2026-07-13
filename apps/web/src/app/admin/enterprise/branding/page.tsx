@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Save } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Image, Save, Upload } from "lucide-react";
 import { AuthGate, PermissionGate } from "../../../../components/auth/auth-gate";
 import { AppShell } from "../../../../components/layout/shells";
 import { PageHeader } from "../../../../components/ui/core";
@@ -14,13 +14,95 @@ function defaultBranding(): Branding {
   return {
     logoUrl: null,
     faviconUrl: null,
-    primaryColor: "#2563eb",
+    primaryColor: "#0f766e",
     secondaryColor: "#0f172a",
     accentColor: "#22c55e",
     borderRadius: "0.75rem",
     name: "Organization",
     slug: "org",
   };
+}
+
+async function uploadAndGetUrl(file: File): Promise<string> {
+  const { api } = await import("../../../../lib/api-client");
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("purpose", "BRANDING");
+  const asset = await api.uploadFile(formData);
+  const { url } = await api.signedFileUrl(asset.id);
+  return url;
+}
+
+function ImageUploadField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string | null;
+  onChange: (url: string | null) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const url = await uploadAndGetUrl(file);
+      onChange(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  }
+
+  return (
+    <label className="text-sm">
+      <span className="block text-muted-foreground">{label}</span>
+      <div className="mt-1 flex gap-2">
+        <input
+          className="min-h-10 flex-1 rounded-md border border-input bg-card px-3 text-sm text-foreground"
+          onChange={(e) => onChange(e.target.value || null)}
+          placeholder="https://... or upload →"
+          type="url"
+          value={value ?? ""}
+        />
+        <button
+          type="button"
+          title={`Upload ${label}`}
+          disabled={uploading}
+          onClick={() => inputRef.current?.click()}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-card hover:bg-muted disabled:opacity-50"
+        >
+          {uploading ? (
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          ) : (
+            <Upload className="h-4 w-4 text-muted-foreground" />
+          )}
+        </button>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleFile}
+        />
+      </div>
+      {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
+      {value && (
+        <div className="mt-2 flex items-center gap-2">
+          <img src={value} alt={label} className="h-8 w-auto rounded border border-border object-contain" onError={(e) => (e.currentTarget.style.display = "none")} />
+          <button type="button" onClick={() => onChange(null)} className="text-xs text-muted-foreground hover:text-destructive">Remove</button>
+        </div>
+      )}
+    </label>
+  );
 }
 
 export default function EnterpriseBrandingPage() {
@@ -78,36 +160,16 @@ export default function EnterpriseBrandingPage() {
               <article className="rounded-lg border border-border bg-card p-5 shadow-subtle">
                 <h2 className="text-base font-semibold">Identity</h2>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <label className="text-sm">
-                    <span className="block text-muted-foreground">Logo URL</span>
-                    <input
-                      className="mt-1 min-h-10 w-full rounded-md border border-input bg-card px-3 text-sm text-foreground"
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          logoUrl: event.target.value || null,
-                        }))
-                      }
-                      placeholder="https://..."
-                      type="url"
-                      value={form.logoUrl ?? ""}
-                    />
-                  </label>
-                  <label className="text-sm">
-                    <span className="block text-muted-foreground">Favicon URL</span>
-                    <input
-                      className="mt-1 min-h-10 w-full rounded-md border border-input bg-card px-3 text-sm text-foreground"
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          faviconUrl: event.target.value || null,
-                        }))
-                      }
-                      placeholder="https://..."
-                      type="url"
-                      value={form.faviconUrl ?? ""}
-                    />
-                  </label>
+                  <ImageUploadField
+                    label="Logo"
+                    value={form.logoUrl}
+                    onChange={(url) => setForm((f) => ({ ...f, logoUrl: url }))}
+                  />
+                  <ImageUploadField
+                    label="Favicon"
+                    value={form.faviconUrl}
+                    onChange={(url) => setForm((f) => ({ ...f, faviconUrl: url }))}
+                  />
                   <label className="text-sm">
                     <span className="block text-muted-foreground">Border radius</span>
                     <input

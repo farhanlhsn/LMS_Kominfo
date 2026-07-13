@@ -3,12 +3,14 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
 import { Prisma } from "@lms/db";
 import { createHash, randomUUID } from "node:crypto";
 import { extname } from "node:path";
 import { PrismaService } from "../prisma/prisma.service";
 import { StorageService } from "../storage/storage.service";
+import { RedisService } from "../redis/redis.service";
 import type {
   AuthenticatedUser,
   OrganizationContext,
@@ -33,7 +35,16 @@ const allowedMimeTypes = new Set([
   "video/mp4",
   "video/webm",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  // 3D model formats
+  "model/gltf-binary",
+  "model/gltf+json",
+  "application/octet-stream", // GLB, FBX, OBJ fallback
+  "model/obj",
+  "model/mtl",
+  "text/x-wavefront-obj",
 ]);
+
+const FILES_LIST_TTL = 30;
 
 @Injectable()
 export class FilesService {
@@ -42,7 +53,12 @@ export class FilesService {
     @Inject(StorageService) private readonly storage: StorageService,
     @Inject(FileAccessPolicyService)
     private readonly accessPolicy: FileAccessPolicyService,
+    @Optional() private readonly redis?: RedisService,
   ) {}
+
+  private filesKey(orgId: string) {
+    return `files:list:${orgId}`;
+  }
 
   async upload(
     organization: OrganizationContext,
@@ -59,7 +75,9 @@ export class FilesService {
     const extension = extname(file.originalname).replace(".", "").toLowerCase();
     const key = `${organization.id}/${new Date().getFullYear()}/${randomUUID()}-${this.safeFilename(file.originalname)}`;
     const checksum = createHash("sha256").update(file.buffer).digest("hex");
-    const purpose = dto.purpose ?? this.purposeFromMime(file.mimetype);
+    const rawPurpose = dto.purpose ?? this.purposeFromMime(file.mimetype);
+    // CONTENT_3D is a frontend hint — map to CONTENT for DB storage
+    const purpose = (rawPurpose === "CONTENT_3D" ? "CONTENT" : rawPurpose) as Exclude<typeof rawPurpose, "CONTENT_3D">;
     const folderId = await this.ensureFolderInOrganization(
       organization.id,
       dto.folderId,
@@ -101,6 +119,7 @@ export class FilesService {
     });
 
     await this.audit(organization.id, user.id, "file.uploaded", record.id);
+    await this.redis?.del(this.filesKey(organization.id));
     return record;
   }
 
@@ -179,27 +198,28 @@ export class FilesService {
       OR: query.search
         ? [
             { filename: { contains: query.search, mode: "insensitive" } },
-            {
-              originalFilename: { contains: query.search, mode: "insensitive" },
-            },
+            { originalFilename: { contains: query.search, mode: "insensitive" } },
             { mimeType: { contains: query.search, mode: "insensitive" } },
           ]
         : undefined,
     };
-    const [data, total] = await Promise.all([
-      this.prisma.file.findMany({
-        where,
-        orderBy: { createdAt: "desc" },
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
+    const fetcher = () => Promise.all([
+      this.prisma.file.findMany({ where, orderBy: { createdAt: "desc" }, skip: (page - 1) * limit, take: limit }),
       this.prisma.file.count({ where }),
-    ]);
-
-    return {
+    ]).then(([data, total]) => ({
       data,
       meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
-    };
+    }));
+
+    // Only cache unfiltered page-1 requests with results
+    if (!query.search && !query.folderId && !query.purpose && page === 1 && this.redis) {
+      const cached = await this.redis.get<{ data: unknown[]; meta: unknown }>(this.filesKey(organizationId));
+      if (cached !== null && cached.data.length > 0) return cached;
+      const result = await fetcher();
+      if (result.data.length > 0) await this.redis.set(this.filesKey(organizationId), result, FILES_LIST_TTL);
+      return result;
+    }
+    return fetcher();
   }
 
   async get(organization: OrganizationContext, userId: string, fileId: string) {
@@ -222,6 +242,7 @@ export class FilesService {
       data: { deletedAt: new Date() },
     });
     await this.audit(organization.id, userId, "file.deleted", fileId);
+    await this.redis?.del(this.filesKey(organization.id));
     return deleted;
   }
 

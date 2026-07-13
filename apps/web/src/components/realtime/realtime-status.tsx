@@ -5,6 +5,8 @@ import type { RealtimeStatus } from "../hooks/use-realtime-channel";
 
 const labelFor: Record<RealtimeStatus, { text: string; tone: string }> = {
   idle: { text: "Idle", tone: "bg-muted text-muted-foreground" },
+  connecting: { text: "Connecting…", tone: "bg-muted text-muted-foreground" },
+  connected: { text: "Live", tone: "bg-emerald-500/10 text-emerald-700" },
   polling: { text: "Live (polling)", tone: "bg-emerald-500/10 text-emerald-700" },
   error: { text: "Disconnected", tone: "bg-destructive/10 text-destructive" },
 };
@@ -31,7 +33,8 @@ export function RealtimeStatusPill({ status, lastEventAt, className }: RealtimeS
         aria-hidden
         className={cn(
           "h-2 w-2 rounded-full",
-          status === "polling" && "bg-emerald-500 animate-pulse",
+          (status === "polling" || status === "connected") && "bg-emerald-500 animate-pulse",
+          status === "connecting" && "bg-muted-foreground animate-pulse",
           status === "idle" && "bg-muted-foreground",
           status === "error" && "bg-destructive",
         )}

@@ -1,4 +1,4 @@
-﻿import { Inject, Injectable, NotFoundException, ForbiddenException, BadRequestException } from "@nestjs/common";
+import { Inject, Injectable, NotFoundException, ForbiddenException, BadRequestException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import type { OrganizationContext } from "../auth/types/authenticated-request";
 import type { CreateReviewDto, ModerateReviewDto, AddWishlistDto, FavoriteInstructorDto, ReviewQueryDto } from "./dto/reviews.dto";
@@ -17,12 +17,20 @@ export class ReviewsService {
     const enrollment = await this.prisma.enrollment.findUnique({
       where: { organizationId_courseId_userId: { organizationId: org.id, courseId, userId } },
     });
-    if (!enrollment || enrollment.status !== "COMPLETED") throw new ForbiddenException("You must complete the course before reviewing");
+    const isComplete = Boolean(
+      enrollment &&
+        (enrollment.status === "COMPLETED" ||
+          enrollment.completedAt ||
+          (enrollment.progressPercent ?? 0) >= 100),
+    );
+    if (!isComplete) {
+      throw new ForbiddenException("You must complete the course before reviewing");
+    }
   }
 
-  private async canModerate(org: OrganizationContext, courseId: string) {
+  private async canModerate(org: OrganizationContext, userId: string, courseId: string) {
     if (org.isPlatformAdmin || org.roleKeys.some((r) => ADMIN_ROLES.has(r))) return true;
-    return !!(await this.prisma.courseInstructor.findFirst({ where: { organizationId: org.id, courseId, userId: org.memberId } }));
+    return !!(await this.prisma.courseInstructor.findFirst({ where: { organizationId: org.id, courseId, userId } }));
   }
 
   // ── Reviews ─────────────────────────────────────────
@@ -47,7 +55,7 @@ export class ReviewsService {
   async delete(org: OrganizationContext, userId: string, id: string) {
     const review = await this.prisma.courseReview.findFirst({ where: { id, organizationId: org.id } });
     if (!review) throw new NotFoundException("Review not found");
-    if (review.userId !== userId && !(await this.canModerate(org, review.courseId))) throw new ForbiddenException("Not allowed");
+    if (review.userId !== userId && !(await this.canModerate(org, userId, review.courseId))) throw new ForbiddenException("Not allowed");
     await this.prisma.courseReview.delete({ where: { id } });
     return { deleted: true };
   }
@@ -91,13 +99,20 @@ export class ReviewsService {
   async moderate(org: OrganizationContext, userId: string, id: string, dto: ModerateReviewDto) {
     const review = await this.prisma.courseReview.findFirst({ where: { id, organizationId: org.id } });
     if (!review) throw new NotFoundException("Review not found");
-    if (!(await this.canModerate(org, review.courseId))) throw new ForbiddenException("Not allowed to moderate");
+    if (!(await this.canModerate(org, userId, review.courseId))) throw new ForbiddenException("Not allowed to moderate");
     return this.prisma.courseReview.update({ where: { id }, data: { status: dto.status as any, moderatedById: userId, moderatedAt: new Date() } });
   }
 
   // ── Wishlist ────────────────────────────────────────
 
   async addWishlist(org: OrganizationContext, userId: string, dto: AddWishlistDto) {
+    const course = await this.prisma.course.findFirst({
+      where: { id: dto.courseId, organizationId: org.id },
+      select: { id: true },
+    });
+    if (!course) {
+      throw new NotFoundException("Course not found");
+    }
     return this.prisma.wishlist.upsert({
       where: { organizationId_userId_courseId: { organizationId: org.id, userId, courseId: dto.courseId } },
       update: {},
@@ -148,6 +163,13 @@ export class ReviewsService {
   // ── Recently Viewed ─────────────────────────────────
 
   async trackView(org: OrganizationContext, userId: string, courseId: string) {
+    const course = await this.prisma.course.findFirst({
+      where: { id: courseId, organizationId: org.id },
+      select: { id: true },
+    });
+    if (!course) {
+      throw new NotFoundException("Course not found");
+    }
     return this.prisma.recentlyViewedCourse.upsert({
       where: { organizationId_userId_courseId: { organizationId: org.id, userId, courseId } },
       update: { viewedAt: new Date() },

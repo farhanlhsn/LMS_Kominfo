@@ -26,7 +26,7 @@ export function NetworkStatusPill({
     setLastLabel(date.toLocaleTimeString());
   }, [lastChangedAt]);
 
-  if (isOnline && !showWhenOnline) return null;
+  if (status === "unknown" || (isOnline && !showWhenOnline)) return null;
 
   const tone = isOnline
     ? "border-info/30 bg-info/10 text-info"

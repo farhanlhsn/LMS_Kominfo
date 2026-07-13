@@ -10,6 +10,8 @@ import {
 describe("plugin activity registries", () => {
   it("resolves core renderers and falls back for unknown keys", () => {
     expect(PluginRendererRegistry.keys()).toContain("core.text");
+    expect(PluginRendererRegistry.keys()).toContain("plugin.code_runner");
+    expect(PluginRendererRegistry.keys()).toContain("plugin.3d_viewer");
     expect(PluginRendererRegistry.get("core.video").name).toBe(
       "CoreVideoRenderer",
     );
@@ -21,8 +23,77 @@ describe("plugin activity registries", () => {
   it("resolves core editors and falls back for unsupported keys", () => {
     expect(PluginEditorRegistry.keys()).toContain("core.file");
     expect(PluginEditorRegistry.get("plugin.scorm").name).toBe(
-      "UnsupportedActivityEditor",
+      "CoreActivityEditor",
     );
+  });
+
+  it("renders code runner plugin activities with the runner UI", () => {
+    const html = renderToStaticMarkup(
+      createElement(PluginActivityRenderer, {
+        response: {
+          activity: {
+            id: "activity_code",
+            title: "FizzBuzz",
+            activityTypeKey: "plugin.code_runner",
+          },
+          plugin: {
+            key: "plugin.code_runner",
+            name: "Code Runner Activity",
+            enabled: true,
+            available: true,
+            placeholder: false,
+            reason: "enabled",
+          },
+          content: {
+            id: "content_code",
+            activityId: "activity_code",
+            textContent: "Solve the kata.",
+            content: {
+              language: "javascript",
+              starterCode: "console.log('hello');",
+            },
+          },
+          fileAccess: null,
+        },
+      }),
+    );
+
+    expect(html).toContain("Code runner");
+    expect(html).toContain("Solve the kata.");
+    expect(html).not.toContain("Unsupported activity renderer");
+  });
+
+  it("renders SCORM plugin activities as runtime bridge launchers", () => {
+    const html = renderToStaticMarkup(
+      createElement(PluginActivityRenderer, {
+        response: {
+          activity: {
+            id: "activity_scorm",
+            title: "SCORM module",
+            activityTypeKey: "plugin.scorm",
+          },
+          plugin: {
+            key: "plugin.scorm",
+            name: "SCORM Activity",
+            enabled: true,
+            available: true,
+            placeholder: false,
+            reason: "enabled",
+          },
+          content: {
+            id: "content_scorm",
+            activityId: "activity_scorm",
+            externalUrl: "https://example.com/scorm/index.html",
+            content: { version: "2004" },
+          },
+          fileAccess: null,
+        },
+      }),
+    );
+
+    expect(html).toContain("SCORM module");
+    expect(html).toContain("runtime bridge");
+    expect(html).not.toContain("placeholder runtime");
   });
 
   it("renders unavailable fallback when a plugin is disabled", () => {

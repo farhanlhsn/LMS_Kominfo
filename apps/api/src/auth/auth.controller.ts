@@ -19,6 +19,7 @@ import { LoginDto } from "./dto/login.dto";
 import { RefreshTokenDto } from "./dto/refresh-token.dto";
 import { RegisterDto } from "./dto/register.dto";
 import { SwitchOrganizationDto } from "./dto/switch-organization.dto";
+import { ForgotPasswordDto, ResetPasswordDto } from "./dto/password-reset.dto";
 
 @Controller("auth")
 export class AuthController {
@@ -75,6 +76,16 @@ export class AuthController {
     @Req() request: AuthenticatedRequest
   ): Promise<unknown> {
     return this.authService.logout(user, this.metadata(request));
+  }
+
+  @Post("forgot-password")
+  forgotPassword(@Body() dto: ForgotPasswordDto): Promise<unknown> {
+    return this.authService.forgotPassword(dto.email);
+  }
+
+  @Post("reset-password")
+  resetPassword(@Body() dto: ResetPasswordDto): Promise<unknown> {
+    return this.authService.resetPassword(dto.token, dto.password);
   }
 
   private metadata(request: Request) {

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { AppShell } from "../../../../components/layout/shells";
 import { PageHeader, ButtonLink, StatusBadge } from "../../../../components/ui/core";
 import { SurveyQuestionList, SurveyResponseList } from "../../../../components/experiences/experiences-views";
 import {
@@ -88,8 +89,9 @@ export default function AdminSurveyDetailPage() {
   };
 
   return (
-    <div>
-      <PageHeader
+    <AppShell>
+      <div>
+        <PageHeader
         eyebrow="Survey"
         title={survey?.title ?? "Loading…"}
         description={survey?.description ?? undefined}
@@ -227,6 +229,7 @@ export default function AdminSurveyDetailPage() {
           ) : null}
         </section>
       </div>
-    </div>
+      </div>
+    </AppShell>
   );
 }

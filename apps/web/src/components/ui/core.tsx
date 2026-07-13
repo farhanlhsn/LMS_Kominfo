@@ -199,21 +199,26 @@ export function SearchInput({
 
 export function FilterBar({
   children,
+  onClear,
   onClearLabel = "Clear filters",
 }: {
   children: ReactNode;
+  onClear?: () => void;
   onClearLabel?: string;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card p-3 shadow-subtle">
       {children}
-      <button
-        className="ml-auto inline-flex min-h-9 items-center gap-2 rounded-md border border-border px-3 text-sm font-medium text-muted-foreground hover:text-foreground"
-        type="button"
-      >
-        <X aria-hidden="true" className="h-4 w-4" />
-        {onClearLabel}
-      </button>
+      {onClear ? (
+        <button
+          className="ml-auto inline-flex min-h-9 items-center gap-2 rounded-md border border-border px-3 text-sm font-medium text-muted-foreground hover:text-foreground"
+          onClick={onClear}
+          type="button"
+        >
+          <X aria-hidden="true" className="h-4 w-4" />
+          {onClearLabel}
+        </button>
+      ) : null}
     </div>
   );
 }

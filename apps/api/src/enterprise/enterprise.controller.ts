@@ -6,9 +6,9 @@ import { OrganizationContextGuard } from "../rbac/guards/organization-context.gu
 import { PermissionsGuard } from "../rbac/guards/permissions.guard";
 import { Permissions } from "../rbac/decorators/permissions.decorator";
 import { EnterpriseService } from "./enterprise.service";
-import type { UpdateBrandingDto, CreateSsoProviderDto, UpdateSsoProviderDto, UpdateLoginPolicyDto, CreateDomainDto, CreateApiKeyDto, CreateWebhookDto, EnterpriseQueryDto } from "./dto/enterprise.dto";
+import { UpdateBrandingDto, CreateSsoProviderDto, UpdateSsoProviderDto, UpdateLoginPolicyDto, CreateDomainDto, CreateApiKeyDto, CreateWebhookDto, EnterpriseQueryDto } from "./dto/enterprise.dto";
 
-@Controller("api/v1/enterprise")
+@Controller("enterprise")
 @UseGuards(JwtAuthGuard, OrganizationContextGuard, PermissionsGuard)
 export class EnterpriseController {
   constructor(

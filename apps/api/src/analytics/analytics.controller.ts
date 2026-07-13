@@ -1,4 +1,4 @@
-﻿import { Controller, Get, Post, Body, Query, Param, Inject, UseGuards, Req } from "@nestjs/common";
+import { Controller, Get, Post, Body, Query, Param, Inject, UseGuards, Req } from "@nestjs/common";
 import { PERMISSIONS } from "@lms/shared";
 import type { AuthenticatedRequest } from "../auth/types/authenticated-request";
 import { JwtAuthGuard } from "../rbac/guards/jwt-auth.guard";
@@ -6,9 +6,9 @@ import { OrganizationContextGuard } from "../rbac/guards/organization-context.gu
 import { PermissionsGuard } from "../rbac/guards/permissions.guard";
 import { Permissions } from "../rbac/decorators/permissions.decorator";
 import { AnalyticsService } from "./analytics.service";
-import type { AnalyticsQueryDto, EventQueryDto, AuditLogQueryDto, ReportExportDto } from "./dto/analytics.dto";
+import { AnalyticsQueryDto, EventQueryDto, AuditLogQueryDto, ReportExportDto } from "./dto/analytics.dto";
 
-@Controller("api/v1/analytics")
+@Controller("analytics")
 @UseGuards(JwtAuthGuard, OrganizationContextGuard)
 export class AnalyticsController {
   constructor(

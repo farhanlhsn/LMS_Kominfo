@@ -96,4 +96,68 @@ describe("RbacService", () => {
       )
     ).toBe(false);
   });
+
+  it("provisions organization roles with the permissions needed by learning flows", async () => {
+    const permissions = Object.values(PERMISSIONS).map((key, index) => ({
+      id: `perm-${index}`,
+      key
+    }));
+    const prisma = {
+      permission: {
+        findMany: vi.fn().mockResolvedValue(permissions)
+      },
+      role: {
+        upsert: vi.fn().mockImplementation(({ where, create }) =>
+          Promise.resolve({
+            id: `role-${where.organizationId_key.key}`,
+            key: create.key
+          })
+        )
+      },
+      rolePermission: {
+        upsert: vi.fn().mockResolvedValue({})
+      }
+    };
+    const service = new RbacService(prisma as never);
+
+    await service.ensureOrganizationDefaults("org-1");
+
+    const rolePermissionCalls = prisma.rolePermission.upsert.mock.calls.map(
+      ([call]) => call
+    );
+    const permissionIdsForRole = (roleKey: string) =>
+      rolePermissionCalls
+        .filter((call) =>
+          String(call.where.roleId_permissionId.roleId).endsWith(roleKey)
+        )
+        .map((call) => call.where.roleId_permissionId.permissionId);
+    const permissionIdSetForRole = (roleKey: string) =>
+      new Set(
+        rolePermissionCalls
+          .filter((call) =>
+            String(call.where.roleId_permissionId.roleId).endsWith(roleKey)
+          )
+          .map((call) => call.where.roleId_permissionId.permissionId)
+      );
+    const permissionId = (key: string) =>
+      permissions.find((permission) => permission.key === key)?.id;
+
+    expect(permissionIdsForRole("org_admin")).not.toContain(
+      permissionId(PERMISSIONS.platformAdmin)
+    );
+    expect(permissionIdsForRole("org_admin")).toContain(
+      permissionId(PERMISSIONS.rolesManage)
+    );
+    expect(permissionIdsForRole("instructor")).toEqual(
+      expect.arrayContaining([
+        permissionId(PERMISSIONS.coursesUpdate),
+        permissionId(PERMISSIONS.quizManage),
+        permissionId(PERMISSIONS.assignmentsManage),
+        permissionId(PERMISSIONS.contentLibraryManage)
+      ])
+    );
+    expect(permissionIdSetForRole("learner")).toEqual(
+      new Set([permissionId(PERMISSIONS.coursesRead)])
+    );
+  });
 });

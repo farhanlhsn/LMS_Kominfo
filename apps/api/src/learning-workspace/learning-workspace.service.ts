@@ -894,7 +894,7 @@ export class LearningWorkspaceService {
         organizationId_courseId_userId: { organizationId, courseId, userId },
       },
     });
-    if (!enrollment || enrollment.status !== "ACTIVE") {
+    if (!enrollment || !["ACTIVE", "COMPLETED"].includes(enrollment.status)) {
       throw new ForbiddenException("Course enrollment is required");
     }
     return enrollment;

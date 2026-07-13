@@ -3,6 +3,7 @@
 import { Plus } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { AppShell } from "../../../components/layout/shells";
 import { PageHeader, ButtonLink, FilterBar, StatusBadge } from "../../../components/ui/core";
 import { SurveysList } from "../../../components/experiences/experiences-views";
 import { useCreateSurvey, useSurveys } from "../../../lib/api-hooks";
@@ -50,8 +51,9 @@ export default function AdminSurveysPage() {
   };
 
   return (
-    <div>
-      <PageHeader
+    <AppShell>
+      <div>
+        <PageHeader
         eyebrow="Admin"
         title="Surveys"
         description="Create surveys to collect learner feedback across courses and activities."
@@ -125,6 +127,7 @@ export default function AdminSurveysPage() {
           ← Back to admin
         </ButtonLink>
       </div>
-    </div>
+      </div>
+    </AppShell>
   );
 }

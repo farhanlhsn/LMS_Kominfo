@@ -64,11 +64,17 @@ describe("PopoutService", () => {
   });
 
   it("clamps TTL to the allowed window", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
     const { service } = setup();
-    const tooShort = (await service.issueToken(org, "u1", "l1", 100)) as any;
-    const tooLong = (await service.issueToken(org, "u1", "l1", 10_000_000_000)) as any;
-    expect(tooShort.expiresAt.getTime() - Date.now()).toBeGreaterThanOrEqual(60_000);
-    expect(tooLong.expiresAt.getTime() - Date.now()).toBeLessThanOrEqual(12 * 60 * 60 * 1000);
+    try {
+      const tooShort = (await service.issueToken(org, "u1", "l1", 100)) as any;
+      const tooLong = (await service.issueToken(org, "u1", "l1", 10_000_000_000)) as any;
+      expect(tooShort.expiresAt.getTime() - Date.now()).toBe(60_000);
+      expect(tooLong.expiresAt.getTime() - Date.now()).toBe(12 * 60 * 60 * 1000);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("validates a valid token and refreshes lastSeenAt", async () => {

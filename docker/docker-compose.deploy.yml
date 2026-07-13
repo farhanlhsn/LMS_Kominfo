@@ -75,19 +75,18 @@ services:
     depends_on:
       - api
     environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL is required}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api/v1}
 
-  nginx:
-    image: ${NGINX_IMAGE:-nginx:alpine}
+  gateway:
+    image: nginx:1.27-alpine
     restart: unless-stopped
-    ports:
-      - "${NGINX_PORT:-8080}:80"
     depends_on:
       - api
       - web
-    # Uncomment if using volume mount instead of custom NGINX_IMAGE
-    # volumes:
-    #   - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    volumes:
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "${WEB_PORT:-3000}:80"
 
 volumes:
   postgres-data:

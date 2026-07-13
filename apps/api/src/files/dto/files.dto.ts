@@ -61,9 +61,9 @@ export class UploadFileBodyDto {
     | "PUBLIC";
 
   @IsOptional()
-  @IsIn(["CONTENT", "THUMBNAIL", "ATTACHMENT", "VIDEO", "DOCUMENT", "BRANDING"])
+  @IsIn(["CONTENT", "THUMBNAIL", "ATTACHMENT", "VIDEO", "DOCUMENT", "BRANDING", "CONTENT_3D"])
   purpose?:
-    "CONTENT" | "THUMBNAIL" | "ATTACHMENT" | "VIDEO" | "DOCUMENT" | "BRANDING";
+    "CONTENT" | "THUMBNAIL" | "ATTACHMENT" | "VIDEO" | "DOCUMENT" | "BRANDING" | "CONTENT_3D";
 }
 
 export class SignedUrlDto {

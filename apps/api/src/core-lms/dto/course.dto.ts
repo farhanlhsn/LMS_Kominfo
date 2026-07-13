@@ -181,6 +181,10 @@ export class UpdateActivityDto {
   isPublished?: boolean;
 
   @IsOptional()
+  @IsString()
+  activityTypeKey?: string;
+
+  @IsOptional()
   content?: Record<string, unknown>;
 }
 

@@ -765,6 +765,7 @@ export class AssignmentsService {
     await this.prisma.enrollment.update({
       where: { organizationId_courseId_userId: { organizationId, courseId, userId } },
       data: {
+        status: progressPercent === 100 && requiredActivities.length ? "COMPLETED" : "ACTIVE",
         progressPercent,
         completedAt: progressPercent === 100 && requiredActivities.length ? new Date() : null,
       },

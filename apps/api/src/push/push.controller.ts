@@ -16,7 +16,7 @@ import { JwtAuthGuard } from "../rbac/guards/jwt-auth.guard";
 import { OrganizationContextGuard } from "../rbac/guards/organization-context.guard";
 import { PushService, type PushPayload, type PushSubscriptionInput } from "./push.service";
 
-@Controller("api/v1/push")
+@Controller("push")
 @UseGuards(JwtAuthGuard, OrganizationContextGuard)
 export class PushController {
   constructor(@Inject(PushService) private readonly push: PushService) {}

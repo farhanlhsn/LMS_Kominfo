@@ -10,9 +10,25 @@ import "reflect-metadata";
 import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { API_VERSION_PREFIX, DEFAULT_PORTS } from "@lms/config";
+import { IoAdapter } from "@nestjs/platform-socket.io";
 import { AppModule } from "./app.module";
 import { HttpExceptionFilter } from "./common/filters/http-exception.filter";
 import { ResponseInterceptor } from "./common/interceptors/response.interceptor";
+
+function isLocalDevelopmentOrigin(origin: string) {
+  if (process.env.NODE_ENV === "production") {
+    return false;
+  }
+  try {
+    const url = new URL(origin);
+    return (
+      url.protocol === "http:" &&
+      ["localhost", "127.0.0.1", "::1", "[::1]"].includes(url.hostname)
+    );
+  } catch {
+    return false;
+  }
+}
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -30,26 +46,27 @@ async function bootstrap() {
     ].filter((value): value is string => Boolean(value)),
   );
 
+  app.useWebSocketAdapter(new IoAdapter(app));
   app.setGlobalPrefix(API_VERSION_PREFIX);
   app.enableCors({
     origin: (
       origin: string | undefined,
       callback: (error: Error | null, allow?: boolean) => void,
     ) => {
-      if (!origin || allowedOrigins.has(origin)) {
+      if (!origin || allowedOrigins.has(origin) || isLocalDevelopmentOrigin(origin)) {
         callback(null, true);
         return;
       }
       callback(new Error("Origin is not allowed by CORS"));
     },
-    credentials: true
+    credentials: true,
   });
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
-      transform: true
-    })
+      transform: true,
+    }),
   );
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalInterceptors(new ResponseInterceptor());

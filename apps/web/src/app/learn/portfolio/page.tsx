@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AppShell } from "../../../components/layout/shells";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../../components/ui/card";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
@@ -64,7 +65,8 @@ export default function PortfolioPage() {
   });
 
   return (
-    <div className="space-y-6">
+    <AppShell>
+      <div className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle>My portfolio</CardTitle>
@@ -238,5 +240,6 @@ export default function PortfolioPage() {
         </CardContent>
       </Card>
     </div>
+    </AppShell>
   );
 }

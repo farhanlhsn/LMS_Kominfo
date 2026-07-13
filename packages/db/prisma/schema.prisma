@@ -147,6 +147,7 @@ enum ContentLibraryItemType {
   PDF
   LINK
   IMAGE
+  THREE_D_MODEL
 }
 
 enum PluginCategory {
@@ -518,6 +519,7 @@ model User {
   pluginListingsReviewed       PluginListing[]               @relation("PluginListingReviewer")
   pluginReviews                PluginReview[]                @relation("PluginReviewReviewer")
   popoutSessions               PopoutSession[]               @relation("PopoutSessionUser")
+  passwordResetTokens          PasswordResetToken[]
 
   @@index([status])
   @@index([createdAt])
@@ -4204,6 +4206,19 @@ model LegalAcceptanceLog {
 
   @@index([organizationId, userId])
   @@index([organizationId, documentType])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
 }
 
 // ===========================================================================

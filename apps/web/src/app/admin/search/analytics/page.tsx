@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AppShell } from "../../../../components/layout/shells";
 import { useSearchAnalytics } from "../../../../lib/api-hooks";
 
 export default function SearchAnalyticsPage() {
@@ -8,7 +9,8 @@ export default function SearchAnalyticsPage() {
   const analytics = useSearchAnalytics({ days, limit: 25 });
 
   return (
-    <main className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-8">
+    <AppShell>
+      <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-1">
         <nav className="text-xs text-muted-foreground">
           <a className="hover:underline" href="/admin">Admin</a>
@@ -97,6 +99,7 @@ export default function SearchAnalyticsPage() {
           )}
         </section>
       )}
-    </main>
+    </div>
+    </AppShell>
   );
 }

@@ -32,6 +32,14 @@ export function hasAnyPermission(
   return permissions.some((permission) => hasPermission(session, permission));
 }
 
+export function hasAllPermissions(
+  session: AuthSession | null,
+  permissions: readonly string[],
+) {
+  if (permissions.length === 0) return Boolean(session);
+  return permissions.every((permission) => hasPermission(session, permission));
+}
+
 export function canUseInstructorWorkspace(session: AuthSession | null) {
   return hasAnyPermission(session, [
     PERMISSIONS.coursesCreate,

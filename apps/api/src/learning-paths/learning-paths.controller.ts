@@ -1,4 +1,4 @@
-﻿import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Inject, UseGuards, Req } from "@nestjs/common";
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Inject, UseGuards, Req } from "@nestjs/common";
 import { PERMISSIONS } from "@lms/shared";
 import type { AuthenticatedRequest } from "../auth/types/authenticated-request";
 import { JwtAuthGuard } from "../rbac/guards/jwt-auth.guard";
@@ -6,9 +6,9 @@ import { OrganizationContextGuard } from "../rbac/guards/organization-context.gu
 import { PermissionsGuard } from "../rbac/guards/permissions.guard";
 import { Permissions } from "../rbac/decorators/permissions.decorator";
 import { LearningPathsService } from "./learning-paths.service";
-import type { CreateLearningPathDto, UpdateLearningPathDto, AddCourseToPathDto, LearningPathQueryDto } from "./dto/learning-path.dto";
+import { CreateLearningPathDto, UpdateLearningPathDto, AddCourseToPathDto, LearningPathQueryDto } from "./dto/learning-path.dto";
 
-@Controller("api/v1/learning-paths")
+@Controller("learning-paths")
 @UseGuards(JwtAuthGuard, OrganizationContextGuard)
 export class LearningPathsController {
   constructor(

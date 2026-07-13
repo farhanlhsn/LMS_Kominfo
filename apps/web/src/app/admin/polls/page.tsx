@@ -2,6 +2,7 @@
 
 import { Plus, X } from "lucide-react";
 import { useState } from "react";
+import { AppShell } from "../../../components/layout/shells";
 import { PageHeader, ButtonLink, FilterBar, StatusBadge } from "../../../components/ui/core";
 import { PollResultsView, PollsList } from "../../../components/experiences/experiences-views";
 import {
@@ -68,8 +69,9 @@ export default function AdminPollsPage() {
   };
 
   return (
-    <div>
-      <PageHeader
+    <AppShell>
+      <div>
+        <PageHeader
         eyebrow="Admin"
         title="Polls"
         description="Quick in-class polls for live learner feedback."
@@ -228,6 +230,7 @@ export default function AdminPollsPage() {
           ← Back to admin
         </ButtonLink>
       </div>
-    </div>
+      </div>
+    </AppShell>
   );
 }

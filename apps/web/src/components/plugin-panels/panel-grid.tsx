@@ -135,7 +135,7 @@ export function PanelGrid({ layoutKey, onLayoutChange }: PanelGridProps) {
                   <div>
                     <p className="font-medium">{panel.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {panel.pluginId} • {panel.allowedRoutes.length} routes
+                      {panel.pluginId} / {panel.allowedRoutes.length} routes
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -190,7 +190,7 @@ export function PanelGrid({ layoutKey, onLayoutChange }: PanelGridProps) {
         </ul>
         <div className="flex items-center gap-2">
           <Button onClick={handleSave} disabled={busy}>
-            <Save className="mr-2 h-4 w-4" /> {busy ? "Saving…" : "Save layout"}
+            <Save className="mr-2 h-4 w-4" /> {busy ? "Saving..." : "Save layout"}
           </Button>
         </div>
       </CardContent>
