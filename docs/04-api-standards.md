@@ -29,14 +29,16 @@ All APIs use `/api/v1`.
 
 ## Pagination
 
-Use query params:
+### Page mode (default for admin/catalog lists)
 
-- `page`
-- `limit`
+Query params:
+
+- `page` (default `1`)
+- `limit` (default `20`, max `100`)
 - `sort`
 - `search`
 
-Response meta:
+Response meta (`@lms/shared` `pageMeta`):
 
 ```json
 {
@@ -46,6 +48,29 @@ Response meta:
   "totalPages": 5
 }
 ```
+
+### Cursor mode (feeds / messages)
+
+Query params:
+
+- `cursor` (opaque ISO timestamp or id from previous page)
+- `limit` (default `20`, max `100`)
+
+Response meta (`@lms/shared` `cursorMeta`):
+
+```json
+{
+  "limit": 20,
+  "nextCursor": "2026-07-13T12:00:00.000Z",
+  "hasMore": true
+}
+```
+
+OpenAPI:
+
+- Auto-generated from Nest controllers: `/api/v1/docs` and `/api/v1/docs-json` (`@nestjs/swagger`)
+- Hand-maintained core paths (`buildOpenApiDocument`) are merged in for auth/payment notes
+- Legacy: `/api/v1/openapi` redirects UI to `/api/v1/docs`
 
 ## Auth headers
 

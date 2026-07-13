@@ -307,17 +307,7 @@ The following backend modules exist under `apps/api/src/`:
 
 ## Known Issues and Follow-ups
 
-1. **Prisma schema validation (9 missing opposite relations).** `prisma generate` fails because the following relation fields lack an opposite side:
-   - `User.notesExports` (needs `NotesExport.user User @relation("NotesExportUser", fields: [userId], references: [id])`).
-   - `Organization.notesExports` (needs `NotesExport.organization`).
-   - `Lesson.notesExports` (needs `NotesExport.lesson`).
-   - `ThreeDAsset.uploader` (needs `User.threeDAssets ThreeDAsset[] @relation("ThreeDAssetUploader")`).
-   - `CodeExecution.user` (needs `User.codeExecutions CodeExecution[] @relation("CodeExecutionUser")`).
-   - `CodeSubmission.user` (needs `User.codeSubmissions CodeSubmission[] @relation("CodeSubmissionUser")`).
-   - `PluginListing.reviewer` (needs `User.pluginListingReviews PluginListing[] @relation("PluginListingReviewer")`).
-   - `PluginReview.reviewer` (needs `User.pluginReviews PluginReview[] @relation("PluginReviewReviewer")`).
-   - `PopoutSession.user` (needs `User.popoutSessions PopoutSession[] @relation("PopoutSessionUser")`).
-   - Fix is purely additive (add the missing opposite fields). After the fix, `prisma generate` should pass and the new `@lms/db` types will land.
+1. **Prisma opposite relations.** Named back-relations for NotesExport / ThreeDAsset / CodeExecution / CodeSubmission / PluginListing / PluginReview / PopoutSession are present on `User` (and related models). `prisma validate` succeeds when `DATABASE_URL` is set.
 
 2. **Phase 19-36 migration consolidation.** The split migration files (`20260706061000_phase_19_20_35`, `20260706070000_phase_21_22_26`, `20260706080000_phase_24_25_27`, `20260706090100_phase_23_28_29_30`, `20260706100100_phase_31_33_34_36`) and the consolidated supersession (`20260706060000_phase_19_36_advanced_features`) both exist. Before production deploy, decide whether to keep the split files (one per logical group) or use the consolidated single migration. Either is valid; pick one and delete the other to avoid drift.
 
@@ -325,7 +315,7 @@ The following backend modules exist under `apps/api/src/`:
 
 4. **No live `prisma migrate deploy` verification.** As in prior phases, this environment has no reachable PostgreSQL, so `prisma migrate status` could not be exercised end-to-end. Migration SQL has been validated by `prisma format` and the schema is internally consistent apart from the 9 missing-opposite-relation errors.
 
-5. **Plugin externals under sandbox.** The audit confirms `code-runner` keeps user code out of the main process (separate `sandbox.provider.ts`), the plugin permission/execution-logger pipeline is intact, and no plugin code is executed in the API process directly.
+5. **Code-runner isolation.** Dev default is host `MockSandboxProvider` (blocked when `NODE_ENV=production`). Production uses `Judge0SandboxProvider` when `JUDGE0_BASE_URL` / `CODE_RUNNER_PROVIDER=judge0` is set — user code never runs in the API process. Plugin permission/execution-logger pipeline is intact.
 
 ## Production Readiness Verdict
 
@@ -370,7 +360,7 @@ The artifacts in the repo root are intentionally kept for traceability of the au
 - `apps/api/src/auth/auth.service.ts`: email/password + refresh token rotation + organization switching.
 - `apps/api/src/rbac/guards/permissions.guard.ts`: central RBAC enforcement, decorated with `@Permissions`.
 - `apps/api/src/rbac/guards/organization-context.guard.ts`: tenant scope guard.
-- `apps/api/src/code-runner/sandbox.provider.ts`: keeps user-submitted code out of the API process.
+- `apps/api/src/code-runner/sandbox.provider.ts`: host-process mock runner; **disabled in production** until an isolated worker is configured.
 - `apps/api/src/plugins/plugin-permission.service.ts` + `plugin-execution-logger.service.ts`: per-plugin permission and audit pipeline.
 - `apps/api/src/ai/ai-tutor.service.ts`, `ai-routing.service.ts`, `ai-retriever.service.ts`, `ai-indexing.service.ts`, `ai-canonical-cache.service.ts`: full RAG + canonical caching pipeline.
 - `apps/api/src/governance/governance.service.ts`: legal documents, retention, backups, exports, consent records (subject to the 9 Prisma follow-up fields).
