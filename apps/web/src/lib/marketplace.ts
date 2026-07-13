@@ -75,17 +75,19 @@ export function orderStatusTone(status: string | null | undefined): OrderStatusT
 
 const PAYMENT_STATUS_TONES: Record<string, OrderStatusTone> = {
   PENDING: "warning",
-  PAID: "info",
-  CONFIRMED: "success",
-  REJECTED: "danger",
+  AWAITING_REVIEW: "info",
+  PAID: "success",
+  FAILED: "danger",
+  REFUNDED: "danger",
   EXPIRED: "neutral",
 };
 
 const PAYMENT_STATUS_LABELS: Record<string, string> = {
   PENDING: "Pending confirmation",
-  PAID: "Submitted",
-  CONFIRMED: "Confirmed",
-  REJECTED: "Rejected",
+  AWAITING_REVIEW: "Awaiting review",
+  PAID: "Paid",
+  FAILED: "Failed",
+  REFUNDED: "Refunded",
   EXPIRED: "Expired",
 };
 

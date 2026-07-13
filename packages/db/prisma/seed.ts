@@ -497,8 +497,10 @@ async function seedPluginShowcaseCourse(input: {
   const lesson1 = await prisma.lesson.create({
     data: {
       organizationId: input.organizationId,
+      courseId: course.id,
       moduleId: mod1.id,
       title: 'Exploring 3D Models',
+      slug: slugify('3d-interactive-exploring-3d-models'),
       summary: 'Learn how to interact with 3D assets in the browser',
       orderIndex: 0,
       isPublished: true,
@@ -509,6 +511,7 @@ async function seedPluginShowcaseCourse(input: {
   await prisma.activity.create({
     data: {
       organizationId: input.organizationId,
+      courseId: course.id,
       lessonId: lesson1.id,
       title: 'Interactive 3D Viewer',
       activityTypeKey: 'plugin.3d_viewer',
@@ -548,8 +551,10 @@ async function seedPluginShowcaseCourse(input: {
   const lesson2 = await prisma.lesson.create({
     data: {
       organizationId: input.organizationId,
+      courseId: course.id,
       moduleId: mod2.id,
       title: 'Python Basics Exercise',
+      slug: slugify('code-exercises-python-basics-exercise'),
       summary: 'Write Python code and check it against test cases',
       orderIndex: 0,
       isPublished: true,
@@ -574,6 +579,7 @@ async function seedPluginShowcaseCourse(input: {
   await prisma.activity.create({
     data: {
       organizationId: input.organizationId,
+      courseId: course.id,
       lessonId: lesson2.id,
       title: 'FizzBuzz Challenge',
       activityTypeKey: 'plugin.code_runner',
@@ -610,8 +616,10 @@ async function seedPluginShowcaseCourse(input: {
   const lesson3 = await prisma.lesson.create({
     data: {
       organizationId: input.organizationId,
+      courseId: course.id,
       moduleId: mod3.id,
       title: 'Introduction Video',
+      slug: slugify('video-assessment-introduction-video'),
       summary: 'Watch the intro and complete the quiz',
       orderIndex: 0,
       isPublished: true,
@@ -622,6 +630,7 @@ async function seedPluginShowcaseCourse(input: {
   await prisma.activity.create({
     data: {
       organizationId: input.organizationId,
+      courseId: course.id,
       lessonId: lesson3.id,
       title: 'Platform Overview Video',
       activityTypeKey: 'core.video',
@@ -642,6 +651,7 @@ async function seedPluginShowcaseCourse(input: {
   await prisma.activity.create({
     data: {
       organizationId: input.organizationId,
+      courseId: course.id,
       lessonId: lesson3.id,
       title: 'Rich Text Reading',
       activityTypeKey: 'core.text',
@@ -943,6 +953,17 @@ async function seedLmsDemoData(input: {
     });
     for (const c of existing) {
       await prisma.learningPathCourse.deleteMany({ where: { courseId: c.id } });
+      // Orders/payments from E2E runs block course delete (OrderItem FK).
+      const orders = await prisma.order.findMany({
+        where: { items: { some: { courseId: c.id } } },
+        select: { id: true },
+      });
+      const orderIds = orders.map((o) => o.id);
+      if (orderIds.length) {
+        await prisma.payment.deleteMany({ where: { orderId: { in: orderIds } } });
+        await prisma.orderItem.deleteMany({ where: { orderId: { in: orderIds } } });
+        await prisma.order.deleteMany({ where: { id: { in: orderIds } } });
+      }
     }
     await prisma.course.deleteMany({
       where: { organizationId: input.organizationId, slug: courseInput.slug },

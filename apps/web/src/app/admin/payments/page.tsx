@@ -44,9 +44,10 @@ export default function AdminPaymentsPage() {
               >
                 <option value="">All statuses</option>
                 <option value="PENDING">Pending</option>
-                <option value="PAID">Submitted</option>
-                <option value="CONFIRMED">Confirmed</option>
-                <option value="REJECTED">Rejected</option>
+                <option value="AWAITING_REVIEW">Awaiting review</option>
+                <option value="PAID">Paid</option>
+                <option value="FAILED">Failed</option>
+                <option value="REFUNDED">Refunded</option>
                 <option value="EXPIRED">Expired</option>
               </select>
             }

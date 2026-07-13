@@ -47,10 +47,79 @@ describe("MarketplaceService", () => {
     });
   });
 
+  describe("confirmPayment", () => {
+    it("confirms only the caller's pending payment", async () => {
+      const { service, prisma } = setup({
+        payment: {
+          findFirst: vi.fn().mockResolvedValue({
+            id: "pay-a",
+            organizationId: "org-a",
+            orderId: "ord-a",
+            status: "PENDING",
+          }),
+          update: vi.fn().mockResolvedValue({ id: "pay-a", status: "AWAITING_REVIEW" }),
+        },
+      });
+      await service.confirmPayment(org, "user-a", { paymentId: "pay-a" });
+      expect(prisma.payment.findFirst).toHaveBeenCalledWith({
+        where: {
+          id: "pay-a",
+          organizationId: "org-a",
+          order: { userId: "user-a" },
+        },
+      });
+      expect(prisma.payment.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: "AWAITING_REVIEW" }),
+        }),
+      );
+    });
+
+    it("rejects payment not owned by caller", async () => {
+      const { service } = setup({
+        payment: { findFirst: vi.fn().mockResolvedValue(null) },
+      });
+      await expect(
+        service.confirmPayment(org, "user-b", { paymentId: "pay-a" }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it("IDOR: other org member cannot confirm by id alone", async () => {
+      const findFirst = vi.fn().mockResolvedValue(null);
+      const { service } = setup({ payment: { findFirst, update: vi.fn() } });
+      await expect(
+        service.confirmPayment(org, "attacker", { paymentId: "victim-pay" }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(findFirst).toHaveBeenCalledWith({
+        where: {
+          id: "victim-pay",
+          organizationId: "org-a",
+          order: { userId: "attacker" },
+        },
+      });
+    });
+  });
+
   describe("approvePayment", () => {
     it("approves payment and auto-enrolls user", async () => {
-      const { service, prisma } = setup();
+      const { service, prisma } = setup({
+        payment: {
+          findFirst: vi.fn().mockResolvedValue({
+            id: "pay-a",
+            organizationId: "org-a",
+            orderId: "ord-a",
+            status: "AWAITING_REVIEW",
+            paidAt: null,
+          }),
+          update: vi.fn(),
+        },
+      });
       await service.approvePayment(org, "admin-a", { paymentId: "pay-a" });
+      expect(prisma.payment.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: "PAID", confirmedById: "admin-a" }),
+        }),
+      );
       expect(prisma.enrollment.upsert).toHaveBeenCalled();
       expect(prisma.auditLog.create).toHaveBeenCalled();
     });

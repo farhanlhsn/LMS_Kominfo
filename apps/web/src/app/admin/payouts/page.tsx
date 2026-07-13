@@ -94,7 +94,7 @@ function PayoutsBody() {
   const handleCreateMethod = useCallback(async () => {
     setError(null);
     setStatus(null);
-    let details: Record<string, unknown> = {};
+    let details: Record<string, unknown>;
     try {
       details = methodDetails.trim() ? JSON.parse(methodDetails) : {};
     } catch (err) {

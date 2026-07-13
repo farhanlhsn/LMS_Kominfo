@@ -2553,6 +2553,7 @@ enum OrderStatus {
 
 enum PaymentStatus {
   PENDING
+  AWAITING_REVIEW
   PAID
   FAILED
   EXPIRED

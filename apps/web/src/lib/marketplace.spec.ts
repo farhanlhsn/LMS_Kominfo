@@ -39,8 +39,11 @@ describe("marketplace utils", () => {
   });
 
   it("maps payment status to label and tone", () => {
-    expect(paymentStatusLabel("CONFIRMED")).toBe("Confirmed");
-    expect(paymentStatusTone("REJECTED")).toBe("danger");
+    expect(paymentStatusLabel("PENDING")).toBe("Pending confirmation");
+    expect(paymentStatusLabel("AWAITING_REVIEW")).toBe("Awaiting review");
+    expect(paymentStatusLabel("PAID")).toBe("Paid");
+    expect(paymentStatusTone("AWAITING_REVIEW")).toBe("info");
+    expect(paymentStatusTone("PAID")).toBe("success");
   });
 
   it("maps subscription status to label and tone", () => {

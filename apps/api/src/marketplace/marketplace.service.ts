@@ -1,4 +1,5 @@
 ﻿import { Inject, Injectable, NotFoundException, ForbiddenException, BadRequestException } from "@nestjs/common";
+import { normalizePageLimit, pageMeta } from "@lms/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import type { OrganizationContext } from "../auth/types/authenticated-request";
 import type { SetCoursePricingDto, CreateCouponDto, CreateOrderDto, ConfirmPaymentDto, ApprovePaymentDto, CreateSubscriptionPlanDto, MarketplaceQueryDto } from "./dto/marketplace.dto";
@@ -8,10 +9,6 @@ export class MarketplaceService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService
   ) {}
-
-  private paginationMeta(page: number, limit: number, total: number) {
-    return { page, limit, total, totalPages: Math.ceil(total / limit) };
-  }
 
   // ── Course Pricing ──────────────────────────────────
 
@@ -51,7 +48,11 @@ export class MarketplaceService {
   }
 
   async listCoupons(org: OrganizationContext) {
-    return this.prisma.coupon.findMany({ where: { organizationId: org.id }, orderBy: { createdAt: "desc" } });
+    return this.prisma.coupon.findMany({
+      where: { organizationId: org.id },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    });
   }
 
   async validateCoupon(org: OrganizationContext, code: string, courseIds?: string[]) {
@@ -85,6 +86,7 @@ export class MarketplaceService {
     const orderNumber = "ORD-" + Date.now().toString(36).toUpperCase();
     const total = Math.max(0, subtotal - discountAmount);
 
+    const currency = courses[0]?.currency ?? "IDR";
     return this.prisma.order.create({
       data: {
         organizationId: org.id,
@@ -96,6 +98,15 @@ export class MarketplaceService {
         couponId: dto.couponCode ? (await this.prisma.coupon.findUnique({ where: { organizationId_code: { organizationId: org.id, code: dto.couponCode.toUpperCase() } } }))?.id : undefined,
         notes: dto.notes,
         items: { create: courses.map((c) => ({ courseId: c.id, price: c.price ?? 0, currency: c.currency })) },
+        payments: {
+          create: {
+            organizationId: org.id,
+            amount: total,
+            currency,
+            status: "PENDING",
+            provider: "MANUAL",
+          },
+        },
       },
       include: { items: { include: { course: { select: { id: true, title: true, slug: true } } } }, payments: true },
     });
@@ -111,8 +122,7 @@ export class MarketplaceService {
   }
 
   async getUserOrders(org: OrganizationContext, userId: string, query: MarketplaceQueryDto) {
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 20;
+    const { page, limit, skip } = normalizePageLimit(query.page, query.limit);
     const where: Record<string, unknown> = { organizationId: org.id, userId };
     if (query.status) where.status = query.status;
     const [data, total] = await Promise.all([
@@ -120,17 +130,16 @@ export class MarketplaceService {
         where: where as any,
         include: { items: { include: { course: { select: { id: true, title: true, slug: true } } } }, _count: { select: { payments: true } } },
         orderBy: { createdAt: "desc" },
-        skip: (page - 1) * limit,
+        skip,
         take: limit,
       }),
       this.prisma.order.count({ where: where as any }),
     ]);
-    return { data, meta: this.paginationMeta(page, limit, total) };
+    return { data, meta: pageMeta(page, limit, total) };
   }
 
   async getAllOrders(org: OrganizationContext, query: MarketplaceQueryDto) {
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 20;
+    const { page, limit, skip } = normalizePageLimit(query.page, query.limit);
     const where: Record<string, unknown> = { organizationId: org.id };
     if (query.status) where.status = query.status;
     const [data, total] = await Promise.all([
@@ -138,20 +147,27 @@ export class MarketplaceService {
         where: where as any,
         include: { user: { select: { id: true, name: true, email: true } }, items: { include: { course: { select: { id: true, title: true, slug: true } } } } },
         orderBy: { createdAt: "desc" },
-        skip: (page - 1) * limit,
+        skip,
         take: limit,
       }),
       this.prisma.order.count({ where: where as any }),
     ]);
-    return { data, meta: this.paginationMeta(page, limit, total) };
+    return { data, meta: pageMeta(page, limit, total) };
   }
 
   // ── Payments ────────────────────────────────────────
 
   async confirmPayment(org: OrganizationContext, userId: string, dto: ConfirmPaymentDto) {
-    const payment = await this.prisma.payment.findFirst({ where: { id: dto.paymentId, organizationId: org.id } });
+    const payment = await this.prisma.payment.findFirst({
+      where: {
+        id: dto.paymentId,
+        organizationId: org.id,
+        order: { userId },
+      },
+    });
     if (!payment) throw new NotFoundException("Payment not found");
     if (payment.status !== "PENDING") throw new BadRequestException("Payment is not pending");
+    // User proof → AWAITING_REVIEW; admin approvePayment sets PAID + enrolls.
     return this.prisma.payment.update({
       where: { id: dto.paymentId },
       data: {
@@ -160,8 +176,7 @@ export class MarketplaceService {
         accountNumber: dto.accountNumber,
         proofImageUrl: dto.proofImageUrl,
         notes: dto.notes,
-        status: "PAID",
-        paidAt: new Date(),
+        status: "AWAITING_REVIEW",
       },
     });
   }
@@ -169,11 +184,19 @@ export class MarketplaceService {
   async approvePayment(org: OrganizationContext, adminId: string, dto: ApprovePaymentDto) {
     const payment = await this.prisma.payment.findFirst({ where: { id: dto.paymentId, organizationId: org.id } });
     if (!payment) throw new NotFoundException("Payment not found");
-    if (payment.status !== "PAID") throw new BadRequestException("Payment must be confirmed by user first");
+    if (payment.status !== "AWAITING_REVIEW" && payment.status !== "PAID") {
+      throw new BadRequestException("Payment must be awaiting review");
+    }
 
-    await this.prisma.payment.update({
+    const updated = await this.prisma.payment.update({
       where: { id: dto.paymentId },
-      data: { status: "PAID", confirmedById: adminId, confirmedAt: new Date(), notes: dto.notes },
+      data: {
+        status: "PAID",
+        paidAt: payment.paidAt ?? new Date(),
+        confirmedById: adminId,
+        confirmedAt: new Date(),
+        notes: dto.notes,
+      },
     });
 
     // Auto-enroll user in all courses from the order
@@ -197,12 +220,11 @@ export class MarketplaceService {
       data: { organizationId: org.id, userId: adminId, action: "payment.approved", entityType: "payment", entityId: payment.id, metadata: { orderId: payment.orderId } },
     });
 
-    return payment;
+    return updated;
   }
 
   async getPayments(org: OrganizationContext, query: MarketplaceQueryDto) {
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 20;
+    const { page, limit, skip } = normalizePageLimit(query.page, query.limit);
     const where: Record<string, unknown> = { organizationId: org.id };
     if (query.status) where.status = query.status;
     const [data, total] = await Promise.all([
@@ -210,12 +232,12 @@ export class MarketplaceService {
         where: where as any,
         include: { order: { include: { user: { select: { id: true, name: true, email: true } } } } },
         orderBy: { createdAt: "desc" },
-        skip: (page - 1) * limit,
+        skip,
         take: limit,
       }),
       this.prisma.payment.count({ where: where as any }),
     ]);
-    return { data, meta: this.paginationMeta(page, limit, total) };
+    return { data, meta: pageMeta(page, limit, total) };
   }
 
   // ── Subscription Plans ──────────────────────────────
@@ -237,7 +259,11 @@ export class MarketplaceService {
   }
 
   async listPlans(org: OrganizationContext) {
-    return this.prisma.subscriptionPlan.findMany({ where: { organizationId: org.id, isActive: true }, orderBy: { price: "asc" } });
+    return this.prisma.subscriptionPlan.findMany({
+      where: { organizationId: org.id, isActive: true },
+      orderBy: { price: "asc" },
+      take: 50,
+    });
   }
 
   async subscribe(org: OrganizationContext, userId: string, planId: string) {
