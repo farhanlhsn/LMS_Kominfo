@@ -60,6 +60,17 @@ export function MessageThread({
         />
       </header>
       <div className="flex-1 overflow-y-auto px-4 py-3">
+        {messages.hasMore ? (
+          <div className="mb-3 flex justify-center">
+            <button
+              type="button"
+              className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+              onClick={() => void messages.loadOlder()}
+            >
+              Load older messages
+            </button>
+          </div>
+        ) : null}
         {messages.loading ? (
           <p className="text-sm text-muted-foreground">Loading messages…</p>
         ) : messages.error ? (
@@ -119,6 +130,8 @@ interface UseMessagesResult {
   data: ChatMessage[] | null;
   loading: boolean;
   error: Error | null;
+  hasMore: boolean;
+  loadOlder: () => Promise<void>;
   refresh: () => Promise<void>;
 }
 
@@ -127,21 +140,52 @@ function useMessagesForConversation(conversationId: string): UseMessagesResult {
     data: ChatMessage[] | null;
     loading: boolean;
     error: Error | null;
-  }>({ data: null, loading: true, error: null });
+    nextCursor: string | null;
+    hasMore: boolean;
+  }>({ data: null, loading: true, error: null, nextCursor: null, hasMore: false });
 
   const load = useCallback(async () => {
     setState((prev) => ({ ...prev, loading: true, error: null }));
     try {
-      const result = await api.listMessages(conversationId);
-      setState({ data: result.data, loading: false, error: null });
+      const result = await api.listMessages(conversationId, { limit: 50 });
+      // API returns newest-first; reverse for chronological UI
+      const items = [...(result.data ?? [])].reverse();
+      setState({
+        data: items,
+        loading: false,
+        error: null,
+        nextCursor: result.meta?.nextCursor ?? null,
+        hasMore: Boolean(result.meta?.hasMore),
+      });
     } catch (err) {
       setState({
         data: null,
         loading: false,
         error: err instanceof Error ? err : new Error(String(err)),
+        nextCursor: null,
+        hasMore: false,
       });
     }
   }, [conversationId]);
+
+  const loadOlder = useCallback(async () => {
+    if (!state.nextCursor || !state.hasMore) return;
+    try {
+      const result = await api.listMessages(conversationId, {
+        cursor: state.nextCursor,
+        limit: 50,
+      });
+      const older = [...(result.data ?? [])].reverse();
+      setState((prev) => ({
+        ...prev,
+        data: [...older, ...(prev.data ?? [])],
+        nextCursor: result.meta?.nextCursor ?? null,
+        hasMore: Boolean(result.meta?.hasMore),
+      }));
+    } catch {
+      // keep existing messages on failure
+    }
+  }, [conversationId, state.hasMore, state.nextCursor]);
 
   useEffect(() => {
     void load();
@@ -151,6 +195,8 @@ function useMessagesForConversation(conversationId: string): UseMessagesResult {
     data: state.data,
     loading: state.loading,
     error: state.error,
+    hasMore: state.hasMore,
+    loadOlder,
     refresh: load,
   };
 }

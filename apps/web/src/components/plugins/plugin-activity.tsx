@@ -31,8 +31,14 @@ import { AssignmentActivityRenderer } from "../assignments/assignment";
 import { CodeEditor } from "../code-runner/code-editor";
 import { H5PLauncher, ScormLauncher } from "../experiences/experiences-views";
 import { QuizActivityRenderer } from "../quiz/quiz";
-import { ThreeDViewer } from "../content-3d/three-d-viewer";
+import dynamic from "next/dynamic";
 import { StatusBadge } from "../ui/core";
+
+const ThreeDViewer = dynamic(
+  () =>
+    import("../content-3d/three-d-viewer").then((mod) => mod.ThreeDViewer),
+  { ssr: false, loading: () => <div className="text-sm text-muted-foreground">Loading 3D viewer…</div> },
+);
 import { useExecuteCode, useJudgeCode, useCodeSubmissions, useThreeDAssets, useCreateThreeDAsset } from "../../lib/api-hooks";
 import type {
   Activity,

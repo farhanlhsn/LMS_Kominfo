@@ -1929,6 +1929,7 @@ export function AiTutorPanel({
           } catch (e) {
             throw new Error(
               e instanceof Error ? e.message : "AI Tutor stream failed.",
+              { cause: e },
             );
           }
         }

@@ -58,7 +58,7 @@ describe("plugin activity registries", () => {
       }),
     );
 
-    expect(html).toContain("Code runner");
+    expect(html).toContain("Code exercise");
     expect(html).toContain("Solve the kata.");
     expect(html).not.toContain("Unsupported activity renderer");
   });

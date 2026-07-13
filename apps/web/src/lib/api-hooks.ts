@@ -1669,10 +1669,12 @@ export function useConversation(id: string | null) {
 }
 
 export function useMessages(conversationId: string | null, params?: { cursor?: string; limit?: number }) {
-  return useApiQuery<ChatMessage[]>(async () => {
-    if (!conversationId) return [];
-    const res = await api.listMessages(conversationId, params);
-    return res.data;
+  return useApiQuery<{
+    data: ChatMessage[];
+    meta?: { limit: number; nextCursor: string | null; hasMore: boolean };
+  } | null>(async () => {
+    if (!conversationId) return null;
+    return api.listMessages(conversationId, params);
   }, [conversationId, JSON.stringify(params)]);
 }
 

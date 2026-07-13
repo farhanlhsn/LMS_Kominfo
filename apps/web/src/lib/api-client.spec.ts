@@ -78,7 +78,11 @@ describe("apiBaseUrl", () => {
 });
 
 describe("apiRequest", () => {
+  const originalApiUrl = process.env.NEXT_PUBLIC_API_URL;
+
   beforeEach(() => {
+    // Isolate from shell E2E env (absolute NEXT_PUBLIC_API_URL).
+    delete process.env.NEXT_PUBLIC_API_URL;
     vi.stubGlobal("window", {
       localStorage: createStorage(),
       dispatchEvent: () => true,
@@ -88,6 +92,11 @@ describe("apiRequest", () => {
   });
 
   afterEach(() => {
+    if (originalApiUrl === undefined) {
+      delete process.env.NEXT_PUBLIC_API_URL;
+    } else {
+      process.env.NEXT_PUBLIC_API_URL = originalApiUrl;
+    }
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });

@@ -2128,7 +2128,10 @@ export const api = {
     if (params.cursor) search.set("cursor", params.cursor);
     if (params.limit) search.set("limit", String(params.limit));
     const query = search.toString();
-    return apiRequest<{ data: ChatMessage[] }>(
+    return apiRequest<{
+      data: ChatMessage[];
+      meta?: { limit: number; nextCursor: string | null; hasMore: boolean };
+    }>(
       `/messages/conversations/${encodeURIComponent(id)}/messages${query ? `?${query}` : ""}`,
     );
   },

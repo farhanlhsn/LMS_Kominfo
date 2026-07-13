@@ -9,8 +9,16 @@ import { AuthGate } from "../../../components/auth/auth-gate";
 import { AppShell } from "../../../components/layout/shells";
 import { FilterBar, PageHeader, StatusBadge } from "../../../components/ui/core";
 import { ApiErrorState, EmptyState, LoadingState } from "../../../components/ui/states";
-import { ThreeDViewer } from "../../../components/content-3d/three-d-viewer";
+import dynamic from "next/dynamic";
 import { api } from "../../../lib/api-client";
+
+const ThreeDViewer = dynamic(
+  () =>
+    import("../../../components/content-3d/three-d-viewer").then(
+      (mod) => mod.ThreeDViewer,
+    ),
+  { ssr: false, loading: () => <div className="text-sm text-muted-foreground">Loading 3D…</div> },
+);
 import { useContentLibrary, useThreeDAssets } from "../../../lib/api-hooks";
 import type { ContentLibraryItem, ThreeDAssetRecord } from "../../../lib/lms-types";
 
