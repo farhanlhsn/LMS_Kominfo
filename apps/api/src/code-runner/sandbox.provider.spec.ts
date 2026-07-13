@@ -25,9 +25,6 @@ function makeFakeChild(options: {
 
   const fire = () => {
     if (options.error) {
-      const noop = () => undefined;
-      child.on("error", noop);
-      child.removeListener("error", noop);
       child.emit("error", options.error);
       return;
     }
@@ -40,10 +37,16 @@ function makeFakeChild(options: {
     child.emit("close", options.exitCode ?? 0, options.signal ?? null);
   };
 
-  // setTimeout(0) wasn't enough; the provider attaches its `close` listener
-  // only after several awaits resolve. A small real delay ensures listeners
-  // are in place by the time we emit.
-  setTimeout(fire, 50);
+  // Provider attaches `close` only after async setup (mkdtemp/writeFile).
+  // Wait for that — not `error` (tests may attach a temporary error listener).
+  const waitForCloseListener = (attempt = 0) => {
+    if (child.listenerCount("close") > 0 || attempt > 200) {
+      fire();
+      return;
+    }
+    setTimeout(() => waitForCloseListener(attempt + 1), 5);
+  };
+  setTimeout(() => waitForCloseListener(), 0);
 
   return child;
 }
@@ -61,6 +64,19 @@ const SUPPORTED_LANGUAGES_FOR_TEST: CodeLanguage[] = [
 ];
 
 describe("MockSandboxProvider", () => {
+  it("refuses to run in production", async () => {
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      const provider = new MockSandboxProvider(vi.fn() as unknown as SpawnFn);
+      await expect(
+        provider.run({ language: "PYTHON", code: "print(1)" }),
+      ).rejects.toThrow(/disabled in production/i);
+    } finally {
+      process.env.NODE_ENV = prev;
+    }
+  });
+
   beforeEach(() => {
     vi.useRealTimers();
   });
@@ -105,7 +121,6 @@ describe("MockSandboxProvider", () => {
     const child = makeFakeChild({ error: new Error("spawn failed") });
     const spawnFn: SpawnFn = vi.fn().mockReturnValue(child);
     const provider = new MockSandboxProvider(spawnFn);
-    child.on("error", () => undefined);
     const result = await provider.run({
       language: "JAVASCRIPT",
       code: "x",

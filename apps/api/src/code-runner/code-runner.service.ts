@@ -217,6 +217,14 @@ export class CodeRunnerService {
     if (!this.sandbox) {
       throw new BadRequestException("Sandbox provider not configured");
     }
+    if (
+      process.env.NODE_ENV === "production" &&
+      this.sandbox.name === "mock-isolated-runner"
+    ) {
+      throw new BadRequestException(
+        "Code execution is disabled until JUDGE0_BASE_URL (or CODE_RUNNER_PROVIDER=judge0) is configured",
+      );
+    }
     return this.sandbox.run({ language, code, stdin, timeoutMs });
   }
 

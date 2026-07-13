@@ -110,6 +110,13 @@ export class MockSandboxProvider implements SandboxProvider {
   }
 
   async run(input: SandboxRunInput): Promise<SandboxRunResult> {
+    // Host spawn is dev/test only — never run user code on the API process in prod.
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "MockSandboxProvider is disabled in production; configure an isolated sandbox worker",
+      );
+    }
+
     const spec = RUNNER_TABLE[input.language];
     const timeoutMs = clampTimeout(input.timeoutMs);
     const start = Date.now();
