@@ -22,8 +22,8 @@ test.describe("Browser smoke for main LMS surfaces", () => {
     await expect(
       page.getByRole("heading", { name: /Welcome back|Sign in/i }),
     ).toBeVisible();
-    await page.getByPlaceholder("you@example.com").fill("learner.one@example.com");
-    await page.getByPlaceholder("••••••••").fill("ChangeMe123!");
+    await page.getByLabel("Email").fill("learner.one@example.com");
+    await page.getByLabel("Password", { exact: true }).fill("ChangeMe123!");
     await page.getByRole("button", { name: /^Sign in$/ }).click();
     await expect(page).toHaveURL(/\/$/);
     await expect(

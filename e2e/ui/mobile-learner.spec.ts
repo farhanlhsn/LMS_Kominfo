@@ -28,15 +28,39 @@ test.describe("Mobile learner journey", () => {
       page.getByRole("heading", { name: "Learning dashboard" }),
     ).toBeVisible();
 
-    await page.goto("/courses");
-    await expect(page.getByRole("heading", { name: "Courses" })).toBeVisible();
-    await expect(page.getByText(courseTitle).first()).toBeVisible();
+    // P1: bottom primary nav on mobile
+    const mobileNav = page.getByRole("navigation", { name: "Mobile primary" });
+    await expect(mobileNav).toBeVisible();
+    await expect(mobileNav.getByRole("link", { name: "Home" })).toBeVisible();
+    await expect(mobileNav.getByRole("link", { name: "Catalog" })).toBeVisible();
+    await expect(mobileNav.getByRole("link", { name: "Learn" })).toBeVisible();
+    await expect(mobileNav.getByRole("button", { name: "More" })).toBeVisible();
 
-    await page.goto("/my-learning");
+    await mobileNav.getByRole("link", { name: "Catalog" }).click();
+    await expect(page).toHaveURL(/\/courses/);
     await expect(
-      page.getByRole("heading", { name: "My Learning" }),
+      page.getByRole("heading", { name: "Courses", exact: true }),
     ).toBeVisible();
-    await expect(page.getByText(courseTitle).first()).toBeVisible();
+    await expect(page.getByText(courseTitle).first()).toBeVisible({
+      timeout: 20_000,
+    });
+
+    await mobileNav.getByRole("link", { name: "Learn" }).click();
+    await expect(page).toHaveURL(/\/my-learning/);
+    await expect(
+      page.getByRole("heading", { name: "My Learning", exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText(courseTitle).first()).toBeVisible({
+      timeout: 20_000,
+    });
+
+    // More opens full nav drawer
+    await mobileNav.getByRole("button", { name: "More" }).click();
+    await expect(
+      page.getByRole("navigation", { name: "Primary", exact: true }),
+    ).toBeVisible();
+    // Header X (not the full-screen backdrop, which is also labeled Close)
+    await page.getByLabel("Close navigation").last().click();
 
     const learning = await apiGet<any>(
       request,

@@ -38,6 +38,25 @@ Use the established frontend stack:
 
 Prefer framework, design-system, and shared component patterns over page-local custom UI.
 
+### Shared control imports (required)
+
+```ts
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ButtonLink, DataTable, PageHeader } from "@/components/ui/core";
+```
+
+- Use `Button` / `Input` / `Label` for forms (token radius `rounded-md`, `h-10` default; login may use `h-11`).
+- Use `ButtonLink` for internal routes (Next.js `Link`); external `https`/`mailto` stay as `<a>`.
+- Use `DataTable` with `size="compact"` for dense admin lists.
+- Admin marketplace lists (`OrderList`, `PaymentList`) and `BulkJobTable` accept `size="compact"` for the same density.
+- Do not invent page-local input class strings or hex colors in pages.
+
+### Navigation typing
+
+- Nav items use unique `id` (href) for React keys and separate `rbacKey` for RBAC filtering (`nav-config.ts`).
+
 ## Branding Rules
 
 - Default UI must use generic LMS branding.
@@ -127,11 +146,13 @@ Do not use arbitrary z-index values unless a reusable component documents the ne
 
 ## Theme Modes
 
-- Light mode is the first implementation target.
-- Dark mode must be structurally ready through tokens.
-- Tenant branding must work in both light and dark mode.
-- Fallback colors must exist if tenant branding is missing or invalid.
-- Theme mode and organization branding must resolve before rendering branded surfaces when possible.
+- Light and dark modes are implemented via semantic tokens in `globals.css` (`.dark` class on `html`).
+- User preference: **Light / Dark / System**, stored in `localStorage` key `lms.theme`.
+- Bootstrap script in root layout applies `.dark` before paint to avoid flash.
+- Toggle lives in the authenticated topbar (`ThemeModeToggle`).
+- Tenant branding CSS variables still apply on top of light/dark bases.
+- Fallback colors exist if tenant branding is missing or invalid.
+- Theme mode and organization branding resolve before branded surfaces paint when possible.
 
 ## Core Layouts
 
