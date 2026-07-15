@@ -26,7 +26,7 @@ describe("AiStatusService", () => {
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
-  it("marks incompatible local embeddings for reindex", async () => {
+  it("reports incompatible local embeddings without changing index state", async () => {
     const config = createAiConfig({
       AI_ENABLED: "true",
       AI_EMBEDDING_PROVIDER: "local",
@@ -35,19 +35,13 @@ describe("AiStatusService", () => {
       AI_LOCAL_EMBEDDING_DIMENSIONS: "768",
     });
     const local = new LocalEmbeddingProviderFactory(config);
-    const updateMany = vi.fn();
     const prisma = {
-      aiDocumentChunk: {
-        updateMany,
-        count: vi.fn(),
-        findMany: vi.fn().mockResolvedValue([{ sourceDocumentId: "doc-1" }]),
-      },
-      aiDocument: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
-      aiCanonicalQuestion: { updateMany: vi.fn(), count: vi.fn() },
-      aiClassificationPrototype: { updateMany: vi.fn(), count: vi.fn() },
+      aiDocumentChunk: { count: vi.fn() },
+      aiCanonicalQuestion: { count: vi.fn() },
+      aiClassificationPrototype: { count: vi.fn() },
       $transaction: vi
         .fn()
-        .mockResolvedValue([{ count: 1 }, { count: 0 }, { count: 0 }]),
+        .mockResolvedValue([1, 0, 0, 0, 0, 0]),
     };
     const service = new AiStatusService(
       config,
@@ -57,11 +51,32 @@ describe("AiStatusService", () => {
     );
 
     expect((await service.getStatus("org-1")).needsReindex).toBe(true);
-    expect(updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({ organizationId: "org-1" }),
-        data: { status: "NEEDS_REINDEX" },
-      }),
+    expect(prisma.aiDocumentChunk.count).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ organizationId: "org-1" }) }),
     );
+  });
+
+  it("returns needsReindex when pending reindex counts remain", async () => {
+    const config = createAiConfig({
+      AI_ENABLED: "true",
+      AI_EMBEDDING_PROVIDER: "local",
+      AI_LOCAL_EMBEDDING_PROVIDER: "transformers_js",
+      AI_LOCAL_EMBEDDING_MODEL: "replacement/model",
+      AI_LOCAL_EMBEDDING_DIMENSIONS: "768",
+    });
+    const local = new LocalEmbeddingProviderFactory(config);
+    const prisma = {
+      aiDocumentChunk: { count: vi.fn().mockResolvedValue(2) },
+      aiCanonicalQuestion: { count: vi.fn().mockResolvedValue(0) },
+      aiClassificationPrototype: { count: vi.fn().mockResolvedValue(1) },
+      $transaction: vi.fn().mockResolvedValue([0, 0, 0, 2, 0, 1]),
+    };
+    const service = new AiStatusService(
+      config,
+      new AiChatProviderFactory(config),
+      new AiEmbeddingProviderFactory(config, local),
+      prisma as never,
+    );
+    expect((await service.getStatus("org-1")).needsReindex).toBe(true);
   });
 });

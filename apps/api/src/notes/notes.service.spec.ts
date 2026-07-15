@@ -201,4 +201,50 @@ describe("TranscriptNoteService", () => {
     expect(result.markdown).toContain("Transcript Notes");
     expect(result.markdown).toContain("First");
   });
+
+  it("lists notes and gets existing context", async () => {
+    const { service } = setup();
+    const note = await service.create(org, user.id, {
+      lessonId: "l-1",
+      content: "ctx note",
+    });
+    await service.generateContext(org, user.id, note.id, {});
+    const listed = await service.list(org.id, user.id, "l-1");
+    expect(listed.length).toBeGreaterThan(0);
+    const ctx = await service.getContext(org.id, user.id, note.id);
+    expect(ctx).toBeTruthy();
+  });
+
+  it("filters by tags, merges candidates, empty export markdown", async () => {
+    const { service, notes } = setup();
+    const a = await service.create(org, user.id, {
+      lessonId: "l-1",
+      content: "tagged",
+      tags: ["hook"],
+    } as any);
+    notes.set(a.id, { ...notes.get(a.id), tags: ["hook"] });
+    await service.create(org, user.id, {
+      lessonId: "l-1",
+      content: "other",
+      tags: ["other"],
+    } as any);
+    const tagged = await service.search(org.id, user.id, {
+      tags: ["hook"],
+      limit: 10,
+    } as any);
+    expect(tagged.every((n: any) => (n.tags as string[]).includes("hook"))).toBe(
+      true,
+    );
+
+    const b = await service.create(org, user.id, {
+      lessonId: "l-2",
+      content: "candidate",
+    });
+    await service.generateContext(org, user.id, a.id, {
+      candidateIds: [b.id],
+    } as any);
+
+    const empty = await service.exportNotes(org, "nobody", undefined);
+    expect(empty.markdown).toMatch(/No notes/);
+  });
 });

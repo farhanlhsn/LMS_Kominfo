@@ -30,8 +30,12 @@ function createService() {
       findUnique: vi.fn(),
     },
     learnerNote: {
-      findMany: vi.fn(),
-      findFirst: vi.fn(),
+      findMany: vi.fn().mockResolvedValue([{ id: "note_1" }]),
+      findFirst: vi.fn().mockResolvedValue({
+        id: "note_1",
+        organizationId: "org_1",
+        userId: "user_1",
+      }),
       create: vi
         .fn()
         .mockImplementation(({ data }) => ({ id: "note_1", ...data })),
@@ -41,6 +45,18 @@ function createService() {
       count: vi.fn().mockResolvedValue(0),
     },
     learnerBookmark: {
+      findMany: vi.fn().mockResolvedValue([{ id: "bm_1" }]),
+      findFirst: vi.fn().mockResolvedValue({
+        id: "bm_1",
+        organizationId: "org_1",
+        userId: "user_1",
+      }),
+      create: vi
+        .fn()
+        .mockImplementation(({ data }) => ({ id: "bm_1", ...data })),
+      update: vi
+        .fn()
+        .mockImplementation(({ data }) => ({ id: "bm_1", ...data })),
       count: vi.fn().mockResolvedValue(0),
     },
     transcriptSegment: {
@@ -197,6 +213,47 @@ describe("LearningWorkspaceService", () => {
     expect(prisma.transcriptSegment.create).toHaveBeenCalled();
   });
 
+  it("updates caption track with syncTranscript", async () => {
+    const org = {
+      id: "org_1",
+      slug: "org",
+      name: "Org",
+      memberId: "m_1",
+      roleKeys: ["instructor"],
+      permissionKeys: ["courses:update"],
+      isPlatformAdmin: false,
+    };
+    const { service, prisma } = createService();
+    prisma.videoCaptionTrack.findFirst.mockResolvedValue({
+      id: "track_1",
+      organizationId: "org_1",
+      activityId: "activity_1",
+      language: "en",
+      label: "EN",
+      kind: "captions",
+      source: "manual",
+      isDefault: false,
+      rawContent: null,
+      metadata: {},
+      cues: [{ startSeconds: 0, endSeconds: 1, text: "A" }],
+    });
+    prisma.activity.findFirst.mockResolvedValue({
+      id: "activity_1",
+      courseId: "course_1",
+      lessonId: "lesson_1",
+      activityTypeKey: "core.video",
+    });
+    prisma.courseInstructor.findFirst.mockResolvedValue({ id: "inst_1" });
+    await service.updateCaptionTrack(org as any, "user_1", "track_1", {
+      label: "EN2",
+      isDefault: true,
+      syncTranscript: true,
+      rawContent:
+        "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nHello",
+    } as any);
+    expect(prisma.transcriptSegment.deleteMany).toHaveBeenCalled();
+  });
+
   it("updates an individual caption cue and re-normalizes the track", async () => {
     const { service, prisma } = createService();
     prisma.videoCaptionTrack.findFirst.mockResolvedValue({
@@ -331,5 +388,261 @@ describe("LearningWorkspaceService", () => {
         { orderedIndices: [0, 1] },
       ),
     ).rejects.toThrow();
+  });
+
+  it("covers learner notes/bookmarks/state/transcript paths", async () => {
+    const { service, prisma } = createService();
+    prisma.activity.findFirst.mockResolvedValue({
+      id: "activity_1",
+      courseId: "course_1",
+      lessonId: "lesson_1",
+      activityTypeKey: "core.video",
+    });
+    prisma.enrollment.findUnique.mockResolvedValue({
+      id: "enrollment_1",
+      status: "ACTIVE",
+    });
+    prisma.lesson.findFirst.mockResolvedValue({
+      id: "lesson_1",
+      courseId: "course_1",
+    });
+
+    expect(await service.getPreferences("org_1", "user_1")).toMatchObject({
+      id: "pref_1",
+    });
+    await service.getState("org_1", "user_1", {
+      courseId: "course_1",
+      lessonId: "lesson_1",
+      activityId: "activity_1",
+    } as any);
+    prisma.lessonWorkspaceState.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: "state_1" });
+    await service.updateState("org_1", "user_1", {
+      courseId: "course_1",
+      lessonId: "lesson_1",
+      activityId: "activity_1",
+      layout: "side_by_side",
+    } as any);
+    await service.updateState("org_1", "user_1", {
+      courseId: "course_1",
+      lessonId: "lesson_1",
+      activityId: "activity_1",
+      layout: "standard",
+    } as any);
+
+    expect(
+      await service.listNotes("org_1", "user_1", {
+        courseId: "course_1",
+        lessonId: "lesson_1",
+        activityId: "activity_1",
+      } as any),
+    ).toEqual([{ id: "note_1" }]);
+    await service.updateNote("org_1", "user_1", "note_1", {
+      content: "edited",
+    } as any);
+    await service.deleteNote("org_1", "user_1", "note_1");
+
+    expect(
+      await service.listBookmarks("org_1", "user_1", {
+        courseId: "course_1",
+        lessonId: "lesson_1",
+        activityId: "activity_1",
+      } as any),
+    ).toEqual([{ id: "bm_1" }]);
+    await service.createBookmark("org_1", "user_1", {
+      courseId: "course_1",
+      lessonId: "lesson_1",
+      activityId: "activity_1",
+      title: "Mark",
+      videoTimeSeconds: 12,
+    } as any);
+    await service.updateBookmark("org_1", "user_1", "bm_1", {
+      title: "Mark2",
+    } as any);
+    await service.deleteBookmark("org_1", "user_1", "bm_1");
+
+    prisma.transcriptSegment.findMany.mockResolvedValue([{ id: "seg_1" }]);
+    prisma.videoCaptionTrack.findMany.mockResolvedValue([{ id: "track_1" }]);
+    expect(
+      await service.getTranscript("org_1", "user_1", "activity_1", {
+        language: "en",
+      } as any),
+    ).toEqual([{ id: "seg_1" }]);
+    expect(await service.getCaptionTracks("org_1", "user_1", "activity_1")).toEqual([
+      { id: "track_1" },
+    ]);
+  });
+
+  it("covers instructor caption/transcript management helpers", async () => {
+    const org = {
+      id: "org_1",
+      slug: "org",
+      name: "Org",
+      memberId: "m_1",
+      roleKeys: ["instructor"],
+      permissionKeys: ["courses:update"],
+      isPlatformAdmin: false,
+    };
+    const { service, prisma } = createService();
+    prisma.activity.findFirst.mockResolvedValue({
+      id: "activity_1",
+      courseId: "course_1",
+      lessonId: "lesson_1",
+      activityTypeKey: "core.video",
+    });
+    prisma.courseInstructor.findFirst.mockResolvedValue({ id: "inst_1" });
+    prisma.transcriptSegment.findMany.mockResolvedValue([{ id: "seg_1" }]);
+    prisma.videoCaptionTrack.findMany.mockResolvedValue([{ id: "track_1" }]);
+    prisma.videoCaptionTrack.findFirst.mockResolvedValue({
+      id: "track_1",
+      organizationId: "org_1",
+      activityId: "activity_1",
+      cues: [{ startSeconds: 0, endSeconds: 1, text: "A" }],
+      language: "en",
+      label: "EN",
+      kind: "captions",
+      source: "manual",
+      isDefault: false,
+      rawContent: null,
+      metadata: {},
+    });
+
+    expect(await service.instructorTranscript(org as any, "user_1", "activity_1")).toEqual([
+      { id: "seg_1" },
+    ]);
+    expect(
+      await service.instructorCaptionTracks(org as any, "user_1", "activity_1"),
+    ).toEqual([{ id: "track_1" }]);
+    expect(await service.listCaptionCues(org as any, "user_1", "track_1")).toEqual([
+      { startSeconds: 0, endSeconds: 1, text: "A" },
+    ]);
+    await service.createCaptionCue(org as any, "user_1", "track_1", {
+      startSeconds: 1,
+      endSeconds: 2,
+      text: "B",
+    } as any);
+    await service.deleteCaptionCue(org as any, "user_1", "track_1", 0);
+    await service.updateCaptionTrack(org as any, "user_1", "track_1", {
+      label: "EN2",
+      isDefault: true,
+    } as any);
+    await service.deleteCaptionTrack(org as any, "user_1", "track_1");
+
+    prisma.transcriptSegment.findFirst = vi.fn().mockResolvedValue({
+      id: "seg_1",
+      organizationId: "org_1",
+      activityId: "activity_1",
+    });
+    prisma.transcriptSegment.update = vi
+      .fn()
+      .mockResolvedValue({ id: "seg_1", text: "edited" });
+    prisma.transcriptSegment.delete = vi.fn().mockResolvedValue({ id: "seg_1" });
+    prisma.transcriptSegment.createMany = vi.fn().mockResolvedValue({ count: 1 });
+    await service.upsertInstructorTranscript(org as any, "user_1", "activity_1", {
+      language: "en",
+      segments: [{ startSeconds: 0, endSeconds: 1, text: "Hi" }],
+    } as any);
+    await service.updateTranscriptSegment(org as any, "user_1", "seg_1", {
+      text: "edited",
+    } as any);
+    await service.deleteTranscriptSegment(org as any, "user_1", "seg_1");
+  });
+
+  it("resolves lesson and course scoped workspace state", async () => {
+    const { service, prisma } = createService();
+    prisma.enrollment.findUnique.mockResolvedValue({
+      id: "e1",
+      status: "ACTIVE",
+    });
+    prisma.lesson.findFirst.mockResolvedValue({
+      id: "lesson_1",
+      courseId: "course_1",
+    });
+    prisma.lessonWorkspaceState.findFirst.mockResolvedValue(null);
+    await service.getState("org_1", "user_1", {
+      lessonId: "lesson_1",
+    } as any);
+    await service.getState("org_1", "user_1", {
+      courseId: "course_1",
+    } as any);
+    await expect(
+      service.getState("org_1", "user_1", {} as any),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    prisma.lesson.findFirst.mockResolvedValue(null);
+    await expect(
+      service.getState("org_1", "user_1", { lessonId: "missing" } as any),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it("rejects non-video caption tracks and missing tracks", async () => {
+    const org = {
+      id: "org_1",
+      slug: "org",
+      name: "Org",
+      memberId: "m_1",
+      roleKeys: ["instructor"],
+      permissionKeys: ["courses:update"],
+      isPlatformAdmin: false,
+    };
+    const { service, prisma } = createService();
+    prisma.activity.findFirst.mockResolvedValue({
+      id: "activity_1",
+      courseId: "course_1",
+      lessonId: "lesson_1",
+      activityTypeKey: "core.text",
+    });
+    prisma.courseInstructor.findFirst.mockResolvedValue({ id: "inst_1" });
+    await expect(
+      service.createCaptionTrack(org as any, "user_1", "activity_1", {
+        label: "EN",
+        language: "en",
+        rawContent: "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nHi",
+      } as any),
+    ).rejects.toThrow();
+    prisma.videoCaptionTrack.findFirst.mockResolvedValue(null);
+    await expect(
+      service.listCaptionCues(org as any, "user_1", "missing"),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it("returns workspace context with available panels", async () => {
+    const { service, prisma } = createService();
+    prisma.activity.findFirst.mockResolvedValue({
+      id: "activity_1",
+      title: "Video",
+      activityTypeKey: "core.video",
+      pluginKey: "core.video",
+      courseId: "course_1",
+      assessmentDisplayPolicy: {
+        allowNotes: true,
+        allowTranscript: true,
+        allowAIAssistant: true,
+      },
+      course: { id: "course_1", title: "Course", subtitle: null },
+      lesson: { id: "lesson_1", title: "Lesson", summary: null },
+      progress: [{ id: "p1", progressPercent: 10 }],
+      transcriptSegments: [{ id: "seg_1" }],
+      videoCaptionTracks: [
+        { language: "en", isDefault: true },
+        { language: "id", isDefault: false },
+      ],
+    });
+    prisma.enrollment.findUnique.mockResolvedValue({
+      id: "e1",
+      status: "ACTIVE",
+    });
+    prisma.learnerNote.count.mockResolvedValue(2);
+    prisma.learnerBookmark.count.mockResolvedValue(1);
+    const ctx = await service.getWorkspaceContext(
+      "org_1",
+      "user_1",
+      "activity_1",
+    );
+    expect(ctx.availablePanels).toContain("notes");
+    expect(ctx.availablePanels).toContain("ai");
+    expect(ctx.transcriptAvailable).toBe(true);
+    expect(ctx.defaultCaptionLanguage).toBe("en");
   });
 });

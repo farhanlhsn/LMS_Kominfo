@@ -6,7 +6,7 @@ const org = { id: "org-a", slug: "a", name: "A", memberId: "m1", roleKeys: ["org
 
 function setup(overrides: Record<string, unknown> = {}) {
   const prisma = {
-    learningPath: { findUnique: vi.fn().mockResolvedValue(null), findFirst: vi.fn().mockResolvedValue({ id: "path-a", organizationId: "org-a", title: "Full Stack", slug: "full-stack", courses: [], _count: { enrollments: 0, courses: 0 } }), create: vi.fn().mockResolvedValue({ id: "path-a" }), findMany: vi.fn().mockResolvedValue([]), update: vi.fn(), delete: vi.fn() },
+    learningPath: { findUnique: vi.fn().mockResolvedValue(null), findFirst: vi.fn().mockResolvedValue({ id: "path-a", organizationId: "org-a", title: "Full Stack", slug: "full-stack", courses: [], _count: { enrollments: 0, courses: 0 } }), create: vi.fn().mockResolvedValue({ id: "path-a" }), findMany: vi.fn().mockResolvedValue([]), count: vi.fn().mockResolvedValue(1), update: vi.fn(), delete: vi.fn() },
     learningPathCourse: { findUnique: vi.fn().mockResolvedValue(null), findMany: vi.fn().mockResolvedValue([]), create: vi.fn().mockResolvedValue({ id: "lpc-a" }), updateMany: vi.fn(), delete: vi.fn() },
     learningPathEnrollment: { findUnique: vi.fn().mockResolvedValue(null), findMany: vi.fn().mockResolvedValue([]), create: vi.fn().mockResolvedValue({ id: "enr-path" }), update: vi.fn() },
     course: { findFirst: vi.fn().mockResolvedValue({ id: "course-a", organizationId: "org-a", deletedAt: null }), findMany: vi.fn().mockResolvedValue([{ id: "course-a" }]) },
@@ -62,4 +62,52 @@ describe("LearningPathsService", () => {
       expect(prisma.learningPathEnrollment.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ progressPercent: 50 }) }));
     });
   });
+
+  describe("update delete courses enrollments", () => {
+    it("lists updates deletes and manages courses", async () => {
+      const { service, prisma } = setup();
+      prisma.learningPath.findMany = vi.fn().mockResolvedValue([{ id: "path-a" }]);
+      prisma.learningPath.count = vi.fn().mockResolvedValue(1);
+      const listed = await service.findAll(org, {} as any);
+      expect(listed.data ?? listed).toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: "path-a" })]),
+      );
+
+      prisma.learningPath.update = vi.fn().mockResolvedValue({ id: "path-a", title: "X" });
+      await service.update(org, "path-a", { title: "X" } as any);
+
+      prisma.learningPath.delete = vi.fn().mockResolvedValue({ id: "path-a" });
+      await service.delete(org, "path-a");
+
+      prisma.course.findFirst = vi.fn().mockResolvedValue({
+        id: "course-a",
+        organizationId: "org-a",
+        deletedAt: null,
+      });
+      prisma.learningPathCourse.create = vi
+        .fn()
+        .mockResolvedValue({ id: "lpc-a" });
+      await service.addCourse(org, "path-a", { courseId: "course-a" } as any);
+
+      prisma.learningPathCourse.findMany = vi
+        .fn()
+        .mockResolvedValue([{ id: "lpc-a", courseId: "course-a" }]);
+      prisma.learningPathCourse.updateMany = vi.fn();
+      await service.reorderCourses(org, "path-a", ["course-a"]);
+
+      prisma.learningPathCourse.findUnique = vi
+        .fn()
+        .mockResolvedValue({ id: "lpc-a", courseId: "course-a" });
+      prisma.learningPathCourse.delete = vi.fn();
+      await service.removeCourse(org, "path-a", "course-a");
+
+      prisma.learningPathEnrollment.findMany = vi
+        .fn()
+        .mockResolvedValue([{ id: "enr" }]);
+      expect(await service.getEnrollments(org, "user-a")).toEqual([
+        { id: "enr" },
+      ]);
+    });
+  });
 });
+

@@ -40,8 +40,10 @@ describe("jwt-secrets", () => {
     delete process.env.JWT_ACCESS_SECRET;
     delete process.env.JWT_REFRESH_SECRET;
     expect(() => jwtAccessSecret()).toThrow(/JWT_ACCESS_SECRET/);
+    expect(() => jwtRefreshSecret()).toThrow(/JWT_REFRESH_SECRET/);
     expect(() => assertJwtSecretsConfigured()).toThrow(/JWT_ACCESS_SECRET/);
   });
+
 
   it("accepts production when both secrets are set", () => {
     process.env.NODE_ENV = "production";

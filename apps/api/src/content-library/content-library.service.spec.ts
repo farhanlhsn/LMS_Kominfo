@@ -8,13 +8,29 @@ function setup() {
     contentLibraryItem: {
       findMany: vi.fn().mockResolvedValue([{ id: "item-1", title: "Doc" }]),
       create: vi.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: "item-2", ...data, file: null })),
-      findFirst: vi.fn().mockResolvedValue({ id: "item-1", organizationId: "org-a" }),
+      findFirst: vi.fn().mockResolvedValue({ id: "item-1", organizationId: "org-a", deletedAt: null, file: null }),
       update: vi.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: "item-1", ...data, file: null })),
     },
   } as any;
   const fileAccessPolicy = { ensureCanReadFile: vi.fn().mockResolvedValue(undefined) } as any;
   const contentProcessing = { enqueue: vi.fn().mockResolvedValue(undefined) } as any;
-  return { service: new ContentLibraryService(prisma, fileAccessPolicy, contentProcessing), prisma, fileAccessPolicy, contentProcessing };
+  const redis = {
+    get: vi.fn().mockResolvedValue(null),
+    set: vi.fn(),
+    del: vi.fn(),
+  };
+  return {
+    service: new ContentLibraryService(
+      prisma,
+      fileAccessPolicy,
+      contentProcessing,
+      redis as any,
+    ),
+    prisma,
+    fileAccessPolicy,
+    contentProcessing,
+    redis,
+  };
 }
 
 describe("ContentLibraryService", () => {
@@ -50,4 +66,37 @@ describe("ContentLibraryService", () => {
     expect(fileAccessPolicy.ensureCanReadFile).toHaveBeenCalledWith(org, "u1", "file-1");
     expect(contentProcessing.enqueue).toHaveBeenCalledWith("AI_INDEXING_REQUESTED", expect.objectContaining({ fileId: "file-1" }));
   });
+
+  it("get update delete and redis cache", async () => {
+    const { service, prisma, redis, contentProcessing } = setup();
+    redis.get.mockResolvedValueOnce([{ id: "cached" }]);
+    expect(await service.list("org-a", {})).toEqual([{ id: "cached" }]);
+
+    redis.get.mockResolvedValue(null);
+    prisma.contentLibraryItem.findMany.mockResolvedValue([{ id: "item-1" }]);
+    await service.list("org-a", {});
+    expect(redis.set).toHaveBeenCalled();
+
+    await service.get("org-a", "item-1");
+    prisma.contentLibraryItem.findFirst.mockResolvedValueOnce(null);
+    await expect(service.get("org-a", "missing")).rejects.toThrow(/not found/i);
+
+    prisma.contentLibraryItem.findFirst.mockResolvedValue({
+      id: "item-1",
+      organizationId: "org-a",
+      deletedAt: null,
+    });
+    await service.update("org-a", "item-1", {
+      title: "Updated",
+      tags: ["a"],
+      metadata: { x: 1 },
+    } as any);
+    expect(contentProcessing.enqueue).toHaveBeenCalledWith(
+      "CONTENT_UPDATED",
+      expect.any(Object),
+    );
+    await service.delete("org-a", "item-1");
+    expect(redis.del).toHaveBeenCalled();
+  });
 });
+

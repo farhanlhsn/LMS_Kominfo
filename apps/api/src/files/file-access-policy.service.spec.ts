@@ -77,4 +77,62 @@ describe("FileAccessPolicyService", () => {
       service.ensureCanReadFile(baseOrganization, "learner_1", "file_1"),
     ).rejects.toThrow(ForbiddenException);
   });
+
+  it("covers manage and read permission branches", async () => {
+    const { service, prisma } = createService({
+      id: "file_1",
+      ownerId: "owner_1",
+      visibility: "PRIVATE",
+      accessLevel: "OWNER",
+    });
+    await expect(
+      service.ensureCanManageFile(baseOrganization, "other", "file_1"),
+    ).rejects.toThrow(ForbiddenException);
+    await expect(
+      service.ensureCanManageFile(
+        { ...baseOrganization, permissionKeys: ["files:delete"] },
+        "other",
+        "file_1",
+      ),
+    ).resolves.toMatchObject({ id: "file_1" });
+
+    await expect(
+      service.ensureCanReadFile(
+        { ...baseOrganization, permissionKeys: ["files:read"] },
+        "other",
+        "file_1",
+      ),
+    ).resolves.toMatchObject({ id: "file_1" });
+
+    const orgMembers = createService({
+      id: "file_2",
+      ownerId: "owner_1",
+      visibility: "PRIVATE",
+      accessLevel: "ORGANIZATION_MEMBERS",
+    });
+    await expect(
+      orgMembers.service.ensureCanReadFile(
+        baseOrganization,
+        "member",
+        "file_2",
+      ),
+    ).resolves.toMatchObject({ id: "file_2" });
+
+    prisma.courseInstructor.findFirst.mockResolvedValue(null);
+    await expect(
+      service.ensureInstructorCanManageCourse(
+        baseOrganization,
+        "u1",
+        "course_1",
+      ),
+    ).rejects.toThrow(ForbiddenException);
+    await expect(
+      service.ensureInstructorCanManageCourse(
+        { ...baseOrganization, isPlatformAdmin: true },
+        "u1",
+        "course_1",
+      ),
+    ).resolves.toBeUndefined();
+  });
 });
+

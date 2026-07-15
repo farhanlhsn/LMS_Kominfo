@@ -29,7 +29,12 @@ function setup(overrides: Record<string, any> = {}) {
     },
     order: {
       findUnique: vi.fn().mockResolvedValue(null),
-      update: vi.fn().mockResolvedValue({}),
+      findFirst: vi.fn().mockResolvedValue({
+        id: "ord-1",
+        organizationId: "org-a",
+        currency: "IDR",
+      }),
+      update: vi.fn().mockResolvedValue({ id: "ord-1", currency: "USD" }),
     },
     auditLog: { create: vi.fn().mockResolvedValue({}) },
     ...overrides,
@@ -105,4 +110,30 @@ describe("TaxService.listRules", () => {
       expect.objectContaining({ where: { organizationId: "org-a" } }),
     );
   });
+
+  it("creates updates rules and order currency", async () => {
+    const { service, prisma } = setup();
+    await service.createRule(org, user as any, {
+      regionCode: "ID",
+      rate: 0.11,
+      type: "VAT",
+    } as any);
+    prisma.taxRule.findFirst.mockResolvedValue({
+      id: "trule-1",
+      organizationId: "org-a",
+    });
+    await service.updateRule(org, user as any, "trule-1", {
+      taxPercent: 12,
+    } as any);
+    prisma.order.findFirst = vi.fn().mockResolvedValue({
+      id: "ord-1",
+      organizationId: "org-a",
+      currency: "IDR",
+    });
+    await service.updateOrderCurrency(org, user as any, "ord-1", {
+      currency: "USD",
+    } as any);
+    expect(prisma.order.update).toHaveBeenCalled();
+  });
 });
+

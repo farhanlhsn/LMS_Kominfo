@@ -68,4 +68,25 @@ describe("EnterpriseController", () => {
     expect(enterprise.deleteProvider).toHaveBeenCalledWith(org, "sso-1");
     expect(response).toEqual({ deleted: true });
   });
+
+  it("forwards remaining enterprise endpoints", async () => {
+    const { controller, enterprise } = setup();
+    const req = createRequest();
+    await controller.listProviders(req);
+    await controller.createProvider(req, { name: "SSO" } as any);
+    await controller.updateProvider(req, "sso-1", { name: "SSO2" } as any);
+    await controller.getLoginPolicy(req);
+    await controller.updateLoginPolicy(req, { mfaRequired: true } as any);
+    await controller.listDomains(req);
+    await controller.createDomain(req, { domain: "a.com" } as any);
+    await controller.verifyDomain(req, "dom-1");
+    await controller.deleteDomain(req, "dom-1");
+    await controller.listApiKeys(req);
+    await controller.revokeApiKey(req, "key-1");
+    await controller.createWebhook(req, { name: "w", url: "https://x" } as any);
+    await controller.listWebhooks(req);
+    await controller.deleteWebhook(req, "wh-1");
+    expect(enterprise.listProviders).toHaveBeenCalled();
+    expect(enterprise.deleteWebhook).toHaveBeenCalledWith(org, "wh-1");
+  });
 });

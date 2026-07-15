@@ -46,4 +46,19 @@ describe("StorageService", () => {
       }),
     );
   });
+
+  it("delegates remaining storage operations", async () => {
+    const provider = createProvider();
+    const service = new StorageService(provider);
+    await service.deleteFile("b", "k");
+    expect(provider.deleteFile).toHaveBeenCalledWith("b", "k");
+    expect(service.getPublicUrl("b", "k")).toBe("https://public.example/file");
+    await expect(service.getMetadata("b", "k")).resolves.toEqual({ size: 10 });
+    await expect(service.getFile("b", "k")).resolves.toEqual(Buffer.from("file"));
+    await service.copyFile("a", "1", "b", "2");
+    expect(provider.copyFile).toHaveBeenCalledWith("a", "1", "b", "2");
+    await service.moveFile("a", "1", "b", "2");
+    expect(provider.moveFile).toHaveBeenCalledWith("a", "1", "b", "2");
+  });
 });
+

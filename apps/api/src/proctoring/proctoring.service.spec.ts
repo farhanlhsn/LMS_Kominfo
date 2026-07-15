@@ -22,19 +22,28 @@ function setup(overrides: Record<string, any> = {}) {
       findMany: vi.fn().mockResolvedValue([]),
     },
     proctoringEvent: {
-      create: vi.fn().mockResolvedValue({ id: "pe-1" }),
+      create: vi.fn().mockResolvedValue({ id: "pe-1", severity: "LOW" }),
       createMany: vi.fn().mockResolvedValue({ count: 1 }),
       findMany: vi.fn().mockResolvedValue([]),
     },
     proctoringFlag: {
+      findFirst: vi.fn().mockResolvedValue({ id: "pf-1", organizationId: "org-a" }),
       findMany: vi.fn().mockResolvedValue([]),
+      create: vi.fn().mockResolvedValue({ id: "pf-1" }),
+      createMany: vi.fn().mockResolvedValue({ count: 1 }),
       update: vi.fn().mockResolvedValue({ id: "pf-1" }),
     },
     auditLog: { create: vi.fn().mockResolvedValue({}) },
+    $transaction: vi.fn(async (ops: any) => {
+      if (typeof ops === "function") return ops(prisma);
+      if (Array.isArray(ops)) return Promise.all(ops);
+      return ops;
+    }),
     ...overrides,
   } as any;
   const provider = {
     analyzeEvents: vi.fn().mockResolvedValue({ integrityScore: 95, flags: [] }),
+    computeIntegrityScore: vi.fn().mockReturnValue(95),
     sampleEvent: vi.fn().mockResolvedValue(null),
   } as any;
   return { service: new ProctoringService(prisma, provider), prisma, provider };
@@ -78,6 +87,54 @@ describe("ProctoringService.startSession", () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 });
+
+describe("ProctoringService session lifecycle", () => {
+  it("gets ends lists and reviews flags", async () => {
+    const { service, prisma, provider } = setup();
+    prisma.proctoringSession.findFirst.mockResolvedValue({
+      id: "ps-1",
+      organizationId: "org-a",
+      userId: "u-1",
+      status: "ACTIVE",
+    });
+    await service.getSession("org-a", "ps-1");
+    await service.endSession("org-a", "ps-1", "u-1");
+    expect(prisma.proctoringSession.update).toHaveBeenCalled();
+
+    prisma.proctoringSession.findMany.mockResolvedValue([{ id: "ps-1" }]);
+    expect(await service.listSessions("org-a", {})).toEqual([{ id: "ps-1" }]);
+
+    await service.ingestEvent(org, user, "ps-1", {
+      type: "TAB_SWITCH",
+      severity: "HIGH",
+    } as any);
+    prisma.proctoringEvent.create
+      .mockResolvedValueOnce({ id: "pe-2", severity: "HIGH" })
+      .mockResolvedValueOnce({ id: "pe-3", severity: "LOW" });
+    prisma.$transaction.mockImplementation(async (ops: any) => {
+      if (Array.isArray(ops)) {
+        return ops.map(() => ({ id: "pe-2", severity: "HIGH" }));
+      }
+      return ops;
+    });
+    await service.ingestBatch(org, user, "ps-1", {
+      events: [{ type: "FACE_MISSING", severity: "HIGH" }],
+    } as any);
+    await service.sampleProviderEvent();
+    expect(provider.sampleEvent).toHaveBeenCalled();
+
+    prisma.proctoringFlag.findMany.mockResolvedValue([{ id: "pf-1" }]);
+    expect(await service.listFlags("org-a", {})).toEqual([{ id: "pf-1" }]);
+    prisma.proctoringFlag.update.mockResolvedValue({
+      id: "pf-1",
+      status: "REVIEWED",
+    });
+    await service.reviewFlag(org, user, "pf-1", {
+      status: "REVIEWED",
+    } as any);
+  });
+});
+
 
 describe("ProctoringService.ingestEvent", () => {
   it("creates an event on an active session", async () => {

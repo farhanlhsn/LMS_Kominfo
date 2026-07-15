@@ -75,4 +75,16 @@ describe("LearningPathsController", () => {
     expect(service.getEnrollments).toHaveBeenCalledWith(org, "user-1");
     expect(response).toEqual({ data: [] });
   });
+
+  it("updates deletes reorders and removes courses", async () => {
+    const { controller, service } = setup();
+    const req = createRequest();
+    await controller.update(req, "lp-1", { title: "X" } as any);
+    await controller.delete(req, "lp-1");
+    await controller.addCourse(req, "lp-1", { courseId: "c1" } as any);
+    await controller.removeCourse(req, "lp-1", "c1");
+    await controller.reorderCourses(req, "lp-1", { courseIds: ["c1"] });
+    expect(service.update).toHaveBeenCalled();
+    expect(service.reorderCourses).toHaveBeenCalledWith(org, "lp-1", ["c1"]);
+  });
 });

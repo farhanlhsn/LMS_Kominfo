@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { BadRequestException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, NotFoundException } from "@nestjs/common";
 import { ModerationService } from "./moderation.service";
 
 const org = {
@@ -170,5 +170,32 @@ describe("ModerationService", () => {
     const flags = await service.listFlags(org);
     expect(flags).toHaveLength(1);
     expect(flags[0]!.autoDetected).toBe(true);
+  });
+
+  it("covers update missing, listActions, ban guard, empty targetType", async () => {
+    const prisma: any = buildPrisma();
+    const service = new ModerationService(prisma);
+    await expect(
+      service.updateReport(org, user, "missing", { status: "OPEN" }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    await service.listActions(org);
+    await service.createAction(org, user, {
+      targetType: "USER",
+      targetId: "u-2",
+      actionType: "BAN",
+      reason: "abuse",
+    });
+    const learner = { ...user, isPlatformAdmin: false, role: "learner" };
+    await expect(
+      service.createAction(org, learner, {
+        targetType: "USER",
+        targetId: "u-2",
+        actionType: "SUSPEND",
+        reason: "x",
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(
+      service.flagContent(org, user, "", "x", "spam"),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });

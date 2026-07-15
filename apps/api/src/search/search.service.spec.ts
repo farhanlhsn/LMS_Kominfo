@@ -187,6 +187,108 @@ describe("SearchService", () => {
     expect(refresh.indexed).toBe(0);
     expect(typeof provider.upsert).toBe("function");
   });
+
+  it("indexes all entity types during refresh", async () => {
+    const { service, prisma } = setup();
+    const now = new Date();
+    prisma.course.findMany.mockResolvedValue([
+      {
+        id: "c-1",
+        title: "Course",
+        subtitle: "Sub",
+        description: "Desc",
+        updatedAt: now,
+      },
+    ]);
+    prisma.lesson.findMany.mockResolvedValue([
+      {
+        id: "l-1",
+        title: "Lesson",
+        summary: "Sum",
+        updatedAt: now,
+        moduleId: "m-1",
+        courseId: "c-1",
+      },
+    ]);
+    prisma.discussionThread.findMany.mockResolvedValue([
+      { id: "d-1", title: "Thread", body: "Body", updatedAt: now },
+    ]);
+    prisma.user.findMany.mockResolvedValue([
+      { id: "u-2", name: "Ada", email: "a@e.c", updatedAt: now },
+    ]);
+    prisma.certificate.findMany.mockResolvedValue([
+      {
+        id: "cert-1",
+        certificateNumber: "CN-1",
+        verificationCode: "V-1",
+        issuedAt: now,
+        user: { name: "Ada", email: "a@e.c" },
+        template: { name: "Default" },
+      },
+    ]);
+    prisma.helpArticle.findMany.mockResolvedValue([
+      {
+        id: "h-1",
+        title: "Help",
+        excerpt: "Ex",
+        body: "Body",
+        tags: ["faq"],
+        updatedAt: now,
+      },
+    ]);
+    const refresh = await service.refreshIndex(org.id);
+    expect(refresh.indexed).toBe(6);
+  });
+
+  it("skips onModuleInit when database connect is disabled", async () => {
+    const prev = process.env.SKIP_DATABASE_CONNECT;
+    process.env.SKIP_DATABASE_CONNECT = "true";
+    const { service, prisma } = setup();
+    await service.onModuleInit();
+    expect(prisma.organization.findMany).not.toHaveBeenCalled();
+    if (prev === undefined) delete process.env.SKIP_DATABASE_CONNECT;
+    else process.env.SKIP_DATABASE_CONNECT = prev;
+  });
+
+  it("covers onModuleInit index, analytics map, create fail, no-upsert provider", async () => {
+    const prev = process.env.SKIP_DATABASE_CONNECT;
+    delete process.env.SKIP_DATABASE_CONNECT;
+    const { service, prisma, searchQueryRows } = setup();
+    prisma.course.findMany.mockResolvedValue([
+      {
+        id: "c-1",
+        title: "T",
+        subtitle: null,
+        description: null,
+        updatedAt: new Date(),
+      },
+    ]);
+    await service.onModuleInit();
+    expect(prisma.organization.findMany).toHaveBeenCalled();
+
+    await service.search(org, user.id, "t", ["course"], undefined, 5);
+    prisma.searchQuery.create.mockRejectedValueOnce(new Error("db"));
+    await expect(
+      service.search(org, user.id, "t", undefined, undefined, undefined),
+    ).resolves.toMatchObject({ query: "t" });
+
+    searchQueryRows.push({
+      query: "t",
+      types: ["course"],
+      resultsCount: 1,
+      createdAt: new Date(),
+    });
+    const analytics = await service.getAnalytics(org.id, 7, 5);
+    expect(analytics.topQueries[0]).toMatchObject({ query: "t" });
+    expect(analytics.topQueries[0].count).toBeGreaterThan(0);
+    expect(analytics.recent[0]).toMatchObject({ query: "t" });
+
+    const bare = new SearchService(prisma, {
+      search: vi.fn().mockResolvedValue({ total: 0, hits: [], facetCounts: {} }),
+    } as any);
+    expect(await bare.refreshIndex(org.id)).toEqual({ indexed: 0 });
+    if (prev !== undefined) process.env.SKIP_DATABASE_CONNECT = prev;
+  });
 });
 
 describe("MockSearchProvider", () => {

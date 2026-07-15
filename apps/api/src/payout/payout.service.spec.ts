@@ -19,14 +19,15 @@ function setup(overrides: Record<string, any> = {}) {
       findMany: vi.fn().mockResolvedValue([]),
       create: vi.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: "rule-1", ...data })),
       findUnique: vi.fn().mockResolvedValue(null),
+      findFirst: vi.fn().mockResolvedValue({ id: "rule-1", organizationId: "org-a" }),
       update: vi.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: "rule-1", ...data })),
     },
     payoutMethod: {
-      findMany: vi.fn().mockResolvedValue([]),
+      findMany: vi.fn().mockResolvedValue([{ id: "pm-1" }]),
       create: vi.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: "pm-1", ...data })),
     },
     payoutPeriod: {
-      findMany: vi.fn().mockResolvedValue([]),
+      findMany: vi.fn().mockResolvedValue([{ id: "pp-1" }]),
       findFirst: vi.fn().mockResolvedValue(null),
       findUnique: vi.fn().mockResolvedValue(null),
       create: vi.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: "pp-1", ...data, status: "OPEN" })),
@@ -38,7 +39,7 @@ function setup(overrides: Record<string, any> = {}) {
       updateMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
     payout: {
-      findMany: vi.fn().mockResolvedValue([]),
+      findMany: vi.fn().mockResolvedValue([{ id: "pay-1" }]),
     },
     order: { findMany: vi.fn().mockResolvedValue([]) },
     auditLog: { create: vi.fn().mockResolvedValue({}) },
@@ -114,3 +115,149 @@ describe("PayoutService.listMyPayouts", () => {
     expect(result).toHaveLength(1);
   });
 });
+
+describe("PayoutService methods and periods", () => {
+  it("lists/creates methods and periods; updates rules", async () => {
+    const { service, prisma } = setup();
+    expect(await service.listMethods("org-a")).toHaveLength(1);
+    await service.createMethod(org, user as any, {
+      beneficiaryType: "USER",
+      beneficiaryId: "u-1",
+      type: "BANK",
+      details: {},
+    } as any);
+    expect(await service.listPeriods("org-a")).toHaveLength(1);
+    await service.createPeriod(org, user as any, {
+      periodStart: "2026-01-01",
+      periodEnd: "2026-01-31",
+      currency: "USD",
+    } as any);
+    await service.updateRule(org, user as any, "rule-1", {
+      percent: 40,
+      active: true,
+    } as any);
+    expect(prisma.revenueShareRule.update).toHaveBeenCalled();
+  });
+
+  it("rejects invalid period dates and missing rule", async () => {
+    const { service, prisma } = setup();
+    await expect(
+      service.createPeriod(org, user as any, {
+        periodStart: "2026-02-01",
+        periodEnd: "2026-01-01",
+      } as any),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    prisma.revenueShareRule.findFirst.mockResolvedValue(null);
+    await expect(
+      service.updateRule(org, user as any, "missing", { percent: 10 } as any),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it("computes locks and pays periods", async () => {
+    const { service, prisma } = setup();
+    prisma.payoutPeriod.findFirst.mockResolvedValue({
+      id: "pp-1",
+      organizationId: "org-a",
+      status: "OPEN",
+      periodStart: new Date("2026-01-01"),
+      periodEnd: new Date("2026-01-31"),
+    });
+    prisma.revenueShareRule.findMany.mockResolvedValue([
+      { scope: "INSTRUCTOR", percent: 70, active: true },
+    ]);
+    prisma.order.findMany.mockResolvedValue([
+      {
+        id: "o1",
+        currency: "USD",
+        userId: "u-1",
+        total: 100,
+        items: [{ price: 100 }],
+      },
+    ]);
+    prisma.payout = {
+      findMany: vi.fn().mockResolvedValue([]),
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      createMany: vi.fn().mockResolvedValue({ count: 1 }),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+    };
+    prisma.$transaction = vi.fn(async (fn: any) =>
+      fn({
+        payout: prisma.payout,
+        payoutPeriod: {
+          update: vi.fn().mockResolvedValue({ id: "pp-1", totalAmount: 100 }),
+        },
+      }),
+    );
+    await service.computePeriod(org, user as any, "pp-1");
+
+    prisma.payoutPeriod.findFirst.mockResolvedValue({
+      id: "pp-1",
+      organizationId: "org-a",
+      status: "OPEN",
+    });
+    prisma.payoutPeriod.update = vi.fn().mockResolvedValue({
+      id: "pp-1",
+      status: "LOCKED",
+    });
+    await service.lockPeriod(org, user as any, "pp-1");
+
+    prisma.payoutPeriod.findFirst.mockResolvedValue({
+      id: "pp-1",
+      organizationId: "org-a",
+      status: "LOCKED",
+    });
+    prisma.$transaction = vi.fn(async (fn: any) =>
+      fn({
+        payoutPeriod: {
+          update: vi.fn().mockResolvedValue({ id: "pp-1", status: "PAID" }),
+        },
+        payout: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      }),
+    );
+    await service.payPeriod(org, user as any, "pp-1", {
+      reference: "REF-1",
+    } as any);
+    expect(prisma.auditLog.create).toHaveBeenCalled();
+  });
+
+  it("computes platform-only share when no instructor rules exist", async () => {
+    const { service, prisma } = setup();
+    prisma.payoutPeriod.findFirst.mockResolvedValue({
+      id: "pp-1",
+      organizationId: "org-a",
+      status: "OPEN",
+      periodStart: new Date("2026-01-01"),
+      periodEnd: new Date("2026-01-31"),
+    });
+    prisma.revenueShareRule.findMany.mockResolvedValue([]);
+    prisma.order.findMany.mockResolvedValue([
+      {
+        id: "o1",
+        currency: "USD",
+        userId: "u-1",
+        total: 100,
+        items: [{ price: 100 }],
+      },
+    ]);
+    const createMany = vi.fn().mockResolvedValue({ count: 1 });
+    prisma.payout = {
+      findMany: vi.fn().mockResolvedValue([]),
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      createMany,
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+    };
+    prisma.$transaction = vi.fn(async (fn: any) =>
+      fn({
+        payout: prisma.payout,
+        payoutPeriod: {
+          update: vi.fn().mockResolvedValue({ id: "pp-1", totalAmount: 100 }),
+        },
+      }),
+    );
+    await service.computePeriod(org, user as any, "pp-1");
+    expect(createMany).toHaveBeenCalled();
+    expect(prisma.auditLog.create).toHaveBeenCalled();
+  });
+});
+
+

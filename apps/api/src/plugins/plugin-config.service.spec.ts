@@ -18,6 +18,14 @@ function createService() {
         id: "plugin_1",
         key: "core.text",
       }),
+      findMany: vi.fn().mockResolvedValue([
+        {
+          id: "plugin_1",
+          key: "core.text",
+          category: "ACTIVITY",
+          organizationPlugins: [{ enabled: true }],
+        },
+      ]),
     },
     organizationPlugin: {
       upsert: vi.fn().mockResolvedValue({ id: "org_plugin_1" }),
@@ -27,6 +35,7 @@ function createService() {
     },
     pluginExecutionLog: {
       create: vi.fn().mockResolvedValue({ id: "log_1" }),
+      findMany: vi.fn().mockResolvedValue([{ id: "log_1" }]),
     },
   };
   const registry = {
@@ -82,4 +91,35 @@ describe("PluginConfigService", () => {
       }),
     ).rejects.toThrow(BadRequestException);
   });
+
+  it("lists gets disables updates config and logs", async () => {
+    const { service, prisma, logger } = createService();
+    const listed = await service.listPlugins("org_1");
+    expect(listed[0]?.enabled).toBe(true);
+
+    prisma.plugin.findUnique.mockResolvedValue({
+      id: "plugin_1",
+      key: "core.text",
+      organizationPlugins: [{ enabled: true }],
+      pluginPermissions: [],
+    });
+    await service.getPlugin("org_1", "core.text");
+
+    await service.disablePlugin("org_1", user, "core.text");
+    expect(logger.log).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "plugin.disabled" }),
+    );
+
+    await service.updateConfig("org_1", user, "core.text", { theme: "dark" });
+    expect(logger.log).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "plugin.config_updated" }),
+    );
+
+    prisma.plugin.findUnique.mockResolvedValue({
+      id: "plugin_1",
+      key: "core.text",
+    });
+    expect(await service.logs("org_1", "core.text")).toEqual([{ id: "log_1" }]);
+  });
 });
+

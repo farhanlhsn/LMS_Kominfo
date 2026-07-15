@@ -58,4 +58,28 @@ describe("AuthController", () => {
       expect.objectContaining({ ipAddress: "127.0.0.1" })
     );
   });
+
+  it("covers register refresh logout orgs and password reset", async () => {
+    const service = {
+      register: vi.fn().mockResolvedValue({ id: "u" }),
+      login: vi.fn(),
+      refresh: vi.fn().mockResolvedValue({ tokens: {} }),
+      me: vi.fn(),
+      getOrganizations: vi.fn().mockResolvedValue([]),
+      switchOrganization: vi.fn(),
+      logout: vi.fn().mockResolvedValue({ success: true }),
+      forgotPassword: vi.fn().mockResolvedValue({ ok: true }),
+      resetPassword: vi.fn().mockResolvedValue({ ok: true }),
+    };
+    const controller = new AuthController(service as any);
+    const req = createRequest();
+    await controller.register({ email: "a@b.c", password: "x" } as any, req);
+    await controller.refresh({ refreshToken: "r" } as any, req);
+    await controller.organizations({ id: "u" } as any);
+    await controller.logout({ id: "u" } as any, req);
+    await controller.forgotPassword({ email: "a@b.c" } as any);
+    await controller.resetPassword({ token: "t", password: "p" } as any);
+    expect(service.register).toHaveBeenCalled();
+    expect(service.resetPassword).toHaveBeenCalled();
+  });
 });

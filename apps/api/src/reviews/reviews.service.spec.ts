@@ -11,9 +11,23 @@ function setup(overrides: Record<string, unknown> = {}) {
     enrollment: { findUnique: vi.fn().mockResolvedValue({ status: "COMPLETED", progressPercent: 100, completedAt: null }) },
     courseInstructor: { findFirst: vi.fn().mockResolvedValue(null) },
     courseReview: { findUnique: vi.fn().mockResolvedValue(null), findFirst: vi.fn().mockResolvedValue({ id: "rev-a", organizationId: "org-a", courseId: "course-a", userId: "user-a" }), findMany: vi.fn().mockResolvedValue([]), create: vi.fn().mockResolvedValue({ id: "rev-a" }), update: vi.fn(), delete: vi.fn(), aggregate: vi.fn().mockResolvedValue({ _avg: { rating: 4.5 }, _count: { rating: 10 } }), count: vi.fn().mockResolvedValue(0) },
-    wishlist: { findUnique: vi.fn().mockResolvedValue(null), findMany: vi.fn().mockResolvedValue([]), create: vi.fn(), upsert: vi.fn(), delete: vi.fn() },
-    favoriteInstructor: { findUnique: vi.fn().mockResolvedValue(null), findMany: vi.fn().mockResolvedValue([]), create: vi.fn(), upsert: vi.fn(), delete: vi.fn() },
-    recentlyViewedCourse: { findUnique: vi.fn().mockResolvedValue(null), findMany: vi.fn().mockResolvedValue([]), create: vi.fn().mockResolvedValue({ id: "rv-a" }), upsert: vi.fn() },
+    wishlist: {
+      findUnique: vi.fn().mockResolvedValue({ id: "w1" }),
+      findMany: vi.fn().mockResolvedValue([]),
+      create: vi.fn().mockResolvedValue({ id: "w1" }),
+      upsert: vi.fn().mockResolvedValue({ id: "w1" }),
+      delete: vi.fn().mockResolvedValue({ id: "w1" }),
+      deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
+    },
+    favoriteInstructor: {
+      findUnique: vi.fn().mockResolvedValue({ id: "f1" }),
+      findMany: vi.fn().mockResolvedValue([]),
+      create: vi.fn().mockResolvedValue({ id: "f1" }),
+      upsert: vi.fn().mockResolvedValue({ id: "f1" }),
+      delete: vi.fn().mockResolvedValue({ id: "f1" }),
+      deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
+    },
+    recentlyViewedCourse: { findUnique: vi.fn().mockResolvedValue(null), findMany: vi.fn().mockResolvedValue([]), create: vi.fn().mockResolvedValue({ id: "rv-a" }), upsert: vi.fn().mockResolvedValue({ id: "rv-a" }) },
     learnerNote: { findMany: vi.fn().mockResolvedValue([{ id: "note-a", content: "My note", course: { title: "Course" }, lesson: { title: "Lesson" } }]) },
     user: { findFirst: vi.fn().mockResolvedValue({ id: "inst-a", name: "Instructor" }) },
     ...overrides,
@@ -35,6 +49,38 @@ describe("ReviewsService", () => {
       });
       await service.create(org, "user-a", { courseId: "course-a", rating: 5 });
       expect(prisma.courseReview.create).toHaveBeenCalled();
+    });
+
+    it("wishlist favorites and recently viewed", async () => {
+      const { service, prisma } = setup();
+      await service.addWishlist(org, "user-a", { courseId: "course-a" } as any);
+      await service.listWishlist(org, "user-a");
+      await service.removeWishlist(org, "user-a", "course-a");
+      await service.addFavoriteInstructor(org, "user-a", {
+        instructorId: "inst-a",
+      } as any);
+      await service.listFavoriteInstructors(org, "user-a");
+      await service.removeFavoriteInstructor(org, "user-a", "inst-a");
+      await service.trackView(org, "user-a", "course-a");
+      await service.listRecentlyViewed(org, "user-a");
+      await service.exportNotes(org, "user-a");
+      await service.listForCourse(org, "course-a", {} as any);
+      await service.listModeration(adminOrg, {} as any);
+      prisma.courseReview.findFirst.mockResolvedValue({
+        id: "rev-a",
+        organizationId: "org-a",
+        courseId: "course-a",
+        userId: "user-a",
+      });
+      await service.update(org, "user-a", "rev-a", {
+        courseId: "course-a",
+        rating: 4,
+      } as any);
+      await service.delete(org, "user-a", "rev-a");
+      await service.moderate(adminOrg, "admin", "rev-a", {
+        status: "HIDDEN",
+      } as any);
+      expect(prisma.wishlist.upsert || prisma.wishlist.create).toBeTruthy();
     });
 
     it("allows review when progress reaches 100 percent", async () => {

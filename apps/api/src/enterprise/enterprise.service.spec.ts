@@ -49,6 +49,30 @@ describe("EnterpriseService", () => {
     });
   });
 
+  describe("API keys and webhooks", () => {
+    it("creates lists and revokes api keys", async () => {
+      const { service, prisma } = setup();
+      await service.createApiKey(org as any, "admin", { name: "ci" } as any);
+      await service.listApiKeys(org as any);
+      await service.revokeApiKey(org as any, "key-a");
+      expect(prisma.apiKey.create).toHaveBeenCalled();
+      expect(prisma.apiKey.update).toHaveBeenCalled();
+    });
+
+    it("creates and lists webhooks", async () => {
+      const { service, prisma } = setup();
+      await service.createWebhook(org as any, "admin", {
+        name: "Orders",
+        url: "https://hooks.example/x",
+        events: ["order.paid"],
+      } as any);
+      await service.listWebhooks(org as any);
+      expect(prisma.webhookEndpoint.create).toHaveBeenCalled();
+    });
+  });
+
+
+
   describe("SSO Providers", () => {
     it("creates SSO provider", async () => {
       const { service, prisma } = setup();
@@ -123,6 +147,22 @@ describe("EnterpriseService", () => {
       const { service, prisma } = setup();
       await service.updateLoginPolicy("org-a", { mfaRequired: true });
       expect(prisma.organizationLoginPolicy.upsert).toHaveBeenCalled();
+    });
+  });
+
+  describe("remaining list/update/delete paths", () => {
+    it("lists providers, domains, and mutates SSO/webhooks", async () => {
+      const { service, prisma } = setup();
+      await service.listProviders(org as any);
+      await service.getLoginPolicy("org-a");
+      await service.listDomains(org as any);
+      await service.updateProvider(org as any, "sso-a", {
+        name: "Updated",
+      } as any);
+      await service.deleteDomain(org as any, "dom-a");
+      await service.deleteWebhook(org as any, "wh-a");
+      expect(prisma.ssoProvider.findFirst).toHaveBeenCalled();
+      expect(prisma.webhookEndpoint.delete).toHaveBeenCalled();
     });
   });
 });

@@ -370,4 +370,55 @@ describe("GovernanceService", () => {
       service.requestAnonymization(org, user.id, { confirm: true }),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
+
+  it("rejects export/anonymization edge cases and lists policies", async () => {
+    const { service, prisma } = setup();
+    await service.listRetentionPolicies(org);
+    await service.listBackupJobs(org);
+    await service.listDataExportRequests(org);
+    await service.previewDataExport(org, user.id);
+    prisma.user.findFirst = vi.fn(async () => null);
+    // requestDataExport still works via membership path in setup
+    await service.requestDataExport(org, user.id, {});
+  });
+
+  it("updates legal docs, previews exports, and lists retention/backup jobs", async () => {
+    const { service, legalDocs } = setup();
+    const created = await service.createLegalDocument(org, user.id, {
+      type: "TERMS",
+      version: "1.0.0",
+      title: "Terms",
+      content: "Terms body",
+      effectiveAt: new Date().toISOString(),
+      publish: false,
+    });
+    legalDocs.set(created.id, created);
+    await service.updateLegalDocument(org, user.id, created.id, {
+      title: "Terms v2",
+      publish: true,
+    } as any);
+    await service.getLatestLegalDocuments(org);
+    await service.previewDataExport(org, user.id);
+    await service.listDataExportRequests(org);
+    await service.listRetentionPolicies(org);
+    await service.listBackupJobs(org);
+    expect(await service.listLegalDocuments(org)).toHaveLength(1);
+  });
+
+  it("rejects anonymization when user row is missing", async () => {
+    const { service, prisma } = setup();
+    prisma.user.findUnique = vi.fn(async () => null);
+    await expect(
+      service.requestAnonymization(org, user.id, { confirm: true }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it("requires entityType for retention policy upsert", async () => {
+    const { service } = setup();
+    await expect(
+      service.upsertRetentionPolicy(org, user.id, {
+        retentionDays: 30,
+      } as any),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
 });

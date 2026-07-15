@@ -139,6 +139,84 @@ describe("OAuthService", () => {
       service.callback("GOOGLE", "abcd", "org-1", undefined),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
+
+  it("lists and unlinks linked accounts", async () => {
+    const prisma: any = buildOauthPrisma();
+    const service = new OAuthService(prisma);
+    const linked = await service.linkAccount(user.id, organization, "GOOGLE", {
+      providerUserId: "google-1",
+      email: "u@e.c",
+      raw: {},
+    });
+    const list = await service.listAccounts(user.id);
+    expect(list.length).toBeGreaterThan(0);
+    await service.unlinkAccount(user.id, linked.id);
+    expect(await service.listAccounts(user.id)).toHaveLength(0);
+  });
+
+  it("rejects bad redirect URIs, invalid/expired state, missing unlink", async () => {
+    const prisma: any = buildOauthPrisma();
+    const service = new OAuthService(prisma);
+    await expect(service.start("GOOGLE", "not-a-url")).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    await expect(
+      service.start("GOOGLE", "ftp://localhost:3000"),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      service.start("GOOGLE", "http://user:pass@localhost:3000"),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      service.start("GOOGLE", "https://evil.example"),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    await expect(
+      service.callback("GOOGLE", "code", "org-1", "bad.state"),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    const { createHmac } = await import("node:crypto");
+    const payload = Buffer.from(
+      JSON.stringify({
+        provider: "MICROSOFT",
+        redirectUri: "http://localhost:3000",
+        issuedAt: Date.now(),
+      }),
+      "utf8",
+    ).toString("base64url");
+    const secret =
+      process.env.OAUTH_STATE_SECRET ??
+      process.env.JWT_REFRESH_SECRET ??
+      process.env.JWT_ACCESS_SECRET ??
+      "dev-oauth-state-secret";
+    const sig = createHmac("sha256", secret).update(payload).digest("base64url");
+    await expect(
+      service.callback("GOOGLE", "code", "org-1", `v1.${payload}.${sig}`),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    const expiredPayload = Buffer.from(
+      JSON.stringify({
+        provider: "GOOGLE",
+        redirectUri: "http://localhost:3000",
+        issuedAt: Date.now() - 11 * 60 * 1000,
+      }),
+      "utf8",
+    ).toString("base64url");
+    const expiredSig = createHmac("sha256", secret)
+      .update(expiredPayload)
+      .digest("base64url");
+    await expect(
+      service.callback(
+        "GOOGLE",
+        "code",
+        "org-1",
+        `v1.${expiredPayload}.${expiredSig}`,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    await expect(service.unlinkAccount(user.id, "missing")).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
 });
 
 describe("MfaService", () => {
@@ -225,6 +303,62 @@ describe("MfaService", () => {
 });
 
 describe("SessionService", () => {
+  it("lists and revokes sessions with overflow pruning", async () => {
+    const sessions: any[] = Array.from({ length: 5 }, (_, i) => ({
+      id: `s-${i}`,
+      userId: user.id,
+      revokedAt: null,
+      expiresAt: new Date(Date.now() + 60_000),
+      lastUsedAt: new Date(),
+      createdAt: new Date(Date.now() - i * 1000),
+      ipAddress: "1.1.1.1",
+      userAgent: "ua",
+    }));
+    const prisma: any = {
+      userSession: {
+        findMany: vi.fn(async ({ where }: any) => {
+          if (where?.revokedAt === null) return sessions.filter((s) => !s.revokedAt);
+          return sessions;
+        }),
+        findFirst: vi.fn(async ({ where }: any) =>
+          sessions.find((s) => s.id === where.id && s.userId === where.userId),
+        ),
+        update: vi.fn(async ({ where, data }: any) => {
+          const s = sessions.find((x) => x.id === where.id);
+          Object.assign(s, data);
+          return s;
+        }),
+        updateMany: vi.fn(async ({ where, data }: any) => {
+          let count = 0;
+          for (const s of sessions) {
+            if (where?.id?.in?.includes(s.id) || (where?.userId && s.userId === where.userId)) {
+              Object.assign(s, data);
+              count += 1;
+            }
+          }
+          return { count };
+        }),
+        create: vi.fn(async ({ data }: any) => {
+          const created = { id: `s-new`, ...data };
+          sessions.push(created);
+          return created;
+        }),
+      },
+    };
+    const service = new SessionService(prisma);
+    expect((await service.listSessions(user.id)).length).toBeGreaterThan(0);
+    await service.recordSession(user.id, {
+      refreshTokenHash: "hash",
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    expect(prisma.userSession.updateMany).toHaveBeenCalled();
+    await service.revokeSession({ ...user, sessionId: "current-s" } as any, "s-0");
+    await expect(
+      service.revokeSession({ ...user, sessionId: "s-1" } as any, "s-1"),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await service.revokeAll({ ...user, sessionId: "current-s" } as any);
+  });
+
   function buildPrisma() {
     const sessions: any[] = [];
     return {

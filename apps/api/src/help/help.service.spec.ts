@@ -229,4 +229,85 @@ describe("HelpService", () => {
     const list = await service.listTickets(org.id, { userId: user.id });
     expect(list.length).toBeGreaterThanOrEqual(2);
   });
+
+  it("updates and deletes articles and categories", async () => {
+    const { service } = setup();
+    const cat = await service.createCategory(org, user.id, {
+      key: "faq",
+      title: "FAQ",
+    });
+    await service.updateCategory(org, user.id, cat.id, { title: "FAQ 2" });
+    const article = await service.createArticle(org, user.id, {
+      categoryId: cat.id,
+      slug: "how-to",
+      title: "How",
+      body: "Body",
+    });
+    await service.updateArticle(org, user.id, article.id, {
+      title: "How 2",
+    });
+    await service.listArticles(org.id, { q: "How", categoryId: cat.id });
+    await service.deleteArticle(org, user.id, article.id);
+    await service.deleteCategory(org, user.id, cat.id);
+    await service.getTicket(org.id, (
+      await service.createTicket(org, user.id, {
+        subject: "X",
+        body: "Y",
+      })
+    ).id);
+  });
+
+  it("covers article category validation, publish date, reply status flips", async () => {
+    const { service, tickets, prisma } = setup();
+    const cat = await service.createCategory(org, user.id, {
+      key: "g",
+      title: "G",
+    });
+    const article = await service.createArticle(org, user.id, {
+      categoryId: cat.id,
+      slug: "a",
+      title: "A",
+      body: "B",
+    });
+    await expect(
+      service.updateArticle(org, user.id, article.id, {
+        categoryId: "missing",
+      } as any),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    await service.updateArticle(org, user.id, article.id, {
+      status: "PUBLISHED",
+      tags: ["t"],
+    } as any);
+
+    const ticket = await service.createTicket(org, user.id, {
+      subject: "S",
+      body: "B",
+    });
+    tickets.set(ticket.id, { ...tickets.get(ticket.id), status: "PENDING" });
+    await service.createReply(org, user.id, ticket.id, { body: "owner" });
+    expect(prisma.supportTicket.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "OPEN" }),
+      }),
+    );
+    tickets.set(ticket.id, { ...tickets.get(ticket.id), status: "OPEN" });
+    await service.createReply(org, "staff", ticket.id, { body: "staff" });
+    expect(prisma.supportTicket.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "PENDING" }),
+      }),
+    );
+
+    prisma.organizationMember.findFirst.mockResolvedValueOnce(null);
+    await expect(
+      service.updateTicket(org, user.id, ticket.id, {
+        assignedToId: "nobody",
+      } as any),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    await service.updateTicket(org, user.id, ticket.id, {
+      status: "CLOSED",
+      assignedToId: "u-2",
+    } as any);
+  });
 });
+

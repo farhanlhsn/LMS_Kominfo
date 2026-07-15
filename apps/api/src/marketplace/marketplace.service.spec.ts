@@ -9,8 +9,9 @@ function setup(overrides: Record<string, unknown> = {}) {
     course: { findFirst: vi.fn().mockResolvedValue({ id: "course-a", organizationId: "org-a", deletedAt: null, price: 100000, currency: "IDR" }), findMany: vi.fn().mockResolvedValue([{ id: "course-a", price: 100000, currency: "IDR" }]), update: vi.fn() },
     coupon: { findUnique: vi.fn().mockResolvedValue({ id: "coup-a", code: "DISKON10", discountPercent: 10, discountAmount: null, maxUses: 100, currentUses: 0, minAmount: 0, courseId: null, isActive: true, validFrom: null, validUntil: null }), findMany: vi.fn().mockResolvedValue([]), update: vi.fn(), create: vi.fn().mockResolvedValue({ id: "coup-a" }) },
     order: { create: vi.fn().mockResolvedValue({ id: "ord-a", orderNumber: "ORD-TEST", subtotal: 100000, total: 90000 }), findFirst: vi.fn().mockResolvedValue({ id: "ord-a", organizationId: "org-a", userId: "user-a", status: "PENDING", items: [{ courseId: "course-a" }] }), findMany: vi.fn().mockResolvedValue([]), update: vi.fn(), count: vi.fn().mockResolvedValue(1) },
+    userSubscription: { upsert: vi.fn().mockResolvedValue({ id: "sub-a" }), findMany: vi.fn().mockResolvedValue([]) },
     orderItem: { create: vi.fn() },
-    payment: { findFirst: vi.fn().mockResolvedValue({ id: "pay-a", organizationId: "org-a", orderId: "ord-a", status: "PAID" }), update: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
+    payment: { findFirst: vi.fn().mockResolvedValue({ id: "pay-a", organizationId: "org-a", orderId: "ord-a", status: "PAID" }), update: vi.fn(), findMany: vi.fn().mockResolvedValue([]), count: vi.fn().mockResolvedValue(0) },
     enrollment: { upsert: vi.fn() },
     auditLog: { create: vi.fn() },
     subscriptionPlan: { create: vi.fn().mockResolvedValue({ id: "plan-a" }), findMany: vi.fn().mockResolvedValue([]), findFirst: vi.fn().mockResolvedValue({ id: "plan-a", organizationId: "org-a", isActive: true }) },
@@ -137,5 +138,31 @@ describe("MarketplaceService", () => {
       await service.subscribe(org, "user-a", "plan-a");
       expect(prisma.userSubscription.upsert).toHaveBeenCalled();
     });
+
+    it("lists plans coupons orders payments and subscription", async () => {
+      const { service, prisma } = setup({
+        coupon: {
+          findUnique: vi.fn().mockResolvedValue(null),
+          findMany: vi.fn().mockResolvedValue([]),
+          create: vi.fn().mockResolvedValue({ id: "coup-new" }),
+          update: vi.fn(),
+        },
+      });
+      await service.listPlans(org);
+      await service.listCoupons(org);
+      await service.createCoupon(org, "admin", {
+        code: "SAVE",
+        discountPercent: 5,
+      } as any);
+      await service.getOrder(org, "user-a", "ord-a");
+      await service.getUserOrders(org, "user-a", { page: 1 } as any);
+      await service.getAllOrders(org, { page: 1 } as any);
+      await service.getPayments(org, { page: 1 } as any);
+      await service.getUserSubscription(org, "user-a");
+      expect(prisma.subscriptionPlan.findMany).toHaveBeenCalled();
+      expect(prisma.coupon.findMany).toHaveBeenCalled();
+    });
   });
 });
+
+

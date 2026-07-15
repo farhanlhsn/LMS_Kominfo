@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import type { NextFunction, Request, Response } from "express";
-import { RateLimitMiddleware } from "./rate-limit.middleware";
+import {
+  assertRateLimitEnvSafe,
+  RateLimitMiddleware,
+} from "./rate-limit.middleware";
 
 function makeReq(
   ip: string,
@@ -34,6 +37,43 @@ async function flush() {
 }
 
 describe("RateLimitMiddleware", () => {
+  it("refuses DISABLE_RATE_LIMIT in production at construct/boot", () => {
+    const prevEnv = process.env.NODE_ENV;
+    const prevFlag = process.env.DISABLE_RATE_LIMIT;
+    process.env.NODE_ENV = "production";
+    process.env.DISABLE_RATE_LIMIT = "true";
+    try {
+      expect(() => assertRateLimitEnvSafe()).toThrow(
+        /not allowed when NODE_ENV=production/,
+      );
+      expect(
+        () => new RateLimitMiddleware({ windowMs: 1000, max: 5 }),
+      ).toThrow(/not allowed when NODE_ENV=production/);
+    } finally {
+      process.env.NODE_ENV = prevEnv;
+      if (prevFlag === undefined) delete process.env.DISABLE_RATE_LIMIT;
+      else process.env.DISABLE_RATE_LIMIT = prevFlag;
+    }
+  });
+
+  it("allows DISABLE_RATE_LIMIT outside production", () => {
+    const prevEnv = process.env.NODE_ENV;
+    const prevFlag = process.env.DISABLE_RATE_LIMIT;
+    process.env.NODE_ENV = "development";
+    process.env.DISABLE_RATE_LIMIT = "true";
+    try {
+      expect(() => assertRateLimitEnvSafe()).not.toThrow();
+      const middleware = new RateLimitMiddleware({ windowMs: 1000, max: 5 });
+      const next = makeNext();
+      middleware.use(makeReq("8.8.8.8"), makeRes(), next);
+      expect(next).toHaveBeenCalled();
+    } finally {
+      process.env.NODE_ENV = prevEnv;
+      if (prevFlag === undefined) delete process.env.DISABLE_RATE_LIMIT;
+      else process.env.DISABLE_RATE_LIMIT = prevFlag;
+    }
+  });
+
   it("lets requests through under the limit", async () => {
     const middleware = new RateLimitMiddleware({ windowMs: 1000, max: 5 });
     const next = makeNext();

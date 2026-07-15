@@ -163,4 +163,93 @@ describe("RealtimeService", () => {
     const count = await service.pruneExpired();
     expect(count).toBe(3);
   });
+
+  it("polls with afterId cursor and unsubscribes listeners", async () => {
+    prisma.realtimeEvent.findUnique.mockResolvedValueOnce({
+      id: "evt_1",
+      createdAt: new Date("2026-01-01T00:00:00Z"),
+    });
+    await service.poll("org_1", { afterId: "evt_1", limit: 5 });
+    expect(prisma.realtimeEvent.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ organizationId: "org_1" }),
+        take: 5,
+      }),
+    );
+    const handler = vi.fn();
+    const unsubscribe = service.registerListener("org:org_1:course:c1", handler);
+    unsubscribe();
+    await service.publish("org_1", "user_1", "org:org_1:course:c1", "ping", {});
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("publishes over redis bus when redis is provided", async () => {
+    const publish = vi.fn().mockResolvedValue(1);
+    const on = vi.fn();
+    const duplicate = vi.fn().mockReturnValue({
+      status: "wait",
+      subscribe: vi.fn().mockResolvedValue(undefined),
+      on,
+      connect: vi.fn().mockResolvedValue(undefined),
+    });
+    const redis = { publish, duplicate };
+    const withRedis = new RealtimeService(prisma as never, redis as never);
+    await withRedis.publish("org_1", "user_1", "org:org_1:course:c1", "ping", {
+      x: 1,
+    });
+    expect(publish).toHaveBeenCalled();
+    // simulate inbound redis message for another instance
+    const messageHandler = on.mock.calls.find((c) => c[0] === "message")?.[1];
+    if (messageHandler) {
+      const handler = vi.fn();
+      withRedis.registerListener("org:org_1:course:c1", handler);
+      messageHandler(
+        "lms:realtime:events",
+        JSON.stringify({
+          origin: "other-instance",
+          event: {
+            id: "e2",
+            organizationId: "org_1",
+            channel: "org:org_1:course:c1",
+            type: "x",
+            payload: {},
+            actorId: "u",
+            createdAt: new Date().toISOString(),
+          },
+        }),
+      );
+      expect(handler).toHaveBeenCalled();
+      messageHandler("lms:realtime:events", "not-json");
+      messageHandler(
+        "lms:realtime:events",
+        JSON.stringify({ origin: "other", event: null }),
+      );
+    }
+  });
+
+  it("ignores bad redis bus payloads", async () => {
+    const publish = vi.fn().mockResolvedValue(1);
+    const on = vi.fn();
+    const duplicate = vi.fn().mockReturnValue({
+      status: "ready",
+      subscribe: vi.fn().mockResolvedValue(undefined),
+      on,
+      connect: vi.fn(),
+    });
+    const withRedis = new RealtimeService(
+      prisma as never,
+      { publish, duplicate } as never,
+    );
+    await Promise.resolve();
+    const messageHandler = on.mock.calls.find((c) => c[0] === "message")?.[1];
+    expect(messageHandler).toBeTypeOf("function");
+    const handler = vi.fn();
+    withRedis.registerListener("org:org_1:course:c1", handler);
+    messageHandler("lms:realtime:events", "{");
+    messageHandler(
+      "lms:realtime:events",
+      JSON.stringify({ origin: "other", event: null }),
+    );
+    expect(handler).not.toHaveBeenCalled();
+  });
 });

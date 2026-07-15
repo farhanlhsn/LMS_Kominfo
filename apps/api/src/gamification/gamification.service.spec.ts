@@ -83,4 +83,26 @@ describe("GamificationService", () => {
       expect(prisma.userAchievement.create).toHaveBeenCalled();
     });
   });
+
+  it("covers skill/course/xp/snapshot/list helpers", async () => {
+    const { service, prisma } = setup();
+    await service.updateSkill(org as any, "skill-a", { name: "TS" } as any);
+    await service.setCourseSkills(org as any, "course-a", [
+      { skillId: "skill-a", level: 1 },
+    ] as any);
+    await service.getCourseSkills("course-a");
+    await service.getUserSkills(org as any, "user-a");
+    await service.getXpHistory(org as any, "user-a", { page: 1, limit: 10 } as any);
+    await service.listAchievements(org as any);
+    await service.getUserAchievements("user-a");
+    prisma.xpTransaction.groupBy = vi.fn().mockResolvedValue([
+      { userId: "u1", _sum: { amount: 100 } },
+    ]);
+    prisma.user.findMany = vi
+      .fn()
+      .mockResolvedValue([{ id: "u1", name: "A", email: "a@x.com" }]);
+    await service.takeSnapshot(org as any, "weekly");
+    expect(prisma.skill.update).toHaveBeenCalled();
+    expect(prisma.leaderboardSnapshot.create).toHaveBeenCalled();
+  });
 });

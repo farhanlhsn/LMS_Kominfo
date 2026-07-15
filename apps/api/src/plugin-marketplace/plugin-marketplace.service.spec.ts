@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   NotFoundException,
 } from "@nestjs/common";
 import { PluginMarketplaceService } from "./plugin-marketplace.service";
@@ -327,5 +328,114 @@ describe("PluginMarketplaceService", () => {
     } as any);
     expect(updated.maxInstalls).toBe(25);
     expect(updated.requireApproval).toBe(true);
+  });
+
+  it("lists listings/reviews/installations and updates listing status", async () => {
+    const { service, listings } = setup();
+    const listing = await service.createListing(org, "u1", {
+      pluginId: "plugin.3d_viewer",
+      name: "3D",
+      description: "View",
+    } as any);
+    await service.listListings(org.id);
+    await service.getListing(org.id, listing.id);
+    await service.updateListing(org.id, listing.id, {
+      name: "3D Viewer",
+    } as any);
+    await service.updateListingStatus(org.id, "u1", listing.id, {
+      status: "PUBLISHED",
+    } as any);
+    await service.createReview(org, "u2", {
+      listingId: listing.id,
+      rating: 4,
+      comment: "Good",
+    } as any);
+    await service.listReviews(org.id, listing.id);
+    listings.set(listing.id, {
+      ...listings.get(listing.id),
+      status: "PUBLISHED",
+    });
+    await service.installPlugin(org, { listingId: listing.id } as any);
+    await service.listInstallations(org.id);
+    expect(await service.listListings(org.id, "PUBLISHED")).toHaveLength(1);
+  });
+
+  it("covers not-found, full update fields, category policy, approval install", async () => {
+    const { service, listings, prisma } = setup();
+    await expect(service.getListing(org.id, "missing")).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    await expect(
+      service.updateListing(org.id, "missing", { name: "x" } as any),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(
+      service.updateListingStatus(org.id, "u1", "missing", {
+        status: "PUBLISHED",
+      } as any),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(
+      service.updateReviewStatus(org.id, "missing", { status: "APPROVED" } as any),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(
+      service.installPlugin(org, { listingId: "missing" } as any),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(
+      service.uninstallPlugin(org.id, "missing"),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(
+      service.createListing(org, "", { pluginId: "p", name: "n" } as any),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    const listing = await service.createListing(org, "u1", {
+      pluginId: "plugin.x",
+      name: "X",
+      description: "d",
+    } as any);
+    await service.updateListing(org.id, listing.id, {
+      name: "X2",
+      description: "d2",
+      longDescription: "long",
+      categories: ["tools"],
+      screenshots: ["s1"],
+      pricing: { free: true },
+    } as any);
+
+    listings.set(listing.id, {
+      ...listings.get(listing.id),
+      status: "PUBLISHED",
+      categories: ["blocked"],
+    });
+    prisma.pluginPolicy.findUnique.mockResolvedValue({
+      organizationId: org.id,
+      maxInstalls: 50,
+      allowedCategories: ["tools"],
+      requireApproval: false,
+    });
+    await expect(
+      service.installPlugin(org, { listingId: listing.id } as any),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    listings.set(listing.id, {
+      ...listings.get(listing.id),
+      status: "PUBLISHED",
+      categories: ["tools"],
+    });
+    prisma.pluginPolicy.findUnique.mockResolvedValue({
+      organizationId: org.id,
+      maxInstalls: 50,
+      allowedCategories: [],
+      requireApproval: true,
+    });
+    const inst = await service.installPlugin(org, {
+      listingId: listing.id,
+      config: { a: 1 },
+    } as any);
+    expect(inst.status).toBe("DISABLED");
+
+    await service.updatePolicy(org.id, {
+      maxInstalls: 10,
+      allowedCategories: ["tools"],
+      requireApproval: false,
+    } as any);
   });
 });

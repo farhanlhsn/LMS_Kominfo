@@ -154,4 +154,50 @@ describe("BulkOperationService", () => {
   it("uses persisted item status enum on updates", () => {
     expect(BulkJobItemStatus.PROCESSED).toBe("PROCESSED");
   });
+
+  it("resumes a failed job asynchronously", async () => {
+    prisma.bulkJob.findFirst.mockResolvedValueOnce({
+      ...baseJob,
+      status: BulkJobStatus.FAILED,
+      progressTotal: 1,
+      items: [
+        {
+          entityType: "course",
+          entityId: "c1",
+          input: {},
+        },
+      ],
+    });
+    prisma.bulkJob.update.mockResolvedValue({
+      ...baseJob,
+      status: BulkJobStatus.RUNNING,
+    });
+    const result = await service.resume("org_1", "job_1");
+    expect(result).toMatchObject({ resumed: true, id: "job_1" });
+  });
+
+  it("covers cancel/resume not-found, double resume, vanished job", async () => {
+    prisma.bulkJob.findFirst.mockResolvedValueOnce(null);
+    await expect(
+      service.cancel("org_1", "user_1", "missing", "x"),
+    ).rejects.toThrow(NotFoundException);
+
+    prisma.bulkJob.findFirst.mockResolvedValueOnce({
+      ...baseJob,
+      status: BulkJobStatus.FAILED,
+      items: [{ entityType: "course", entityId: "c1", input: null }],
+    });
+    await service.resume("org_1", "job_1");
+    await expect(service.resume("org_1", "job_1")).rejects.toThrow(
+      BadRequestException,
+    );
+
+    prisma.bulkJob.findUnique.mockResolvedValueOnce(null);
+    await expect(
+      service.createAndRun("org_1", "user_1", {
+        type: "ARCHIVE",
+        items: [{ entityType: "course", entityId: "c1" }],
+      } as CreateBulkJobDto),
+    ).rejects.toThrow(NotFoundException);
+  });
 });

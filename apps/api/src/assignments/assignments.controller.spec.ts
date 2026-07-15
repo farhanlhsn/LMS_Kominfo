@@ -24,6 +24,9 @@ function setupInstructorService(overrides: Record<string, any> = {}) {
     getSubmission: vi.fn().mockResolvedValue({ id: "s-1", status: "SUBMITTED" }),
     gradeSubmission: vi.fn().mockResolvedValue({ id: "s-1", status: "GRADED", score: 90 }),
     returnSubmission: vi.fn().mockResolvedValue({ id: "s-1", status: "RETURNED" }),
+    reviewLateSubmission: vi.fn().mockResolvedValue({ id: "s-1", status: "SUBMITTED" }),
+    getGradebook: vi.fn().mockResolvedValue([]),
+    getRoster: vi.fn().mockResolvedValue([]),
     ...overrides,
   };
   return { service, controller: new InstructorAssignmentsController(service as any) };
@@ -145,6 +148,16 @@ describe("InstructorAssignmentsController", () => {
     const response = await controller.returnSubmission(org, user, "s-1", { feedback: "redo" } as any);
     expect(service.returnSubmission).toHaveBeenCalledWith(org, "u-1", "s-1", expect.objectContaining({ feedback: "redo" }));
     expect(response).toEqual({ id: "s-1", status: "RETURNED" });
+  });
+
+  it("routes late review, gradebook, and roster through service authorization", async () => {
+    const { controller, service } = setupInstructorService();
+    await controller.reviewLateSubmission(org, user, "s-1", { action: "APPROVE" } as any);
+    await controller.gradebook(org, user, "c-1");
+    await controller.roster(org, user, "c-1");
+    expect(service.reviewLateSubmission).toHaveBeenCalledWith(org, "u-1", "s-1", { action: "APPROVE" });
+    expect(service.getGradebook).toHaveBeenCalledWith(org, "u-1", "c-1");
+    expect(service.getRoster).toHaveBeenCalledWith(org, "u-1", "c-1");
   });
 });
 

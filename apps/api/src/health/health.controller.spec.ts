@@ -61,4 +61,81 @@ describe("HealthController", () => {
     expect(response.body.data.status).toBe("ok");
     expect(response.body.data.service).toBe("api");
   });
+
+  it("returns liveness and metrics for non-production clients", async () => {
+    const live = await request(app.getHttpServer())
+      .get("/api/v1/health/live")
+      .expect(200);
+    expect(live.body.data ?? live.body).toMatchObject({
+      status: "ok",
+      service: "api",
+    });
+
+    const metrics = await request(app.getHttpServer())
+      .get("/api/v1/health/metrics")
+      .expect(200);
+    expect(metrics.body.data ?? metrics.body).toBeTruthy();
+  });
+
+  it("allows metrics with matching METRICS_TOKEN header", async () => {
+    const prev = process.env.METRICS_TOKEN;
+    process.env.METRICS_TOKEN = "secret-token";
+    const metrics = await request(app.getHttpServer())
+      .get("/api/v1/health/metrics")
+      .set("x-metrics-token", "secret-token")
+      .expect(200);
+    expect(metrics.body.data ?? metrics.body).toBeTruthy();
+    if (prev === undefined) delete process.env.METRICS_TOKEN;
+    else process.env.METRICS_TOKEN = prev;
+  });
+});
+
+describe("isPrivateOrLocalIp via HealthController metrics gate", () => {
+  it("allows private IPs and forbids public IP in production without token", async () => {
+    const { HealthController } = await import("./health.controller");
+    const healthService = { getHealth: vi.fn() };
+    const controller = new HealthController(healthService as never);
+    const prevEnv = process.env.NODE_ENV;
+    const prevToken = process.env.METRICS_TOKEN;
+    delete process.env.METRICS_TOKEN;
+    process.env.NODE_ENV = "production";
+
+    const privateReq = {
+      headers: { "x-forwarded-for": "10.0.0.5, 1.2.3.4" },
+      ip: undefined,
+      socket: {},
+    } as any;
+    expect(controller.getMetrics(privateReq)).toEqual(
+      expect.objectContaining({ data: expect.anything() }),
+    );
+
+    for (const ip of ["127.0.0.1", "::1", "192.168.1.1", "172.16.0.1", "172.31.0.1"]) {
+      expect(
+        controller.getMetrics({
+          headers: {},
+          ip,
+          socket: {},
+        } as any),
+      ).toEqual(expect.objectContaining({ data: expect.anything() }));
+    }
+    expect(
+      controller.getMetrics({
+        headers: {},
+        ip: undefined,
+        socket: { remoteAddress: "10.2.3.4" },
+      } as any),
+    ).toEqual(expect.objectContaining({ data: expect.anything() }));
+
+    expect(() =>
+      controller.getMetrics({
+        headers: {},
+        ip: "8.8.8.8",
+        socket: { remoteAddress: "8.8.8.8" },
+      } as any),
+    ).toThrow(/restricted/i);
+
+    process.env.NODE_ENV = prevEnv;
+    if (prevToken === undefined) delete process.env.METRICS_TOKEN;
+    else process.env.METRICS_TOKEN = prevToken;
+  });
 });

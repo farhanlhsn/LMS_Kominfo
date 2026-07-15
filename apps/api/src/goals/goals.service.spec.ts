@@ -73,4 +73,44 @@ describe("GoalsService", () => {
       })
     );
   });
+
+  it("lists, updates, and cancels owned goals", async () => {
+    const { service, prisma } = setup();
+    prisma.learningGoal.findMany.mockResolvedValue([
+      {
+        id: "goal-1",
+        organizationId: "org-1",
+        userId: "user-1",
+        courseId: "c1",
+        targetType: "COURSE_COMPLETION",
+        status: "ACTIVE",
+        progressValue: { percent: 0 },
+      },
+    ]);
+    prisma.learningGoal.findFirst.mockResolvedValue({
+      id: "goal-1",
+      organizationId: "org-1",
+      userId: "user-1",
+      courseId: "c1",
+      targetType: "COURSE_COMPLETION",
+      status: "ACTIVE",
+    });
+    prisma.learningGoal.findUnique.mockResolvedValue({
+      id: "goal-1",
+      organizationId: "org-1",
+      userId: "user-1",
+      courseId: "c1",
+      progressValue: { percent: 0 },
+    });
+    prisma.enrollment.findFirst.mockResolvedValue({
+      progressPercent: 40,
+      status: "ACTIVE",
+    });
+    await service.list("org-1", "user-1");
+    await service.update("org-1", "user-1", "goal-1", {
+      title: "Updated",
+    } as any);
+    await service.delete("org-1", "user-1", "goal-1");
+    expect(prisma.learningGoal.update).toHaveBeenCalled();
+  });
 });

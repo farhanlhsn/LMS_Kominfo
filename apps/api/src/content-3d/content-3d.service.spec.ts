@@ -227,4 +227,26 @@ describe("Content3DService", () => {
     );
     expect(interaction.name).toBe("Click");
   });
+
+  it("lists scenes for an asset and gets a scene by id", async () => {
+    const { service, assets, scenes } = setup();
+    assets.set("a1", {
+      id: "a1",
+      organizationId: "org-a",
+      name: "X",
+      format: "GLB",
+    });
+    scenes.set("s1", {
+      id: "s1",
+      organizationId: "org-a",
+      assetId: "a1",
+      interactions: [],
+    });
+    expect(await service.listScenes("org-a", "a1")).toHaveLength(1);
+    expect(await service.getScene("org-a", "s1")).toMatchObject({ id: "s1" });
+    await expect(service.getScene("org-a", "missing")).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(await service.listAssets("org-a", "rob", "GLB")).toEqual([]);
+  });
 });

@@ -237,4 +237,33 @@ describe("MessagingService", () => {
     const removed = await service.unblockUser("org_1", "user_1", "user_2");
     expect(removed.count).toBe(1);
   });
+
+  it("lists, edits, deletes messages and creates reaction", async () => {
+    prisma.message.findMany.mockResolvedValueOnce([{ id: "msg_1" }]);
+    await expect(
+      service.listMessages("org_1", "user_1", "conv_1"),
+    ).resolves.toMatchObject({
+      data: [{ id: "msg_1" }],
+    });
+    prisma.message.findFirst.mockResolvedValueOnce({
+      id: "msg_1",
+      senderId: "user_1",
+      conversationId: "conv_1",
+      organizationId: "org_1",
+      deletedAt: null,
+    });
+    await service.editMessage("org_1", "user_1", "msg_1", "edited");
+    prisma.message.findFirst.mockResolvedValueOnce({
+      id: "msg_1",
+      senderId: "user_1",
+      conversationId: "conv_1",
+      organizationId: "org_1",
+      deletedAt: null,
+    });
+    await service.deleteMessage("org_1", "user_1", "msg_1");
+    prisma.messageReaction.findUnique.mockResolvedValueOnce(null);
+    await service.reactToMessage("org_1", "user_1", "msg_1", "🔥");
+    expect(prisma.message.update).toHaveBeenCalled();
+    expect(prisma.messageReaction.create).toHaveBeenCalled();
+  });
 });

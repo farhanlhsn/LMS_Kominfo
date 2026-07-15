@@ -319,4 +319,49 @@ describe("ExperiencesService", () => {
       await expect(service.getSurvey(org, "missing")).rejects.toBeInstanceOf(NotFoundException);
     });
   });
+
+  it("covers list/update/delete helpers for packages, h5p, surveys, polls", async () => {
+    const { service, prisma } = setup();
+    await service.listScormPackages(adminOrg as any, "course-a");
+    await service.updateScormPackage(adminOrg as any, "scorm-1", {
+      title: "M2",
+    } as any);
+    await service.deleteScormPackage(adminOrg as any, "scorm-1");
+    await service.listScormAttempts(adminOrg as any, "scorm-1");
+    await service.listH5PContent(adminOrg as any, "course-a");
+    await service.getH5PContent(adminOrg as any, "h5p-1");
+    await service.updateH5PContent(adminOrg as any, "h5p-1", {
+      title: "Q2",
+    } as any);
+    await service.deleteH5PContent(adminOrg as any, "h5p-1");
+    await service.listH5PResults(adminOrg as any, "h5p-1");
+    await service.listSurveys(adminOrg as any, "course-a");
+    await service.updateSurvey(adminOrg as any, "survey-1", {
+      title: "S2",
+    } as any);
+    await service.addSurveyQuestion(adminOrg as any, "survey-1", {
+      type: "SHORT_TEXT",
+      prompt: "Q3",
+    } as any);
+    await service.removeSurveyQuestion(adminOrg as any, "survey-1", "q-1");
+    await service.listSurveyResponses(adminOrg as any, "survey-1");
+    await service.deleteSurvey(adminOrg as any, "survey-1");
+    await service.listPolls(adminOrg as any, "course-a");
+    await service.getPoll(adminOrg as any, "poll-1");
+    await service.createPoll(adminOrg as any, {
+      courseId: "course-a",
+      question: "Q?",
+      options: [{ label: "Yes" }, { label: "No" }],
+    } as any);
+    await service.updatePoll(adminOrg as any, "poll-1", {
+      status: "CLOSED",
+    } as any);
+    await service.deletePoll(adminOrg as any, "poll-1");
+    await service.deleteXapiState(adminOrg as any, "act-1", "bookmark", {
+      mbox: "mailto:a@b.com",
+    });
+    await service.exportCourseFeedbackCsv(adminOrg as any, "course-a");
+    expect(prisma.scormPackage.delete).toHaveBeenCalled();
+    expect(prisma.poll.delete).toHaveBeenCalled();
+  });
 });

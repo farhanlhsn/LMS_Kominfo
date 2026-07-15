@@ -54,5 +54,25 @@ describe("PluginRegistry", () => {
         },
       },
     });
+
+    findUnique.mockResolvedValue({ organizationPlugins: [] });
+    await expect(
+      registry.isEnabledForOrganization("org_1", "core.text"),
+    ).resolves.toBe(false);
+  });
+
+  it("gets plugins, capabilities, and ensures registration", async () => {
+    const upsert = vi.fn().mockResolvedValue({});
+    const registry = registryWithPrisma({
+      plugin: { upsert, findUnique: vi.fn() },
+    });
+    expect(registry.listRegisteredPlugins().length).toBeGreaterThan(5);
+    expect(registry.getPlugin("core.text").key).toBe("core.text");
+    expect(() => registry.getPlugin("missing.plugin")).toThrow();
+    expect(registry.hasCapability("core.text", "render_activity")).toBe(true);
+    expect(registry.hasCapability("core.text", "nope")).toBe(false);
+    await registry.ensureRegisteredPlugins();
+    expect(upsert).toHaveBeenCalled();
   });
 });
+

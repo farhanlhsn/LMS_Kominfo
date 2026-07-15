@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { BadRequestException, ForbiddenException, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from "@nestjs/common";
 import { AdvancedAssignmentService } from "./advanced-assignment.service";
 import { MockPlagiarismProvider } from "./plagiarism.provider";
 
@@ -58,6 +63,12 @@ function setup(options: {
       findUnique: vi.fn(async (args: any) =>
         args?.where?.id ? assignments.get(args.where.id) ?? null : assignments.get("a-1") ?? null,
       ),
+      update: vi.fn(async (args: any) => {
+        const existing = assignments.get(args.where.id) ?? { id: args.where.id };
+        const updated = { ...existing, ...args.data };
+        assignments.set(args.where.id, updated);
+        return updated;
+      }),
     },
     course: {
       findFirst: vi.fn(async () => ({ id: "c-1", organizationId: "org-a", deletedAt: null })),
@@ -174,6 +185,7 @@ function setup(options: {
         reviewer: { id: args.data.reviewerUserId },
         review: null,
       })),
+      update: vi.fn(async (args: any) => ({ id: args.where.id, ...args.data })),
     },
     peerReview: {
       upsert: vi.fn(async (args: any) => ({
@@ -287,8 +299,14 @@ function setup(options: {
     },
     portfolio: {
       findFirst: vi.fn(async (args: any) => {
-        if (!args?.where?.userId) return null;
-        const existing = Array.from(portfolios.values()).find((p) => p.userId === args.where.userId);
+        let existing: Record<string, any> | undefined;
+        if (args?.where?.id) {
+          existing = portfolios.get(args.where.id);
+        } else if (args?.where?.userId) {
+          existing = Array.from(portfolios.values()).find(
+            (p) => p.userId === args.where.userId,
+          );
+        }
         if (!existing) return null;
         return {
           ...existing,
@@ -499,5 +517,468 @@ describe("AdvancedAssignmentService", () => {
     await expect(
       service.runPlagiarismCheck(org, user.id, "missing", {}),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it("lists, updates, deletes groups and manages members", async () => {
+    const { service, prisma } = setup({
+      assignment: {
+        id: "a-1",
+        organizationId: org.id,
+        courseId: "c-1",
+        collaborationMode: "GROUP",
+        groupMaxMembers: 5,
+        deletedAt: null,
+      },
+    });
+    const group = await service.createGroup(org, user.id, "a-1", {
+      name: "G1",
+      memberIds: ["u-1"],
+    });
+    expect(await service.listGroups(org, user.id, "a-1")).toHaveLength(1);
+    const updated = await service.updateGroup(org, user.id, group.id, {
+      name: "G1b",
+      status: "ACTIVE",
+    });
+    expect(updated.name).toBe("G1b");
+    const member = await service.addGroupMember(org, user.id, group.id, "u-2");
+    expect(member.userId).toBe("u-2");
+    prisma.assignmentGroupMember.findFirst = vi.fn(async () => ({
+      id: "gm-1",
+      groupId: group.id,
+      userId: "u-2",
+    }));
+    await expect(
+      service.removeGroupMember(org, user.id, group.id, "u-2"),
+    ).resolves.toEqual({ id: "gm-1" });
+    await expect(service.deleteGroup(org, user.id, group.id)).resolves.toEqual({
+      id: group.id,
+    });
+  });
+
+  it("lists peer matches/reviews and submits a peer review", async () => {
+    const { service, prisma, tx } = setup({
+      assignment: { id: "a-1", organizationId: org.id, courseId: "c-1", deletedAt: null },
+    });
+    await service.upsertPeerReviewConfig(org, user.id, "a-1", {
+      reviewsRequired: 1,
+      reviewsToReceive: 1,
+    });
+    prisma.peerReviewMatch.findMany = vi.fn(async () => [{ id: "prm-1" }]);
+    expect(
+      await service.listPeerReviewMatchesForInstructor(org, user.id, "a-1"),
+    ).toEqual([{ id: "prm-1" }]);
+    expect(await service.listPeerReviewsForLearner(org.id, user.id)).toEqual([
+      { id: "prm-1" },
+    ]);
+    prisma.peerReviewMatch.findFirst = vi.fn(async () => ({
+      id: "prm-1",
+      organizationId: org.id,
+      reviewerUserId: user.id,
+      config: { rubricId: "r-1" },
+      review: null,
+    }));
+    tx.peerReview = {
+      upsert: vi.fn(async (args: any) => ({
+        id: "pr-1",
+        ...args.create,
+        ...args.update,
+      })),
+    };
+    tx.peerReviewRubricScore = {
+      deleteMany: vi.fn(async () => ({ count: 0 })),
+      createMany: vi.fn(async () => ({ count: 1 })),
+    };
+    tx.peerReviewMatch = {
+      update: vi.fn(async (args: any) => ({ id: args.where.id, ...args.data })),
+    };
+    const review = await service.submitPeerReview(org, user.id, "prm-1", {
+      overallScore: 4,
+      feedback: "Solid",
+      rubricScores: [{ criterionId: "c1", points: 2, feedback: "ok" }],
+    });
+    expect(review.overallScore).toBe(4);
+  });
+
+  it("lists/deletes annotations and plagiarism checks", async () => {
+    const { service, prisma } = setup({
+      assignment: { id: "a-1", organizationId: org.id, courseId: "c-1", deletedAt: null },
+    });
+    prisma.assignmentSubmission.findFirst = vi.fn(async () => ({
+      id: "s-1",
+      organizationId: org.id,
+      courseId: "c-1",
+      assignmentId: "a-1",
+    }));
+    const created = await service.createAnnotation(org, user.id, "s-1", {
+      startOffset: 0,
+      endOffset: 2,
+      selectedText: "Hi",
+      comment: "c",
+    });
+    prisma.submissionAnnotation.findMany = vi.fn(async () => [created]);
+    expect(await service.listAnnotations(org.id, "s-1")).toHaveLength(1);
+    await expect(
+      service.deleteAnnotation(org, user.id, created.id),
+    ).resolves.toEqual({ id: created.id });
+    prisma.plagiarismCheck.findMany = vi.fn(async () => [{ id: "pc-1" }]);
+    expect(await service.listPlagiarismChecks(org, user.id, "s-1")).toEqual([
+      { id: "pc-1" },
+    ]);
+  });
+
+  it("lists public showcases, records views, and deletes showcase", async () => {
+    const { service, prisma } = setup({
+      assignment: { id: "a-1", organizationId: org.id, courseId: "c-1", deletedAt: null },
+    });
+    prisma.assignmentSubmission.findFirst = vi.fn(async () => ({
+      id: "s-1",
+      organizationId: org.id,
+      courseId: "c-1",
+    }));
+    const created = await service.createShowcase(org, user.id, "c-1", "s-1", {
+      title: "Alpha",
+      summary: "s",
+      publish: true,
+    });
+    expect(await service.listShowcases(org, user.id, "c-1")).toHaveLength(1);
+    expect(await service.listPublicShowcases(org.id, "c-1")).toHaveLength(1);
+    prisma.projectShowcase.findFirst = vi.fn(async () => created);
+    prisma.projectShowcase.update = vi.fn(async (args: any) => ({
+      ...created,
+      viewCount:
+        args.data?.viewCount?.increment != null
+          ? (created.viewCount ?? 0) + args.data.viewCount.increment
+          : args.data?.viewCount ?? created.viewCount,
+    }));
+    expect(await service.recordShowcaseView(org.id, created.id)).toMatchObject({
+      viewCount: 1,
+    });
+    await expect(
+      service.deleteShowcase(org, user.id, created.id),
+    ).resolves.toEqual({ id: created.id });
+  });
+
+  it("updates/removes portfolio entries and loads public portfolio", async () => {
+    const { service, prisma } = setup();
+    await service.getMyPortfolio(org.id, "u-9");
+    const entry = await service.addPortfolioEntry(org.id, "u-9", {
+      title: "E1",
+    });
+    const updated = await service.updatePortfolioEntry(org.id, "u-9", entry.id, {
+      title: "E1b",
+      orderIndex: 2,
+    });
+    expect(updated.title).toBe("E1b");
+    await expect(
+      service.removePortfolioEntry(org.id, "u-9", entry.id),
+    ).resolves.toEqual({ id: entry.id });
+    const portfolio = await service.getMyPortfolio(org.id, "u-9");
+    prisma.portfolio.findUnique = vi.fn(async () => ({
+      ...portfolio,
+      isPublic: true,
+      shareToken: "tok",
+      user: { id: "u-9", email: "u@e.c", name: "u-9" },
+      entries: [],
+    }));
+    await expect(service.getPublicPortfolio("tok")).resolves.toMatchObject({
+      shareToken: "tok",
+    });
+  });
+
+  it("updates assignment collaboration mode", async () => {
+    const { service } = setup({
+      assignment: {
+        id: "a-1",
+        organizationId: org.id,
+        courseId: "c-1",
+        collaborationMode: "INDIVIDUAL",
+        deletedAt: null,
+      },
+    });
+    const updated = await service.updateAssignmentCollaboration(
+      org,
+      user.id,
+      "a-1",
+      {
+        collaborationMode: "GROUP",
+        groupMinMembers: 2,
+        groupMaxMembers: 4,
+        maxResubmissions: 1,
+      },
+    );
+    expect(updated.collaborationMode).toBe("GROUP");
+  });
+
+  it("rejects full group and missing peer config", async () => {
+    const { service, prisma } = setup({
+      assignment: {
+        id: "a-1",
+        organizationId: org.id,
+        courseId: "c-1",
+        collaborationMode: "GROUP",
+        groupMaxMembers: 1,
+        deletedAt: null,
+      },
+    });
+    const group = await service.createGroup(org, user.id, "a-1", {
+      name: "Full",
+      memberIds: ["u-1"],
+    });
+    prisma.assignmentGroupMember.count = vi.fn(async () => 1);
+    prisma.assignmentGroup.findFirst = vi.fn(async () => ({
+      ...group,
+      maxMembers: 1,
+      courseId: "c-1",
+      assignmentId: "a-1",
+    }));
+    await expect(
+      service.addGroupMember(org, user.id, group.id, "u-2"),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      service.generatePeerReviewMatches(org, user.id, "a-1"),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it("rejects duplicate members, unenrolled members, and peer review guards", async () => {
+    const { service, prisma } = setup({
+      assignment: {
+        id: "a-1",
+        organizationId: org.id,
+        courseId: "c-1",
+        collaborationMode: "GROUP",
+        groupMaxMembers: 5,
+        deletedAt: null,
+      },
+    });
+    const group = await service.createGroup(org, user.id, "a-1", {
+      name: "G",
+      memberIds: ["u-1"],
+    });
+    prisma.assignmentGroup.findFirst = vi.fn(async () => ({
+      ...group,
+      maxMembers: 5,
+      courseId: "c-1",
+      assignmentId: "a-1",
+    }));
+    prisma.assignmentGroupMember.findFirst = vi.fn(async () => ({
+      id: "gm-1",
+      userId: "u-1",
+    }));
+    await expect(
+      service.addGroupMember(org, user.id, group.id, "u-1"),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    prisma.assignmentGroupMember.findFirst = vi.fn(async () => null);
+    prisma.enrollment.findUnique = vi.fn(async () => null);
+    await expect(
+      service.addGroupMember(org, user.id, group.id, "u-9"),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    prisma.peerReviewMatch.findFirst = vi.fn(async () => null);
+    await expect(
+      service.submitPeerReview(org, user.id, "missing", {
+        overallScore: 1,
+      } as any),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    prisma.peerReviewMatch.findFirst = vi.fn(async () => ({
+      id: "prm-1",
+      organizationId: org.id,
+      reviewerUserId: "other",
+      config: { rubricId: "r-1" },
+      review: null,
+    }));
+    await expect(
+      service.submitPeerReview(org, user.id, "prm-1", {
+        overallScore: 1,
+      } as any),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    prisma.peerReviewMatch.findFirst = vi.fn(async () => ({
+      id: "prm-1",
+      organizationId: org.id,
+      reviewerUserId: user.id,
+      config: { rubricId: "r-1" },
+      review: { submittedAt: new Date() },
+    }));
+    await expect(
+      service.submitPeerReview(org, user.id, "prm-1", {
+        overallScore: 1,
+      } as any),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    await expect(service.getPublicPortfolio("missing")).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it("rejects peer generation with one submission and annotation edit by non-author", async () => {
+    const { service, prisma } = setup({
+      assignment: {
+        id: "a-1",
+        organizationId: org.id,
+        courseId: "c-1",
+        deletedAt: null,
+      },
+      submissions: [{ id: "s-1", userId: "u-1" }],
+    });
+    await service.upsertPeerReviewConfig(org, user.id, "a-1", {
+      reviewsRequired: 1,
+      reviewsToReceive: 1,
+    });
+    await expect(
+      service.generatePeerReviewMatches(org, user.id, "a-1"),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    prisma.submissionAnnotation.findFirst = vi.fn(async () => ({
+      id: "an-1",
+      organizationId: org.id,
+      submissionId: "s-1",
+      authorId: "other",
+      comment: "x",
+      resolved: false,
+      resolvedById: null,
+      resolvedAt: null,
+    }));
+    prisma.assignmentSubmission.findFirst = vi.fn(async () => ({
+      id: "s-1",
+      organizationId: org.id,
+      courseId: "c-1",
+      assignmentId: "a-1",
+    }));
+    await expect(
+      service.updateAnnotation(org, user.id, "an-1", {
+        comment: "hack",
+      } as any),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(
+      service.updateAnnotation(org, user.id, "an-1", {
+        resolved: true,
+      } as any),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    prisma.rubric.findFirst = vi.fn(async () => null);
+    await expect(
+      service.upsertPeerReviewConfig(org, user.id, "a-1", {
+        rubricId: "missing",
+      } as any),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it("generates matches with allowSelfReview and rejects missing provider", async () => {
+    const { service, prisma } = setup({
+      assignment: {
+        id: "a-1",
+        organizationId: org.id,
+        courseId: "c-1",
+        deletedAt: null,
+      },
+      submissions: [
+        { id: "s-1", userId: "u-1" },
+        { id: "s-2", userId: "u-2" },
+      ],
+    });
+    await service.upsertPeerReviewConfig(org, user.id, "a-1", {
+      reviewsRequired: 1,
+      reviewsToReceive: 1,
+      allowSelfReview: true,
+    } as any);
+    const matches = await service.generatePeerReviewMatches(org, user.id, "a-1");
+    expect(matches.count).toBeGreaterThan(0);
+
+    const noProvider = new AdvancedAssignmentService(prisma, undefined as any);
+    prisma.assignmentSubmission.findFirst = vi.fn(async () => ({
+      id: "s-1",
+      organizationId: org.id,
+      courseId: "c-1",
+      assignmentId: "a-1",
+      textAnswer: "x",
+      fileIds: [],
+      metadata: {},
+    }));
+    await expect(
+      noProvider.runPlagiarismCheck(org, user.id, "s-1", {}),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    await service.getMyPortfolio(org.id, "u-9");
+    await expect(
+      service.updatePortfolioEntry(org.id, "u-10", "pe-missing", {
+        title: "x",
+      } as any),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it("handles plagiarism provider failure path", async () => {
+    const { prisma } = setup({
+      assignment: { id: "a-1", organizationId: org.id, courseId: "c-1", deletedAt: null },
+    });
+    const failingProvider = {
+      name: "mock",
+      check: vi.fn().mockRejectedValue(new Error("provider down")),
+    };
+    const service = new AdvancedAssignmentService(
+      prisma,
+      failingProvider as any,
+    );
+    prisma.assignmentSubmission.findFirst = vi.fn(async () => ({
+      id: "s-1",
+      organizationId: org.id,
+      courseId: "c-1",
+      assignmentId: "a-1",
+      textAnswer: "text",
+      fileIds: [],
+      metadata: {},
+    }));
+    const result = await service.runPlagiarismCheck(org, user.id, "s-1", {});
+    expect(result.status).toBe("FAILED");
+  });
+
+  it("rejects non-enrolled group members and missing showcase/submission", async () => {
+    const { service, prisma } = setup({
+      assignment: {
+        id: "a-1",
+        organizationId: org.id,
+        courseId: "c-1",
+        collaborationMode: "GROUP",
+        groupMaxMembers: 5,
+        deletedAt: null,
+      },
+      enrollments: [{ userId: "u-1", status: "ACTIVE" }],
+    });
+    await expect(
+      service.createGroup(org, user.id, "a-1", {
+        name: "G",
+        memberIds: ["u-1", "u-missing"],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    prisma.assignmentSubmission.findFirst = vi.fn(async () => null);
+    await expect(
+      service.createShowcase(org, user.id, "c-1", "s-missing", {
+        title: "X",
+      } as any),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    prisma.assignmentSubmission.findFirst = vi.fn(async () => ({
+      id: "s-1",
+      organizationId: org.id,
+      courseId: "c-1",
+    }));
+    prisma.projectShowcase.findUnique = vi.fn(async () => ({ id: "sc-1" }));
+    await expect(
+      service.createShowcase(org, user.id, "c-1", "s-1", {
+        title: "X",
+      } as any),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    prisma.courseInstructor.findFirst = vi.fn(async () => null);
+    const limited = {
+      ...org,
+      permissionKeys: [],
+      isPlatformAdmin: false,
+    };
+    await expect(
+      service.listShowcases(limited as any, user.id, "c-1"),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

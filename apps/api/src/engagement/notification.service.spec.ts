@@ -35,6 +35,86 @@ describe("NotificationService.list", () => {
       }),
     );
   });
+
+  it("creates notifications for user and course participants", async () => {
+    const { service, prisma } = setup();
+    await service.createForUser({
+      organizationId: "org-a",
+      userId: "u-1",
+      type: "test",
+      title: "Hi",
+      body: "Body",
+    });
+    expect(prisma.notification.create).toHaveBeenCalled();
+    await service.createForCourseParticipants(
+      {
+        organizationId: "org-a",
+        type: "course",
+        title: "T",
+        body: "B",
+        entityType: "course",
+        entityId: "c1",
+        metadata: { courseId: "course-a" },
+      } as any,
+      "exclude",
+    );
+    expect(prisma.enrollment.findMany).toHaveBeenCalled();
+    prisma.notification.count = vi.fn().mockResolvedValue(2);
+    await service.unreadCount("org-a", "u-1");
+    await service.markAllRead("org-a", "u-1");
+  });
+});
+
+
+
+describe("NotificationService.refreshLearningReminders", () => {
+  it("creates live/assignment/quiz reminders for enrolled learners", async () => {
+    const soon = new Date(Date.now() + 10 * 60_000);
+    const later = new Date(Date.now() + 2 * 60 * 60_000);
+    const { service, prisma } = setup({
+      enrollment: {
+        findMany: vi.fn().mockResolvedValue([{ courseId: "course-a" }]),
+      },
+      liveClass: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: "lc-1",
+            courseId: "course-a",
+            title: "Live",
+            startAt: soon,
+          },
+        ]),
+      },
+      assignment: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: "asg-1",
+            courseId: "course-a",
+            title: "Essay",
+            dueAt: later,
+          },
+        ]),
+      },
+      quiz: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: "quiz-1",
+            courseId: "course-a",
+            activityId: "act-1",
+            title: "Quiz",
+            dueAt: later,
+          },
+        ]),
+      },
+    });
+    const created = await service.refreshLearningReminders(
+      "org-a",
+      "user-a",
+      new Date(),
+    );
+    expect(created.length).toBe(3);
+    expect(prisma.notification.create).toHaveBeenCalledTimes(3);
+  });
 });
 
 describe("NotificationService.markRead", () => {
@@ -125,5 +205,37 @@ describe("NotificationService.refreshLearningReminders", () => {
         }),
       }),
     );
+  });
+
+  it("throttles refresh, preferences, and map prune path", async () => {
+    const { service, prisma } = setup({
+      enrollment: { findMany: vi.fn().mockResolvedValue([]) },
+      notificationPreference: {
+        findUnique: vi.fn().mockResolvedValue(null),
+        upsert: vi.fn().mockResolvedValue({ inAppEnabled: true }),
+      },
+    });
+    const now = new Date();
+    expect(await service.refreshLearningReminders("org-a", "u1", now)).toEqual(
+      [],
+    );
+    expect(
+      await service.refreshLearningReminders("org-a", "u1", now),
+    ).toEqual([]);
+
+    const map = (service as any).reminderRefreshAt as Map<string, number>;
+    for (let i = 0; i < 5001; i++) {
+      map.set(`k${i}`, now.getTime() - 5 * 60_000 - 1);
+    }
+    await service.refreshLearningReminders("org-b", "u2", now);
+    expect(map.size).toBeLessThan(5001);
+
+    await service.preferences("org-a", "u1");
+    await service.updatePreferences("org-a", "u1", {
+      inAppEnabled: false,
+      emailEnabled: true,
+      mutedTypes: ["x"],
+    });
+    expect(prisma.notificationPreference.upsert).toHaveBeenCalled();
   });
 });

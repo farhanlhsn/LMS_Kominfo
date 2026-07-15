@@ -37,4 +37,44 @@ describe("PluginManifestValidator", () => {
       }),
     ).toThrow(BadRequestException);
   });
+
+  it("rejects missing required fields", () => {
+    const validator = new PluginManifestValidator();
+    expect(() =>
+      validator.validate({
+        ...validManifest,
+        key: "",
+      }),
+    ).toThrow(BadRequestException);
+    expect(() =>
+      validator.validate({
+        ...validManifest,
+        version: "",
+      }),
+    ).toThrow(BadRequestException);
+  });
+
+  it("rejects invalid name, category, and activity types", () => {
+    const validator = new PluginManifestValidator();
+    expect(() =>
+      validator.validate({ ...validManifest, name: "  " }),
+    ).toThrow(BadRequestException);
+    expect(() =>
+      validator.validate({ ...validManifest, category: "NOPE" as any }),
+    ).toThrow(BadRequestException);
+    expect(() =>
+      validator.validate({
+        ...validManifest,
+        activityTypes: [{ key: "", name: "x" }],
+      }),
+    ).toThrow(BadRequestException);
+    expect(() =>
+      validator.validate({
+        ...validManifest,
+        activityTypes: [{ key: "k", name: "" }],
+      }),
+    ).toThrow(BadRequestException);
+    expect(() => validator.validateAll([validManifest])).not.toThrow();
+  });
 });
+

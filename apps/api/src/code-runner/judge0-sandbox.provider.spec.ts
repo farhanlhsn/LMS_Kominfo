@@ -63,4 +63,44 @@ describe("Judge0SandboxProvider", () => {
     expect(result.status).toBe("ERROR");
     expect(result.stderr).toMatch(/JUDGE0_BASE_URL/);
   });
+
+  it("rejects unsupported language and non-ok HTTP", async () => {
+    const provider = new Judge0SandboxProvider({
+      baseUrl: "https://judge0.example",
+      fetchFn: vi.fn(async () => ({
+        ok: false,
+        status: 500,
+        text: async () => "down",
+      })) as never,
+    });
+    const unsupported = await provider.run({
+      language: "UNKNOWN" as any,
+      code: "x",
+    });
+    expect(unsupported.status).toBe("ERROR");
+    expect(unsupported.stderr).toMatch(/not supported/i);
+
+    const failed = await provider.run({ language: "PYTHON", code: "print(1)" });
+    expect(failed.status).toBe("ERROR");
+  });
+
+  it("maps compile error and network failure", async () => {
+    const compiled = mapJudge0Result(
+      { status: { id: 6 }, compile_output: "oops" },
+      3,
+    );
+    expect(["ERROR", "COMPILE_ERROR", "RUNTIME_ERROR"]).toContain(
+      compiled.status,
+    );
+    expect(compiled.stderr).toMatch(/oops/i);
+    const provider = new Judge0SandboxProvider({
+      baseUrl: "https://judge0.example",
+      fetchFn: vi.fn(async () => {
+        throw new Error("network");
+      }) as never,
+    });
+    const result = await provider.run({ language: "JAVASCRIPT", code: "1" });
+    expect(result.status).toBe("ERROR");
+    expect(result.stderr).toMatch(/network/i);
+  });
 });

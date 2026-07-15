@@ -4,6 +4,7 @@ import {
   AiController,
   InstructorActivityAiController,
   InstructorAiController,
+  InstructorAiItemsController,
   LearnerAiController,
 } from "./ai.controller";
 
@@ -170,5 +171,34 @@ describe("InstructorActivityAiController", () => {
       "activity-1",
       expect.objectContaining({ questionCount: 5 }),
     );
+  });
+});
+
+describe("InstructorAiItemsController", () => {
+  function setup() {
+    const generatedItems = {
+      listForOrganization: vi.fn().mockResolvedValue([{ id: "item-1" }]),
+      getItem: vi.fn().mockResolvedValue({ id: "item-1", status: "DRAFT" }),
+      updateItemContent: vi.fn().mockResolvedValue({ id: "item-1", title: "T" }),
+      approveItem: vi.fn().mockResolvedValue({ id: "item-1", status: "APPROVED" }),
+      rejectItem: vi.fn().mockResolvedValue({ id: "item-1", status: "REJECTED" }),
+      publishItem: vi.fn().mockResolvedValue({ id: "item-1", status: "PUBLISHED" }),
+    };
+    return {
+      controller: new InstructorAiItemsController(generatedItems as any),
+      generatedItems,
+    };
+  }
+
+  it("lists gets updates and lifecycle-manages generated items", async () => {
+    const { controller, generatedItems } = setup();
+    await controller.list(org, user, { status: "DRAFT" } as any);
+    await controller.get(org, "item-1");
+    await controller.update(org, "item-1", { title: "T" } as any);
+    await controller.approve(org, user, "item-1");
+    await controller.reject(org, user, "item-1", "nope");
+    await controller.publish(org, user, "item-1");
+    expect(generatedItems.listForOrganization).toHaveBeenCalled();
+    expect(generatedItems.publishItem).toHaveBeenCalledWith(org, "u-1", "item-1");
   });
 });

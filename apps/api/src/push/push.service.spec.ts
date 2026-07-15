@@ -48,6 +48,48 @@ describe("PushService", () => {
     expect(info.publicKey).toBe("public-key");
   });
 
+  it("returns false delivery when VAPID is not configured", async () => {
+    delete process.env.PUSH_VAPID_PUBLIC_KEY;
+    delete process.env.PUSH_VAPID_PRIVATE_KEY;
+    const { service, prisma } = setup();
+    prisma.pushSubscription.findMany.mockResolvedValue([
+      {
+        id: "sub-1",
+        userId: "u1",
+        endpoint: "https://push.example/1",
+        p256dh: "p",
+        auth: "a",
+        metadata: {},
+      },
+    ]);
+    const result = await service.sendToUser("org-1", "u1", { title: "Hi" });
+    expect(result.failed).toBe(1);
+  });
+
+  it("sends organization fanout when subscriptions exist", async () => {
+    const { service, prisma } = setup();
+    prisma.pushSubscription.findMany.mockResolvedValue([
+      {
+        id: "sub-1",
+        userId: "u1",
+        endpoint: "https://push.example/1",
+        p256dh: "p",
+        auth: "a",
+        metadata: {},
+      },
+    ]);
+    globalThis.fetch = vi.fn(async () => ({
+      ok: true,
+      status: 201,
+      text: async () => "",
+    })) as any;
+    const result = await service.sendToOrganization("org-a", {
+      title: "Hello",
+      body: "World",
+    });
+    expect(result.attempted).toBeGreaterThanOrEqual(0);
+  });
+
   it("returns unconfigured VAPID info when env missing", () => {
     delete process.env.PUSH_VAPID_PUBLIC_KEY;
     delete process.env.PUSH_VAPID_PRIVATE_KEY;
@@ -75,6 +117,62 @@ describe("PushService", () => {
         keys: { p256dh: "pp", auth: "aa" },
       }),
     ).rejects.toBeInstanceOf(Error);
+    await expect(
+      service.subscribe("org-1", "user-a", {
+        endpoint: "http://push.example.com/x",
+        keys: { p256dh: "pp", auth: "aa" },
+      }),
+    ).rejects.toThrow(/HTTPS/i);
+    await expect(
+      service.subscribe("org-1", "user-a", {
+        endpoint: "not-a-url",
+        keys: { p256dh: "pp", auth: "aa" },
+      }),
+    ).rejects.toThrow(/valid absolute URL/i);
+    await expect(
+      service.subscribe("org-1", "user-a", {
+        endpoint: "https://192.168.1.1/push",
+        keys: { p256dh: "pp", auth: "aa" },
+      }),
+    ).rejects.toThrow(/public host/i);
+    await expect(
+      service.subscribe("org-1", "user-a", {
+        endpoint: "https://user:pass@push.example.com/x",
+        keys: { p256dh: "pp", auth: "aa" },
+      }),
+    ).rejects.toThrow(/credentials/i);
+    for (const host of [
+      "10.0.0.1",
+      "127.0.0.1",
+      "169.254.1.1",
+      "172.20.0.1",
+      "0.0.0.1",
+    ]) {
+      await expect(
+        service.subscribe("org-1", "user-a", {
+          endpoint: `https://${host}/push`,
+          keys: { p256dh: "pp", auth: "aa" },
+        }),
+      ).rejects.toThrow(/public host/i);
+    }
+  });
+
+  it("enforces PUSH_ALLOWED_HOSTS allowlist", async () => {
+    process.env.PUSH_ALLOWED_HOSTS = "push.allowed.com";
+    const { service } = setup();
+    await expect(
+      service.subscribe("org-1", "user-a", {
+        endpoint: "https://push.other.com/x",
+        keys: { p256dh: "pp", auth: "aa" },
+      }),
+    ).rejects.toThrow(/allowlisted/i);
+    await expect(
+      service.subscribe("org-1", "user-a", {
+        endpoint: "https://push.allowed.com/x",
+        keys: { p256dh: "pp", auth: "aa" },
+      }),
+    ).resolves.toBeTruthy();
+    delete process.env.PUSH_ALLOWED_HOSTS;
   });
 
   it("rejects subscription with missing fields", async () => {
@@ -122,6 +220,31 @@ describe("PushService", () => {
     const { service } = setup();
     const result = await service.sendToUser("org-1", "u1", { title: "Hi" });
     expect(result).toEqual({ attempted: 0, delivered: 0, failed: 0, removed: 0 });
+  });
+
+  it("removes gone subscriptions after send failure", async () => {
+    const { service, prisma } = setup();
+    prisma.pushSubscription.findMany.mockResolvedValue([
+      {
+        id: "sub-gone",
+        userId: "u1",
+        endpoint: "https://push.example/gone",
+        p256dh: "p",
+        auth: "a",
+        metadata: {},
+      },
+    ]);
+    globalThis.fetch = vi.fn(async () => ({
+      ok: false,
+      status: 410,
+      text: async () => "gone",
+    })) as any;
+    const result = await service.sendToUser("org-1", "u1", {
+      title: "Hi",
+      body: "Bye",
+    });
+    expect(result.attempted).toBe(1);
+    expect(result.failed + result.removed).toBeGreaterThan(0);
   });
 
   it("sendToUser marks expired subscriptions for removal", async () => {
