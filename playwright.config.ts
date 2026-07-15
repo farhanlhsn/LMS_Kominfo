@@ -69,6 +69,8 @@ export default defineConfig({
       env: {
         ...process.env,
         NEXT_PUBLIC_API_URL: apiBaseURL,
+        // Login demo helpers for UI E2E (seeded users / quick fill)
+        NEXT_PUBLIC_DEMO_LOGIN: process.env.NEXT_PUBLIC_DEMO_LOGIN ?? "true",
       },
     },
   ],

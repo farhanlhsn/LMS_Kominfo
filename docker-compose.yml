@@ -50,6 +50,9 @@ services:
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-minio_password}
       PUBLIC_APP_URL: ${PUBLIC_APP_URL}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+      CODE_RUNNER_PROVIDER: ${CODE_RUNNER_PROVIDER:-auto}
+      JUDGE0_BASE_URL: ${JUDGE0_BASE_URL:-}
+      JUDGE0_API_KEY: ${JUDGE0_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -89,7 +92,66 @@ services:
       - api
       - web
 
+  # ── Code runner sandbox (optional): docker compose --profile code-runner up -d
+  # Then set JUDGE0_BASE_URL=http://localhost:2358 (host API) or http://judge0-server:2358 (api container)
+  judge0-db:
+    profiles: [code-runner]
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: judge0
+      POSTGRES_USER: judge0
+      POSTGRES_PASSWORD: judge0
+    volumes:
+      - judge0-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U judge0 -d judge0"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  judge0-redis:
+    profiles: [code-runner]
+    image: redis:7-alpine
+    volumes:
+      - judge0-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  judge0-server:
+    profiles: [code-runner]
+    image: judge0/judge0:1.13.1
+    privileged: true
+    volumes:
+      - ./docker/judge0.conf:/judge0.conf:ro
+    ports:
+      - "${JUDGE0_PORT:-2358}:2358"
+    depends_on:
+      judge0-db:
+        condition: service_healthy
+      judge0-redis:
+        condition: service_healthy
+
+  judge0-workers:
+    profiles: [code-runner]
+    image: judge0/judge0:1.13.1
+    command: ["./scripts/workers"]
+    privileged: true
+    volumes:
+      - ./docker/judge0.conf:/judge0.conf:ro
+    depends_on:
+      judge0-db:
+        condition: service_healthy
+      judge0-redis:
+        condition: service_healthy
+      judge0-server:
+        condition: service_started
+
 volumes:
   postgres-data:
   redis-data:
   minio-data:
+  judge0-postgres-data:
+  judge0-redis-data:

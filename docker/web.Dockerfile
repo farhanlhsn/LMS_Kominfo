@@ -18,6 +18,10 @@ RUN --mount=type=cache,id=pnpm-web,target=/root/.local/share/pnpm/store \
 
 # ── Build ─────────────────────────────────────────────────────────────────
 FROM deps AS builder
+# M5: never bake demo quick-login / seed password into production images.
+# Override only for intentional demo builds: --build-arg NEXT_PUBLIC_DEMO_LOGIN=true
+ARG NEXT_PUBLIC_DEMO_LOGIN=false
+ENV NEXT_PUBLIC_DEMO_LOGIN=$NEXT_PUBLIC_DEMO_LOGIN
 RUN pnpm --filter @lms/shared --filter @lms/config build
 RUN pnpm --filter @lms/web build
 

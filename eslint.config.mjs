@@ -3,6 +3,8 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
 import nextPlugin from "@next/eslint-plugin-next";
+import security from "eslint-plugin-security";
+import noSecrets from "eslint-plugin-no-secrets";
 
 /** Flat ESLint — security-focused starter; expand rules as debt is paid. */
 export default tseslint.config(
@@ -18,6 +20,7 @@ export default tseslint.config(
       "**/*.config.mjs",
       "**/*.config.ts",
       "**/next-env.d.ts",
+      "**/e2e/**",
     ],
   },
   js.configs.recommended,
@@ -28,6 +31,10 @@ export default tseslint.config(
         ...globals.node,
         ...globals.browser,
       },
+    },
+    plugins: {
+      security,
+      "no-secrets": noSecrets,
     },
     rules: {
       // Keep CI green on large legacy surface; tighten over time.
@@ -50,6 +57,24 @@ export default tseslint.config(
       "no-eval": "error",
       "no-implied-eval": "error",
       "no-new-func": "error",
+      // SAST-oriented rules (warn first to avoid flooding legacy surface).
+      "security/detect-eval-with-expression": "error",
+      "security/detect-non-literal-fs-filename": "warn",
+      "security/detect-child-process": "warn",
+      "security/detect-object-injection": "off",
+      "security/detect-possible-timing-attacks": "warn",
+      "no-secrets/no-secrets": [
+        "error",
+        {
+          ignoreContent: [
+            "ChangeMe123!",
+            "dev-access-secret",
+            "dev-refresh-secret",
+            "dev-enterprise-secret",
+            "Password123!",
+          ],
+        },
+      ],
     },
   },
   {
@@ -58,7 +83,6 @@ export default tseslint.config(
       "@next/next": nextPlugin,
     },
     rules: {
-      // Registered for visibility; not enforced yet (would flood legacy code).
       "react-hooks/exhaustive-deps": "warn",
       "@next/next/no-img-element": "warn",
     },

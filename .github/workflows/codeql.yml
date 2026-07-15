@@ -1,15 +1,13 @@
 ﻿# ─────────────────────────────────────────────────────────────────────────────
-# CodeQL — Security analysis
+# CodeQL — kept for main-branch schedule; full PR matrix lives in security.yml
 # ─────────────────────────────────────────────────────────────────────────────
 name: "CodeQL"
 
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
   schedule:
-    - cron: "0 6 * * 1" # every Monday 06:00 UTC
+    - cron: "0 6 * * 1"
 
 jobs:
   analyze:
@@ -20,19 +18,14 @@ jobs:
       actions: read
       contents: read
 
-    strategy:
-      fail-fast: false
-      matrix:
-        language: ["javascript-typescript"]
-
     steps:
       - uses: actions/checkout@v4
 
       - uses: github/codeql-action/init@v3
         with:
-          languages: ${{ matrix.language }}
+          languages: javascript-typescript
           queries: security-and-quality
 
       - uses: github/codeql-action/analyze@v3
         with:
-          category: "/language:${{ matrix.language }}"
+          category: "/language:javascript-typescript"

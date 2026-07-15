@@ -1,0 +1,420 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Security — SAST, secrets, deps, IaC
+# Hard gates: Gitleaks, Semgrep, Trivy FS (CRITICAL)
+# Soft / informational: Bearer, Checkov, Trivy HIGH, CodeQL alerts
+# Trivy image: main push + schedule + manual only (not every PR)
+# Reports: GitHub Security (SARIF) + PR comment + workflow artifacts
+# ─────────────────────────────────────────────────────────────────────────────
+name: Security
+
+on:
+  push:
+    branches: [main, develop, "Phase-*"]
+  pull_request:
+    branches: [main, develop, "Phase-*"]
+  schedule:
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: "Optional live URL for OWASP ZAP baseline (post-deploy DAST)"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: write
+  actions: read
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  semgrep:
+    name: Semgrep SAST
+    runs-on: ubuntu-24.04
+    container:
+      image: semgrep/semgrep:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Semgrep
+        run: |
+          set +e
+          semgrep scan \
+            --config=p/owasp-top-ten \
+            --config=p/typescript \
+            --config=p/javascript \
+            --config=p/nodejs \
+            --config=p/react \
+            --config=p/security-audit \
+            --exclude=node_modules \
+            --exclude=dist \
+            --exclude=.next \
+            --exclude=coverage \
+            --exclude=playwright-report \
+            --exclude=test-results \
+            --sarif \
+            --output=semgrep.sarif
+          code=$?
+          if [ ! -f semgrep.sarif ]; then
+            echo '{"version":"2.1.0","runs":[{"tool":{"driver":{"name":"semgrep","rules":[]}},"results":[]}]}' > semgrep.sarif
+          fi
+          # Hard gate: Semgrep non-zero exit (error-level findings)
+          exit $code
+
+      - name: Upload Semgrep SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        continue-on-error: true
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+
+      - name: Upload Semgrep artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-report
+          path: semgrep.sarif
+          retention-days: 14
+          if-no-files-found: ignore
+
+  codeql:
+    name: CodeQL SAST
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-and-quality
+
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:javascript-typescript"
+
+  bearer:
+    name: Bearer (informational)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Bearer
+        id: bearer
+        uses: bearer/bearer-action@v2
+        continue-on-error: true
+        with:
+          path: .
+          format: sarif
+          output: bearer.sarif
+          skip-path: node_modules,dist,.next,coverage,playwright-report,test-results,packages/db/prisma/migrations
+
+      - name: Upload Bearer SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always() && hashFiles('bearer.sarif') != ''
+        continue-on-error: true
+        with:
+          sarif_file: bearer.sarif
+          category: bearer
+
+      - name: Upload Bearer artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bearer-report
+          path: bearer.sarif
+          retention-days: 14
+          if-no-files-found: ignore
+
+  gitleaks:
+    name: Gitleaks
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "true"
+          GITLEAKS_ENABLE_SUMMARY: "true"
+
+  trivy-fs:
+    name: Trivy filesystem (CRITICAL hard)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # Hard gate: CRITICAL only
+      - name: Run Trivy FS CRITICAL
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: CRITICAL
+          format: sarif
+          output: trivy-fs-critical.sarif
+          exit-code: "1"
+
+      # Soft: HIGH still reported for Security tab / artifacts
+      - name: Run Trivy FS HIGH (soft)
+        if: always()
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH
+          format: sarif
+          output: trivy-fs-high.sarif
+          exit-code: "0"
+
+      - name: Merge Trivy FS SARIF
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json, pathlib
+          runs = []
+          for name in ("trivy-fs-critical.sarif", "trivy-fs-high.sarif"):
+              p = pathlib.Path(name)
+              if not p.exists():
+                  continue
+              data = json.loads(p.read_text(encoding="utf-8"))
+              runs.extend(data.get("runs") or [])
+          out = {"version": "2.1.0", "runs": runs or [{"tool": {"driver": {"name": "trivy", "rules": []}}, "results": []}]}
+          pathlib.Path("trivy-fs.sarif").write_text(json.dumps(out), encoding="utf-8")
+          PY
+
+      - name: Upload Trivy FS SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always() && hashFiles('trivy-fs.sarif') != ''
+        continue-on-error: true
+        with:
+          sarif_file: trivy-fs.sarif
+          category: trivy-fs
+
+      - name: Upload Trivy FS artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-fs-report
+          path: |
+            trivy-fs.sarif
+            trivy-fs-critical.sarif
+            trivy-fs-high.sarif
+          retention-days: 14
+          if-no-files-found: ignore
+
+  trivy-image:
+    name: Trivy container (API)
+    runs-on: ubuntu-24.04
+    # L10: skip full image build on every PR — main, schedule, manual only
+    if: >
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/api.Dockerfile
+          push: false
+          load: true
+          tags: lms-api:security-scan
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Trivy image CRITICAL
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: image
+          image-ref: lms-api:security-scan
+          severity: CRITICAL
+          format: sarif
+          output: trivy-image.sarif
+          exit-code: "1"
+
+      - name: Upload Trivy image SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always() && hashFiles('trivy-image.sarif') != ''
+        continue-on-error: true
+        with:
+          sarif_file: trivy-image.sarif
+          category: trivy-image
+
+      - name: Upload Trivy image artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-image-report
+          path: trivy-image.sarif
+          retention-days: 14
+          if-no-files-found: ignore
+
+  checkov:
+    name: Checkov IaC (informational)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Checkov
+        uses: bridgecrewio/checkov-action@v12
+        continue-on-error: true
+        with:
+          directory: .
+          framework: dockerfile,github_actions
+          soft_fail: true
+          output_format: sarif
+          output_file_path: reports/results.sarif
+          skip_path: node_modules,dist,.next,coverage,playwright-report,test-results
+
+      - name: Locate Checkov SARIF
+        if: always()
+        run: |
+          if [ -f reports/results.sarif ]; then
+            cp reports/results.sarif checkov.sarif
+          elif [ -f results.sarif ]; then
+            cp results.sarif checkov.sarif
+          else
+            find . -name '*.sarif' -print || true
+          fi
+
+      - name: Upload Checkov SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always() && hashFiles('checkov.sarif') != ''
+        continue-on-error: true
+        with:
+          sarif_file: checkov.sarif
+          category: checkov
+
+      - name: Upload Checkov artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkov-report
+          path: |
+            checkov.sarif
+            reports/**
+          retention-days: 14
+          if-no-files-found: ignore
+
+  security-gate:
+    name: Security hard gate
+    runs-on: ubuntu-24.04
+    needs: [semgrep, gitleaks, trivy-fs]
+    if: always()
+    steps:
+      - name: Fail if hard security jobs failed
+        run: |
+          echo "Gitleaks: ${{ needs.gitleaks.result }}"
+          echo "Semgrep:  ${{ needs.semgrep.result }}"
+          echo "Trivy FS: ${{ needs.trivy-fs.result }}"
+          fail=0
+          if [ "${{ needs.gitleaks.result }}" = "failure" ]; then fail=1; fi
+          if [ "${{ needs.semgrep.result }}" = "failure" ]; then fail=1; fi
+          if [ "${{ needs.trivy-fs.result }}" = "failure" ]; then fail=1; fi
+          if [ "$fail" -ne 0 ]; then
+            echo "::error::Hard security gate failed (Gitleaks / Semgrep / Trivy CRITICAL)."
+            exit 1
+          fi
+          echo "Hard security gate passed."
+
+  security-summary:
+    name: Security report summary
+    runs-on: ubuntu-24.04
+    needs: [semgrep, codeql, bearer, gitleaks, trivy-fs, trivy-image, checkov, security-gate]
+    if: always() && github.event_name == 'pull_request'
+    steps:
+      - name: Comment PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const needs = {
+              'Gitleaks (hard)': '${{ needs.gitleaks.result }}',
+              'Semgrep (hard)': '${{ needs.semgrep.result }}',
+              'Trivy FS CRITICAL (hard)': '${{ needs.trivy-fs.result }}',
+              'Security gate': '${{ needs.security-gate.result }}',
+              CodeQL: '${{ needs.codeql.result }}',
+              'Bearer (soft)': '${{ needs.bearer.result }}',
+              'Trivy Image (main/schedule)': '${{ needs.trivy-image.result }}',
+              'Checkov (soft)': '${{ needs.checkov.result }}',
+            };
+            const lines = Object.entries(needs).map(([k, v]) => {
+              const icon = v === 'success' ? '✅' : v === 'failure' ? '❌' : v === 'skipped' ? '⏭️' : '⚠️';
+              return `| ${k} | ${icon} \`${v}\` |`;
+            });
+            const body = [
+              '## Security scan report',
+              '',
+              '| Tool | Result |',
+              '|------|--------|',
+              ...lines,
+              '',
+              '### Gate policy',
+              '- **Hard fail:** Gitleaks, Semgrep, Trivy FS **CRITICAL** (`security-gate` job)',
+              '- **Soft / informational:** Bearer, Checkov, Trivy HIGH (in SARIF)',
+              '- **Trivy image:** `main` push, weekly schedule, or `workflow_dispatch` only',
+              '',
+              '### Where to read findings',
+              '- **GitHub Security tab** — Code scanning alerts (SARIF)',
+              '- **Workflow artifacts** — download SARIF from this run',
+              '',
+              '_OWASP ZAP (DAST) is optional: run **Security → workflow_dispatch** with `target_url` after deploy._',
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const marker = '## Security scan report';
+            const existing = comments.find(c => c.user?.type === 'Bot' && c.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+  zap-baseline:
+    name: OWASP ZAP baseline (optional)
+    runs-on: ubuntu-24.04
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.target_url != '' }}
+    steps:
+      - name: ZAP baseline scan
+        uses: zaproxy/action-baseline@v0.14.0
+        with:
+          target: ${{ inputs.target_url }}
+          fail_action: false
+          allow_issue_writing: false
+
+      - name: Upload ZAP artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-baseline-report
+          path: report_html.html
+          retention-days: 14
+          if-no-files-found: ignore
