@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../../../components/ui/select";
+import { PERMISSIONS } from "@lms/shared";
+import { AuthGate, PermissionGate } from "../../../components/auth/auth-gate";
 import { AppShell } from "../../../components/layout/shells";
 import { PageHeader, ButtonLink, FilterBar, StatusBadge } from "../../../components/ui/core";
 import { CourseFeedbackSummary } from "../../../components/experiences/experiences-views";
@@ -36,7 +39,9 @@ export default function AdminFeedbackPage() {
   };
 
   return (
-    <AppShell>
+    <AuthGate>
+      <PermissionGate anyOf={[PERMISSIONS.analyticsView]}>
+    <AppShell currentPath="/admin/feedback">
       <div>
         <PageHeader
         eyebrow="Admin"
@@ -45,19 +50,21 @@ export default function AdminFeedbackPage() {
       />
 
       <FilterBar>
-        <select
-          aria-label="Select course"
-          className="h-10 rounded-md border border-input bg-card px-3 text-sm"
-          onChange={(e) => setSelectedCourseId(e.target.value || null)}
-          value={selectedCourseId ?? ""}
-        >
-          <option value="">Select a course…</option>
-          {courseList.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.title}
-            </option>
-          ))}
-        </select>
+        <div className="relative w-full">
+          <Select value={selectedCourseId ?? ""} onValueChange={(val) => setSelectedCourseId(val || null)}>
+            <SelectTrigger className="h-10">
+              <SelectValue placeholder="Select a course…" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Select a course…</SelectItem>
+              {courseList.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <StatusBadge value={`${courseList.length} courses`} tone="info" />
       </FilterBar>
 
@@ -118,5 +125,7 @@ export default function AdminFeedbackPage() {
       </div>
       </div>
     </AppShell>
+      </PermissionGate>
+    </AuthGate>
   );
 }

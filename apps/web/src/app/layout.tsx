@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { PwaOverlay } from "../components/pwa/pwa-overlay";
+import { ThemeModeProvider, themeModeBootstrapScript } from "../components/theme/theme-mode";
 
 const serviceWorkerScript =
   process.env.NODE_ENV === "production"
@@ -61,15 +62,22 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#0f766e" />
         <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: themeModeBootstrapScript,
+          }}
+        />
       </head>
       <body>
-        {children}
-        <PwaOverlay />
+        <ThemeModeProvider>
+          {children}
+          <PwaOverlay />
+        </ThemeModeProvider>
         <script
           dangerouslySetInnerHTML={{
             __html: serviceWorkerScript,

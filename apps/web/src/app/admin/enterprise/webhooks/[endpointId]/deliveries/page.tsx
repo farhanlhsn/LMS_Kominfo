@@ -33,7 +33,7 @@ export default function WebhookDeliveriesPage() {
   return (
     <AuthGate>
       <PermissionGate anyOf={[PERMISSIONS.organizationsManage]}>
-        <AppShell currentPath="/admin">
+        <AppShell currentPath="/admin/enterprise/webhooks">
           <PageHeader
             breadcrumbs={[
               { label: "Webhooks", href: "/admin/enterprise/webhooks" },

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../../../components/ui/select";
 import { AuthGate, PermissionGate } from "../../../components/auth/auth-gate";
 import { AppShell } from "../../../components/layout/shells";
 import { PaymentList } from "../../../components/marketplace/payment-list";
@@ -29,27 +30,29 @@ export default function AdminPaymentsPage() {
 
   return (
     <AuthGate>
-      <PermissionGate anyOf={[PERMISSIONS.analyticsView]}>
-        <AppShell currentPath="/admin">
+      <PermissionGate anyOf={[PERMISSIONS.organizationsManage]}>
+        <AppShell currentPath="/admin/payments">
           <PageHeader
             eyebrow="Admin"
             title="Payments"
             description="Submitted payments awaiting confirmation."
             actions={
-              <select
-                aria-label="Filter payments by status"
-                className="min-h-10 rounded-md border border-input bg-card px-3 text-sm text-foreground"
-                onChange={(event) => setStatus(event.target.value)}
-                value={status}
-              >
-                <option value="">All statuses</option>
-                <option value="PENDING">Pending</option>
-                <option value="AWAITING_REVIEW">Awaiting review</option>
-                <option value="PAID">Paid</option>
-                <option value="FAILED">Failed</option>
-                <option value="REFUNDED">Refunded</option>
-                <option value="EXPIRED">Expired</option>
-              </select>
+              <div className="relative w-full">
+                <Select value={status} onValueChange={(val) => setStatus(val)}>
+                  <SelectTrigger className="h-10">
+                    <SelectValue placeholder="All statuses" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">All statuses</SelectItem>
+                    <SelectItem value="PENDING">Pending</SelectItem>
+                    <SelectItem value="AWAITING_REVIEW">Awaiting review</SelectItem>
+                    <SelectItem value="PAID">Paid</SelectItem>
+                    <SelectItem value="FAILED">Failed</SelectItem>
+                    <SelectItem value="REFUNDED">Refunded</SelectItem>
+                    <SelectItem value="EXPIRED">Expired</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             }
           />
 
@@ -80,7 +83,7 @@ export default function AdminPaymentsPage() {
                 />
               </section>
 
-              <PaymentList payments={payments} />
+              <PaymentList size="compact" payments={payments} />
             </>
           )}
         </AppShell>

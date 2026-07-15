@@ -141,7 +141,7 @@ export default function EnterpriseBrandingPage() {
   return (
     <AuthGate>
       <PermissionGate anyOf={[PERMISSIONS.organizationsManage]}>
-        <AppShell currentPath="/admin">
+        <AppShell currentPath="/admin/enterprise/branding">
           <PageHeader
             eyebrow="Enterprise"
             title="Branding"

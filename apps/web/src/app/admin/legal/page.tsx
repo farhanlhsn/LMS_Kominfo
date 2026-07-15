@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { Scale, FileText, RefreshCw } from "lucide-react";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../../../components/ui/select";
 import { AuthGate, PermissionGate } from "../../../components/auth/auth-gate";
 import { AppShell } from "../../../components/layout/shells";
 import { PageHeader, FormSection, StatusBadge } from "../../../components/ui/core";
@@ -123,17 +124,20 @@ function AdminLegalBody() {
         <div className="grid gap-3 md:grid-cols-2">
           <label className="text-sm font-medium">
             Type
-            <select
-              className="mt-1 w-full rounded border border-border px-2 py-1"
-              value={draft.type}
-              onChange={(event) => setDraft((prev) => ({ ...prev, type: event.target.value as LegalDocumentType }))}
-            >
-              {ALL_TYPES.map((option) => (
-                <option key={option} value={option}>
-                  {DOCUMENT_LABELS[option]}
-                </option>
-              ))}
-            </select>
+            <div className="relative w-full">
+              <Select value={draft.type} onValueChange={(val) => setDraft((prev) => ({ ...prev, type: val as LegalDocumentType }))}>
+                <SelectTrigger className="h-10">
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ALL_TYPES.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {DOCUMENT_LABELS[option]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </label>
           <label className="text-sm font-medium">
             Version
@@ -192,17 +196,20 @@ function AdminLegalBody() {
         <div className="mb-3 flex items-center gap-2">
           <label className="text-sm">
             Filter by type
-            <select
-              className="ml-2 rounded border border-border px-2 py-1"
-              value={type}
-              onChange={(event) => setType(event.target.value as LegalDocumentType)}
-            >
-              {ALL_TYPES.map((option) => (
-                <option key={option} value={option}>
-                  {DOCUMENT_LABELS[option]}
-                </option>
-              ))}
-            </select>
+            <div className="relative ml-2 inline-block w-48">
+              <Select value={type} onValueChange={(val) => setType(val as LegalDocumentType)}>
+                <SelectTrigger className="h-10">
+                  <SelectValue placeholder="Filter by type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ALL_TYPES.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {DOCUMENT_LABELS[option]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </label>
           <Button variant="ghost" size="sm" onClick={() => void docsQuery.refetch()}>
             <RefreshCw className="mr-2 h-4 w-4" /> Refresh

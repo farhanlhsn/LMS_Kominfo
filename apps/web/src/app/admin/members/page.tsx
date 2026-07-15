@@ -2,6 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import { KeyRound, Mail, Save, ShieldCheck, UserPlus } from "lucide-react";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../../../components/ui/select";
 import { PERMISSIONS } from "@lms/shared";
 import { AuthGate, PermissionGate } from "../../../components/auth/auth-gate";
 import { AppShell } from "../../../components/layout/shells";
@@ -131,7 +132,6 @@ export default function AdminMembersPage() {
     <AuthGate>
       <AppShell currentPath="/admin/members">
         <PermissionGate
-          anyOf={[PERMISSIONS.membershipsManage, PERMISSIONS.rolesManage]}
           allOf={[PERMISSIONS.membershipsManage, PERMISSIONS.rolesManage]}
         >
           <PageHeader
@@ -310,6 +310,7 @@ function MembersTable({
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
+  const [memberStatusValues, setMemberStatusValues] = useState<Record<string, string>>({});
 
   const roleByKey = useMemo(
     () => new Map(roles.map((role) => [role.key, role])),
@@ -375,6 +376,8 @@ function MembersTable({
           <p className="py-6 text-center text-sm text-muted-foreground">No members match the current filter.</p>
         ) : (
           <DataTable
+            size="compact"
+            emptyMessage="No members match the current filters."
             columns={["Member", "Status", "Roles", "Actions"]}
             rows={filtered.map((member) => [
               <div key="member" className="min-w-40">
@@ -429,22 +432,27 @@ function MembersTable({
                   );
                 }}
               >
-                <select
-                  className="h-7 rounded-md border border-input bg-background px-2 text-xs"
-                  defaultValue={member.status}
-                  name="status"
-                >
-                  {memberStatuses.map((status) => (
-                    <option key={status} value={status}>
-                      {status}
-                    </option>
-                  ))}
-                </select>
+                <input type="hidden" name="status" value={memberStatusValues[member.id] ?? member.status} />
+                <div className="relative">
+                  <Select value={memberStatusValues[member.id] ?? member.status} onValueChange={(val) => setMemberStatusValues((prev) => ({ ...prev, [member.id]: val }))}>
+                    <SelectTrigger className="h-7 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {memberStatuses.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {s}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <button
                   className="inline-flex h-7 items-center gap-1.5 rounded-md border border-border px-2.5 text-xs font-semibold hover:bg-muted disabled:opacity-60"
                   disabled={saving}
                   type="submit"
                 >
+                  <Save aria-hidden="true" className="h-3 w-3" />
                   Save
                 </button>
               </form>,

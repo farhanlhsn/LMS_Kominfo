@@ -1,15 +1,22 @@
 ﻿"use client";
 
-import { Users, BookOpen, TrendingUp, Activity } from "lucide-react";
+import { useMemo, useState } from "react";
 import { AuthGate } from "../../components/auth/auth-gate";
 import { AppShell } from "../../components/layout/shells";
 import { MetricCard, SimpleBarChart } from "../../components/analytics/charts";
-import { PageHeader, StatCard } from "../../components/ui/core";
-import { ApiErrorState, LoadingState } from "../../components/ui/states";
-import { useInstructorDashboard } from "../../lib/api-hooks";
+import { PageHeader } from "../../components/ui/core";
+import { ApiErrorState } from "../../components/ui/states";
+import { useInstructorCourseEngagement, useInstructorDashboard } from "../../lib/api-hooks";
 
 export default function InstructorDashboardPage() {
   const query = useInstructorDashboard();
+  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
+  const activeCourseId = selectedCourseId ?? query.data?.courses[0]?.id ?? null;
+  const engagement = useInstructorCourseEngagement(activeCourseId, { from: "30d" });
+  const completionData = useMemo(
+    () => (query.data?.courses ?? []).map((course) => ({ label: course.title, value: course.completionRate })),
+    [query.data?.courses],
+  );
 
   return (
     <AuthGate>
@@ -49,6 +56,24 @@ export default function InstructorDashboardPage() {
                 value={`${query.data.avgCompletionRate}%`}
               />
             </div>
+
+            <section className="mb-6 grid gap-4 lg:grid-cols-2">
+              <article className="rounded-lg border border-border bg-card p-5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div><h2 className="text-lg font-semibold">Daily engagement</h2><p className="text-sm text-muted-foreground">Learning events in selected course.</p></div>
+                  <select aria-label="Analytics course" className="h-9 rounded-md border border-input bg-card px-2 text-sm" onChange={(event) => setSelectedCourseId(event.target.value || null)} value={selectedCourseId ?? ""}>
+                    <option value="">{query.data.courses[0]?.title ?? "Select course"}</option>
+                    {query.data.courses.slice(1).map((course) => <option key={course.id} value={course.id}>{course.title}</option>)}
+                  </select>
+                </div>
+                {engagement.loading ? <div className="mt-4 h-40 animate-pulse rounded-md bg-muted" /> : engagement.error ? <p className="mt-4 text-sm text-destructive">Could not load engagement.</p> : <SimpleBarChart ariaLabel="Daily engagement events" className="mt-4" data={(engagement.data?.daily ?? []).map((item) => ({ label: item.date.slice(5), value: item.events }))} />}
+                <p className="mt-2 text-xs text-muted-foreground">{engagement.data?.totalActiveLearners ?? 0} active learners in period.</p>
+              </article>
+              <article className="rounded-lg border border-border bg-card p-5">
+                <h2 className="text-lg font-semibold">Completion by course</h2><p className="text-sm text-muted-foreground">Completed enrollment percentage.</p>
+                <SimpleBarChart ariaLabel="Course completion rates" className="mt-4" data={completionData} />
+              </article>
+            </section>
 
             <section className="rounded-lg border border-border bg-card p-5">
               <h2 className="text-lg font-semibold">Course overview</h2>

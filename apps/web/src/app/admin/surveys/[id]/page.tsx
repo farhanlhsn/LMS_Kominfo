@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../../../../components/ui/select";
 import { useParams, useRouter } from "next/navigation";
+import { PERMISSIONS } from "@lms/shared";
+import { AuthGate, PermissionGate } from "../../../../components/auth/auth-gate";
 import { AppShell } from "../../../../components/layout/shells";
 import { PageHeader, ButtonLink, StatusBadge } from "../../../../components/ui/core";
 import { SurveyQuestionList, SurveyResponseList } from "../../../../components/experiences/experiences-views";
@@ -89,7 +92,9 @@ export default function AdminSurveyDetailPage() {
   };
 
   return (
-    <AppShell>
+    <AuthGate>
+    <PermissionGate allOf={[PERMISSIONS.coursesUpdate]}>
+    <AppShell currentPath="/admin/surveys">
       <div>
         <PageHeader
         eyebrow="Survey"
@@ -125,17 +130,20 @@ export default function AdminSurveyDetailPage() {
           <div className="mt-4 rounded-lg border border-border bg-card p-4 shadow-subtle">
             <h3 className="text-sm font-semibold">Add question</h3>
             <div className="mt-3 grid gap-2">
-              <select
-                className="h-10 rounded-md border border-input bg-card px-3 text-sm"
-                onChange={(e) => setQType(e.target.value as typeof qType)}
-                value={qType}
-              >
-                {QUESTION_TYPES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
+              <div className="relative w-full">
+                <Select value={qType} onValueChange={(val) => setQType(val as typeof qType)}>
+                  <SelectTrigger className="h-10">
+                    <SelectValue placeholder="Question type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {QUESTION_TYPES.map((t) => (
+                      <SelectItem key={t} value={t}>
+                        {t}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <input
                 className="h-10 rounded-md border border-input bg-card px-3 text-sm"
                 onChange={(e) => setQPrompt(e.target.value)}
@@ -231,5 +239,7 @@ export default function AdminSurveyDetailPage() {
       </div>
       </div>
     </AppShell>
+    </PermissionGate>
+    </AuthGate>
   );
 }

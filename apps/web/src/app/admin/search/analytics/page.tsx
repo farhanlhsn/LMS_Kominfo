@@ -1,7 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { PERMISSIONS } from "@lms/shared";
+import { AuthGate, PermissionGate } from "../../../../components/auth/auth-gate";
 import { AppShell } from "../../../../components/layout/shells";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../../../../components/ui/select";
+import { LoadingState, ApiErrorState } from "../../../../components/ui/states";
 import { useSearchAnalytics } from "../../../../lib/api-hooks";
 
 export default function SearchAnalyticsPage() {
@@ -9,13 +14,15 @@ export default function SearchAnalyticsPage() {
   const analytics = useSearchAnalytics({ days, limit: 25 });
 
   return (
-    <AppShell>
+    <AuthGate>
+      <PermissionGate anyOf={[PERMISSIONS.analyticsView]}>
+    <AppShell currentPath="/admin/search/analytics">
       <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-1">
         <nav className="text-xs text-muted-foreground">
-          <a className="hover:underline" href="/admin">Admin</a>
+          <Link className="hover:underline" href="/admin">Admin</Link>
           {" / "}
-          <a className="hover:underline" href="/admin/search">Search</a>
+          <span>Search</span>
           {" / Analytics"}
         </nav>
         <h1 className="text-2xl font-semibold">Search Analytics</h1>
@@ -27,16 +34,21 @@ export default function SearchAnalyticsPage() {
         <label className="text-xs font-semibold uppercase text-muted-foreground" htmlFor="days">
           Window
         </label>
-        <select
-          id="days"
-          value={days}
-          onChange={(event) => setDays(Number(event.target.value))}
-          className="rounded-md border border-border bg-card px-2 py-1 text-sm"
-        >
-          <option value={7}>Last 7 days</option>
-          <option value={30}>Last 30 days</option>
-          <option value={90}>Last 90 days</option>
-        </select>
+        <div className="relative">
+          <Select
+            value={String(days)}
+            onValueChange={(val) => setDays(Number(val))}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select period" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7">Last 7 days</SelectItem>
+              <SelectItem value="30">Last 30 days</SelectItem>
+              <SelectItem value="90">Last 90 days</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <button
           type="button"
           onClick={() => void analytics.reload()}
@@ -45,8 +57,8 @@ export default function SearchAnalyticsPage() {
           Refresh
         </button>
       </div>
-      {analytics.loading && <p className="text-sm text-muted-foreground">Loading analytics…</p>}
-      {analytics.error && <p className="text-sm text-destructive">{analytics.error.message}</p>}
+      {analytics.loading && <LoadingState title="Loading analytics" />}
+      {analytics.error && <ApiErrorState error={analytics.error} fallbackTitle="Failed to load analytics" />}
       {analytics.data && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div className="rounded-md border border-border bg-card p-4">
@@ -101,5 +113,7 @@ export default function SearchAnalyticsPage() {
       )}
     </div>
     </AppShell>
+      </PermissionGate>
+    </AuthGate>
   );
 }

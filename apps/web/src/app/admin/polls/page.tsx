@@ -2,6 +2,8 @@
 
 import { Plus, X } from "lucide-react";
 import { useState } from "react";
+import { PERMISSIONS } from "@lms/shared";
+import { AuthGate, PermissionGate } from "../../../components/auth/auth-gate";
 import { AppShell } from "../../../components/layout/shells";
 import { PageHeader, ButtonLink, FilterBar, StatusBadge } from "../../../components/ui/core";
 import { PollResultsView, PollsList } from "../../../components/experiences/experiences-views";
@@ -69,7 +71,9 @@ export default function AdminPollsPage() {
   };
 
   return (
-    <AppShell>
+    <AuthGate>
+      <PermissionGate anyOf={[PERMISSIONS.coursesUpdate]}>
+    <AppShell currentPath="/admin/polls">
       <div>
         <PageHeader
         eyebrow="Admin"
@@ -232,5 +236,7 @@ export default function AdminPollsPage() {
       </div>
       </div>
     </AppShell>
+      </PermissionGate>
+    </AuthGate>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../../../components/ui/select";
 import { AuthGate, PermissionGate } from "../../../components/auth/auth-gate";
 import { AppShell } from "../../../components/layout/shells";
 import { AdminReviewList, type AdminReviewRow } from "../../../components/reviews/lists";
@@ -42,26 +43,25 @@ export default function AdminReviewsPage() {
 
   return (
     <AuthGate>
-      <PermissionGate anyOf={[PERMISSIONS.analyticsView]}>
-        <AppShell currentPath="/admin">
+      <PermissionGate anyOf={[PERMISSIONS.auditRead]}>
+        <AppShell currentPath="/admin/reviews">
           <PageHeader
             eyebrow="Admin"
             title="Review moderation"
             description="Approve or reject learner reviews."
             actions={
-              <select
-                aria-label="Filter reviews by status"
-                className="min-h-10 rounded-md border border-input bg-card px-3 text-sm text-foreground"
-                onChange={(event) => {
-                  setStatus(event.target.value);
-                  setPage(1);
-                }}
-                value={status}
-              >
-                <option value="PENDING">Pending</option>
-                <option value="APPROVED">Approved</option>
-                <option value="REJECTED">Rejected</option>
-              </select>
+              <div className="relative w-full">
+                <Select value={status} onValueChange={(val) => { setStatus(val); setPage(1); }}>
+                  <SelectTrigger className="h-10">
+                    <SelectValue placeholder="Pending" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="PENDING">Pending</SelectItem>
+                    <SelectItem value="APPROVED">Approved</SelectItem>
+                    <SelectItem value="REJECTED">Rejected</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             }
           />
 

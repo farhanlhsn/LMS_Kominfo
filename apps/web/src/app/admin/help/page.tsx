@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../../../components/ui/select";
+import { PERMISSIONS } from "@lms/shared";
+import { AuthGate, PermissionGate } from "../../../components/auth/auth-gate";
 import { AppShell } from "../../../components/layout/shells";
 import {
   useCreateHelpArticle,
@@ -93,7 +96,9 @@ export default function AdminHelpPage() {
   };
 
   return (
-    <AppShell>
+    <AuthGate>
+      <PermissionGate anyOf={[PERMISSIONS.contentLibraryManage]}>
+    <AppShell currentPath="/admin/help">
       <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold">Help Center</h1>
@@ -136,19 +141,21 @@ export default function AdminHelpPage() {
       <section className="rounded-md border border-border bg-card p-4">
         <h2 className="text-sm font-semibold">Create article</h2>
         <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
-          <select
-            aria-label="Category"
-            value={newArticle.categoryId}
-            onChange={(event) => setNewArticle((current) => ({ ...current, categoryId: event.target.value }))}
-            className="rounded-md border border-border bg-card px-2 py-1 text-sm"
-          >
-            <option value="">Select category…</option>
-            {categories.data?.map((cat) => (
-              <option key={cat.id} value={cat.id}>
-                {cat.title}
-              </option>
-            ))}
-          </select>
+          <div className="relative w-full">
+            <Select value={newArticle.categoryId} onValueChange={(val) => setNewArticle((current) => ({ ...current, categoryId: val }))}>
+              <SelectTrigger className="h-10">
+                <SelectValue placeholder="Select category…" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Select category…</SelectItem>
+                {categories.data?.map((cat) => (
+                  <SelectItem key={cat.id} value={cat.id}>
+                    {cat.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <input
             value={newArticle.slug}
             onChange={(event) => setNewArticle((current) => ({ ...current, slug: event.target.value }))}
@@ -181,18 +188,18 @@ export default function AdminHelpPage() {
             placeholder="tags, comma separated"
             className="rounded-md border border-border bg-card px-2 py-1 text-sm"
           />
-          <select
-            aria-label="Status"
-            value={newArticle.status}
-            onChange={(event) =>
-              setNewArticle((current) => ({ ...current, status: event.target.value as "DRAFT" | "PUBLISHED" | "ARCHIVED" }))
-            }
-            className="rounded-md border border-border bg-card px-2 py-1 text-sm"
-          >
-            <option value="DRAFT">Draft</option>
-            <option value="PUBLISHED">Published</option>
-            <option value="ARCHIVED">Archived</option>
-          </select>
+          <div className="relative w-full">
+            <Select value={newArticle.status} onValueChange={(val) => setNewArticle((current) => ({ ...current, status: val as "DRAFT" | "PUBLISHED" | "ARCHIVED" }))}>
+              <SelectTrigger className="h-10">
+                <SelectValue placeholder="Draft" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="DRAFT">Draft</SelectItem>
+                <SelectItem value="PUBLISHED">Published</SelectItem>
+                <SelectItem value="ARCHIVED">Archived</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         <button
           type="button"
@@ -236,5 +243,7 @@ export default function AdminHelpPage() {
       </section>
     </div>
     </AppShell>
+      </PermissionGate>
+    </AuthGate>
   );
 }

@@ -601,9 +601,28 @@ function ActivityContentPanel({
     <PluginActivityEditor activity={activity} onSaveContent={(data) => onSaveContent(activity.id, data)}>
       <div className="flex flex-col gap-5">
         {isQuiz ? (
-          <AttachSelect label="Attach quiz"
-            options={quizOptions.map((q) => ({ id: q.id, label: `${q.title} (${q.status})` }))}
-            onAttach={(id) => onAttachQuiz(activity.id, id)} />
+          <div className="grid gap-2">
+            <AttachSelect
+              label="Attach quiz"
+              options={[...quizOptions]
+                .sort((a, b) => Number(b.status === "PUBLISHED") - Number(a.status === "PUBLISHED"))
+                .map((q) => ({
+                  id: q.id,
+                  label: `${q.title} (${q.status})`,
+                }))}
+              onAttach={(id) => onAttachQuiz(activity.id, id)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Need a new quiz?{" "}
+              <a className="font-semibold text-primary" href="/instructor/quizzes">
+                Open quizzes
+              </a>
+              {" · "}
+              <a className="font-semibold text-primary" href="/instructor/question-banks">
+                Question banks
+              </a>
+            </p>
+          </div>
         ) : isText ? (
           <div>
             <p className="mb-2 text-sm font-medium">Rich text content</p>
@@ -744,6 +763,13 @@ export default function BuilderPage() {
                     onClick={() => void run(() => api.duplicateCourse(course.id), "Course duplicated.")}
                     className="rounded-md border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted">
                     Duplicate
+                  </button>
+                )}
+                {canUpdate && (
+                  <button type="button"
+                    onClick={() => void run(() => api.instructorAiIndexCourse(course.id), "Course indexed for AI.")}
+                    className="rounded-md border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted">
+                    <Sparkles className="mr-1.5 inline h-3.5 w-3.5" /> Index AI
                   </button>
                 )}
                 {canPublish && (

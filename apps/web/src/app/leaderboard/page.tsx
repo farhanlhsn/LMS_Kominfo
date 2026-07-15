@@ -24,8 +24,8 @@ export default function LeaderboardPage() {
       <AppShell currentPath="/leaderboard">
         <PageHeader
           eyebrow="Gamification"
-          title="Leaderboard"
-          description="Top learners ranked by experience points."
+          title="Leaderboard Nasional"
+          description="Peserta teratas di organisasi Anda berdasarkan poin pengalaman."
         />
 
         <div className="mb-6 flex flex-wrap gap-2">

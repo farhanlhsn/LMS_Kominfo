@@ -41,8 +41,8 @@ export default function AdminCouponsPage() {
 
   return (
     <AuthGate>
-      <PermissionGate anyOf={[PERMISSIONS.coursesUpdate]}>
-        <AppShell currentPath="/admin">
+      <PermissionGate anyOf={[PERMISSIONS.organizationsManage]}>
+        <AppShell currentPath="/admin/coupons">
           <PageHeader
             eyebrow="Admin"
             title="Coupons"

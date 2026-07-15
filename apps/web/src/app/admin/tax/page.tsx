@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ReceiptText } from "lucide-react";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../../../components/ui/select";
 import { AuthGate, PermissionGate } from "../../../components/auth/auth-gate";
 import { AppShell } from "../../../components/layout/shells";
 import { PageHeader, FormSection, StatusBadge } from "../../../components/ui/core";
@@ -160,32 +161,38 @@ function TaxBody() {
               <div className="grid gap-2 md:grid-cols-4">
                 <label className="text-sm font-medium">
                   Region
-                  <select
-                    className="mt-1 w-full rounded border border-border px-2 py-1"
-                    value={regionCode}
-                    onChange={(e) => setRegionCode(e.target.value)}
-                  >
-                    <option value="">Select region</option>
-                    {(regionsQuery.data ?? []).map((r) => (
-                      <option key={r.code} value={r.code}>
-                        {r.name} ({r.code})
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative w-full">
+                    <Select value={regionCode} onValueChange={(val) => setRegionCode(val)}>
+                      <SelectTrigger className="h-10">
+                        <SelectValue placeholder="Select region" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Select region</SelectItem>
+                        {(regionsQuery.data ?? []).map((r) => (
+                          <SelectItem key={r.code} value={r.code}>
+                            {r.name} ({r.code})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </label>
                 <label className="text-sm font-medium">
                   Type
-                  <select
-                    className="mt-1 w-full rounded border border-border px-2 py-1"
-                    value={type}
-                    onChange={(e) => setType(e.target.value as TaxRuleType)}
-                  >
-                    {RULE_TYPES.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative w-full">
+                    <Select value={type} onValueChange={(val) => setType(val as TaxRuleType)}>
+                      <SelectTrigger className="h-10">
+                        <SelectValue placeholder="Type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {RULE_TYPES.map((t) => (
+                          <SelectItem key={t} value={t}>
+                            {t}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </label>
                 <label className="text-sm font-medium">
                   Rate %

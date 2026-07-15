@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { Flag, ShieldAlert } from "lucide-react";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../../../components/ui/select";
 import { AuthGate, PermissionGate } from "../../../components/auth/auth-gate";
 import { AppShell } from "../../../components/layout/shells";
 import { PageHeader, FormSection, StatusBadge } from "../../../components/ui/core";
@@ -335,31 +336,37 @@ function ActionForm({
       <div className="grid grid-cols-2 gap-2">
         <label className="flex flex-col">
           Target type
-          <select
-            className="mt-1 rounded border border-border px-2 py-1"
-            value={targetType}
-            onChange={(event) => setTargetType(event.target.value as ModerationTargetType)}
-          >
-            {TARGET_OPTIONS.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
+          <div className="relative w-full">
+            <Select value={targetType} onValueChange={(val) => setTargetType(val as ModerationTargetType)}>
+              <SelectTrigger className="h-10">
+                <SelectValue placeholder="Target type" />
+              </SelectTrigger>
+              <SelectContent>
+                {TARGET_OPTIONS.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </label>
         <label className="flex flex-col">
           Action
-          <select
-            className="mt-1 rounded border border-border px-2 py-1"
-            value={actionType}
-            onChange={(event) => setActionType(event.target.value as ModerationActionType)}
-          >
-            {ACTION_OPTIONS.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
+          <div className="relative w-full">
+            <Select value={actionType} onValueChange={(val) => setActionType(val as ModerationActionType)}>
+              <SelectTrigger className="h-10">
+                <SelectValue placeholder="Action" />
+              </SelectTrigger>
+              <SelectContent>
+                {ACTION_OPTIONS.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </label>
         <label className="col-span-2 flex flex-col">
           Target ID

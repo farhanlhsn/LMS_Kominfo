@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../../../components/ui/select";
 import { AuthGate, PermissionGate } from "../../../components/auth/auth-gate";
 import { AppShell } from "../../../components/layout/shells";
 import { OrderList } from "../../../components/marketplace/order-list";
@@ -32,30 +33,29 @@ export default function AdminOrdersPage() {
 
   return (
     <AuthGate>
-      <PermissionGate anyOf={[PERMISSIONS.analyticsView]}>
-        <AppShell currentPath="/admin">
+      <PermissionGate anyOf={[PERMISSIONS.organizationsManage]}>
+        <AppShell currentPath="/admin/orders">
           <PageHeader
             eyebrow="Admin"
             title="Orders"
             description="All purchase orders across the active organization."
             actions={
-              <select
-                aria-label="Filter orders by status"
-                className="min-h-10 rounded-md border border-input bg-card px-3 text-sm text-foreground"
-                onChange={(event) => {
-                  setStatus(event.target.value);
-                  setPage(1);
-                }}
-                value={status}
-              >
-                <option value="">All statuses</option>
-                <option value="PENDING">Pending</option>
-                <option value="PAID">Paid</option>
-                <option value="PROCESSING">Processing</option>
-                <option value="COMPLETED">Completed</option>
-                <option value="CANCELLED">Cancelled</option>
-                <option value="REFUNDED">Refunded</option>
-              </select>
+              <div className="relative w-full">
+                <Select value={status} onValueChange={(val) => { setStatus(val); setPage(1); }}>
+                  <SelectTrigger className="h-10">
+                    <SelectValue placeholder="All statuses" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">All statuses</SelectItem>
+                    <SelectItem value="PENDING">Pending</SelectItem>
+                    <SelectItem value="PAID">Paid</SelectItem>
+                    <SelectItem value="PROCESSING">Processing</SelectItem>
+                    <SelectItem value="COMPLETED">Completed</SelectItem>
+                    <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                    <SelectItem value="REFUNDED">Refunded</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             }
           />
 
@@ -87,6 +87,7 @@ export default function AdminOrdersPage() {
               </section>
 
               <OrderList
+                size="compact"
                 orders={orders}
                 basePath="/admin/orders"
                 emptyTitle="No orders"

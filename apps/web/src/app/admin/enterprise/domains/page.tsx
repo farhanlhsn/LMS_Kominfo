@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Plus } from "lucide-react";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../../../../components/ui/select";
 import { AuthGate, PermissionGate } from "../../../../components/auth/auth-gate";
 import { AppShell } from "../../../../components/layout/shells";
 import { DomainList } from "../../../../components/enterprise/domain-list";
@@ -79,7 +80,7 @@ export default function EnterpriseDomainsPage() {
   return (
     <AuthGate>
       <PermissionGate anyOf={[PERMISSIONS.organizationsManage]}>
-        <AppShell currentPath="/admin">
+        <AppShell currentPath="/admin/enterprise/domains">
           <PageHeader
             eyebrow="Enterprise"
             title="Verified domains"
@@ -102,18 +103,21 @@ export default function EnterpriseDomainsPage() {
               </label>
               <label className="text-sm">
                 <span className="block text-muted-foreground">SSO provider</span>
-                <select
-                  className="mt-1 min-h-10 w-full rounded-md border border-input bg-card px-3 text-sm text-foreground"
-                  onChange={(event) => setSsoProviderId(event.target.value)}
-                  value={ssoProviderId}
-                >
-                  <option value="">None</option>
-                  {providers.map((provider) => (
-                    <option key={provider.id} value={provider.id}>
-                      {provider.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative w-full">
+                  <Select value={ssoProviderId} onValueChange={setSsoProviderId}>
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="None" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">None</SelectItem>
+                      {providers.map((provider) => (
+                        <SelectItem key={provider.id} value={provider.id}>
+                          {provider.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </label>
               <label className="flex items-center gap-2 text-sm">
                 <input

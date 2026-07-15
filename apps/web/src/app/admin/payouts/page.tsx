@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { Percent, Wallet } from "lucide-react";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../../../components/ui/select";
 import { AuthGate, PermissionGate } from "../../../components/auth/auth-gate";
 import { AppShell } from "../../../components/layout/shells";
 import { PageHeader, FormSection } from "../../../components/ui/core";
@@ -184,17 +185,20 @@ function PayoutsBody() {
               <div className="grid gap-2 md:grid-cols-3">
                 <label className="text-sm font-medium">
                   Scope
-                  <select
-                    className="mt-1 w-full rounded border border-border px-2 py-1"
-                    value={ruleScope}
-                    onChange={(e) => setRuleScope(e.target.value as RevenueShareScope)}
-                  >
-                    {SCOPES.map((scope) => (
-                      <option key={scope} value={scope}>
-                        {scope}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative w-full">
+                    <Select value={ruleScope} onValueChange={(val) => setRuleScope(val as RevenueShareScope)}>
+                      <SelectTrigger className="h-10">
+                        <SelectValue placeholder="Scope" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SCOPES.map((scope) => (
+                          <SelectItem key={scope} value={scope}>
+                            {scope}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </label>
                 <label className="text-sm font-medium">
                   Percent
@@ -267,31 +271,37 @@ function PayoutsBody() {
               <div className="grid gap-2 md:grid-cols-2">
                 <label className="text-sm font-medium">
                   Type
-                  <select
-                    className="mt-1 w-full rounded border border-border px-2 py-1"
-                    value={methodType}
-                    onChange={(e) => setMethodType(e.target.value as PayoutMethodType)}
-                  >
-                    {METHOD_TYPES.map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative w-full">
+                    <Select value={methodType} onValueChange={(val) => setMethodType(val as PayoutMethodType)}>
+                      <SelectTrigger className="h-10">
+                        <SelectValue placeholder="Type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {METHOD_TYPES.map((m) => (
+                          <SelectItem key={m} value={m}>
+                            {m}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </label>
                 <label className="text-sm font-medium">
                   Beneficiary type
-                  <select
-                    className="mt-1 w-full rounded border border-border px-2 py-1"
-                    value={beneficiaryType}
-                    onChange={(e) => setBeneficiaryType(e.target.value as PayoutBeneficiaryType)}
-                  >
-                    {BENEFICIARY_TYPES.map((b) => (
-                      <option key={b} value={b}>
-                        {b}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative w-full">
+                    <Select value={beneficiaryType} onValueChange={(val) => setBeneficiaryType(val as PayoutBeneficiaryType)}>
+                      <SelectTrigger className="h-10">
+                        <SelectValue placeholder="Beneficiary type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BENEFICIARY_TYPES.map((b) => (
+                          <SelectItem key={b} value={b}>
+                            {b}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </label>
                 <label className="text-sm font-medium md:col-span-2">
                   Beneficiary ID

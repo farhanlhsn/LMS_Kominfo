@@ -3,6 +3,8 @@
 import { Plus } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { PERMISSIONS } from "@lms/shared";
+import { AuthGate, PermissionGate } from "../../../components/auth/auth-gate";
 import { AppShell } from "../../../components/layout/shells";
 import { PageHeader, ButtonLink, FilterBar, StatusBadge } from "../../../components/ui/core";
 import { SurveysList } from "../../../components/experiences/experiences-views";
@@ -51,7 +53,9 @@ export default function AdminSurveysPage() {
   };
 
   return (
-    <AppShell>
+    <AuthGate>
+      <PermissionGate anyOf={[PERMISSIONS.coursesUpdate]}>
+    <AppShell currentPath="/admin/surveys">
       <div>
         <PageHeader
         eyebrow="Admin"
@@ -129,5 +133,7 @@ export default function AdminSurveysPage() {
       </div>
       </div>
     </AppShell>
+      </PermissionGate>
+    </AuthGate>
   );
 }

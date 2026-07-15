@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Plus } from "lucide-react";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../../../../components/ui/select";
 import { AuthGate, PermissionGate } from "../../../../components/auth/auth-gate";
 import { AppShell } from "../../../../components/layout/shells";
 import { SsoProviderList } from "../../../../components/enterprise/sso-provider-list";
@@ -53,7 +54,7 @@ export default function EnterpriseSsoPage() {
   return (
     <AuthGate>
       <PermissionGate anyOf={[PERMISSIONS.organizationsManage]}>
-        <AppShell currentPath="/admin">
+        <AppShell currentPath="/admin/enterprise/sso">
           <PageHeader
             eyebrow="Enterprise"
             title="SSO providers"
@@ -75,16 +76,19 @@ export default function EnterpriseSsoPage() {
               </label>
               <label className="text-sm">
                 <span className="block text-muted-foreground">Type</span>
-                <select
-                  className="mt-1 min-h-10 w-full rounded-md border border-input bg-card px-3 text-sm text-foreground"
-                  onChange={(event) => setType(event.target.value)}
-                  value={type}
-                >
-                  <option value="oidc">OIDC</option>
-                  <option value="saml">SAML</option>
-                  <option value="google">Google</option>
-                  <option value="azure">Azure AD</option>
-                </select>
+                <div className="relative w-full">
+                  <Select value={type} onValueChange={setType}>
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="OIDC" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="oidc">OIDC</SelectItem>
+                      <SelectItem value="saml">SAML</SelectItem>
+                      <SelectItem value="google">Google</SelectItem>
+                      <SelectItem value="azure">Azure AD</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </label>
               <label className="text-sm sm:col-span-2">
                 <span className="block text-muted-foreground">Issuer</span>

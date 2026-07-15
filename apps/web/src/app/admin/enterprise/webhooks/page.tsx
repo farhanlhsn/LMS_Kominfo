@@ -63,7 +63,7 @@ export default function EnterpriseWebhooksPage() {
   return (
     <AuthGate>
       <PermissionGate anyOf={[PERMISSIONS.organizationsManage]}>
-        <AppShell currentPath="/admin">
+        <AppShell currentPath="/admin/enterprise/webhooks">
           <PageHeader
             eyebrow="Enterprise"
             title="Webhooks"

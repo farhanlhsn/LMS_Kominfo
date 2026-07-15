@@ -60,6 +60,8 @@ export default function AuditLogsPage() {
           ) : (
             <>
               <DataTable
+                size="compact"
+                emptyMessage="No audit logs for this page."
                 columns={["Action", "Entity", "Severity", "User", "Date"]}
                 rows={result.data.map((log: AuditLogEntry) => [
                   <span key="a" className="font-medium">{log.action}</span>,

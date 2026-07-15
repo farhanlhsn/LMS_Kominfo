@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { BookOpen, Users, TrendingUp, Activity, Shield, FileText } from "lucide-react";
+import { BookOpen, Users, TrendingUp, Activity, Shield, Building2, Globe } from "lucide-react";
 import Link from "next/link";
 import { AuthGate } from "../../components/auth/auth-gate";
 import { PermissionGate } from "../../components/auth/auth-gate";
@@ -8,10 +8,12 @@ import { AppShell } from "../../components/layout/shells";
 import { MetricCard, SimpleBarChart } from "../../components/analytics/charts";
 import { PageHeader, StatusBadge } from "../../components/ui/core";
 import { ApiErrorState, LoadingState, EmptyState } from "../../components/ui/states";
-import { useAdminOverview, useAdminTrends } from "../../lib/api-hooks";
+import { useAdminOverview, useAdminTrends, useSession } from "../../lib/api-hooks";
 import { PERMISSIONS } from "@lms/shared";
 
 export default function AdminDashboardPage() {
+  const session = useSession();
+  const isPlatformAdmin = session?.activeOrganization?.isPlatformAdmin ?? false;
   const overviewQuery = useAdminOverview();
   const trendsQuery = useAdminTrends();
 
@@ -19,6 +21,41 @@ export default function AdminDashboardPage() {
     <AuthGate>
       <PermissionGate anyOf={[PERMISSIONS.analyticsView]}>
         <AppShell currentPath="/admin">
+          {isPlatformAdmin ? (
+            <section className="mb-6 rounded-lg border border-primary/20 bg-primary/5 p-4">
+              <div className="flex items-center gap-2">
+                <Globe aria-hidden="true" className="h-5 w-5 text-primary" />
+                <h2 className="font-semibold">Platform admin</h2>
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">
+                You have platform-wide access. Manage organizations, users, and settings across all tenants.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-3">
+                <Link
+                  className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-sm font-medium hover:bg-muted"
+                  href="/admin/organizations"
+                >
+                  <Building2 aria-hidden="true" className="h-4 w-4" />
+                  Organizations
+                </Link>
+                <Link
+                  className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-sm font-medium hover:bg-muted"
+                  href="/admin/users"
+                >
+                  <Users aria-hidden="true" className="h-4 w-4" />
+                  All users
+                </Link>
+                <Link
+                  className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-sm font-medium hover:bg-muted"
+                  href="/admin/bulk"
+                >
+                  <Activity aria-hidden="true" className="h-4 w-4" />
+                  Bulk operations
+                </Link>
+              </div>
+            </section>
+          ) : null}
+
           <PageHeader
             eyebrow="Admin"
             title="Dashboard"

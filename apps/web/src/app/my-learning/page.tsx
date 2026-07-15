@@ -8,12 +8,13 @@ import { CourseProgressCard } from "../../components/lms/courses";
 import { MetricCard } from "../../components/analytics/charts";
 import { FilterBar, PageHeader } from "../../components/ui/core";
 import { ApiErrorState, EmptyState, LoadingState } from "../../components/ui/states";
-import { useMyEnrollments, useLearnerDashboard } from "../../lib/api-hooks";
+import { useMyEnrollments, useLearnerDashboard, useLearnerStreak } from "../../lib/api-hooks";
 
 export default function MyLearningPage() {
   const [search, setSearch] = useState("");
   const enrollmentsQuery = useMyEnrollments();
   const dashboardQuery = useLearnerDashboard();
+  const streakQuery = useLearnerStreak();
   const enrollments = enrollmentsQuery.data ?? [];
   const dashboard = dashboardQuery.data;
 
@@ -37,9 +38,9 @@ export default function MyLearningPage() {
         />
 
         {/* Dashboard stats */}
-        {dashboardQuery.loading ? (
+        {(dashboardQuery.loading || streakQuery.loading) ? (
           <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {Array.from({ length: 4 }).map((_, i) => (
+            {Array.from({ length: 5 }).map((_, i) => (
               <div key={i} className="h-28 animate-pulse rounded-lg border border-border bg-card" />
             ))}
           </div>
@@ -64,6 +65,13 @@ export default function MyLearningPage() {
               value={String(dashboard.monthlyActivityEvents)}
               sublabel="learning events"
             />
+            {streakQuery.data ? (
+              <MetricCard
+                label="Streak"
+                value={streakQuery.data.currentStreak > 0 ? `🔥 ${streakQuery.data.currentStreak} day${streakQuery.data.currentStreak !== 1 ? "s" : ""}` : "—"}
+                sublabel={`Longest: ${streakQuery.data.longestStreak} day${streakQuery.data.longestStreak !== 1 ? "s" : ""}`}
+              />
+            ) : null}
           </div>
         ) : null}
 

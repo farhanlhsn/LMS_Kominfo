@@ -61,7 +61,7 @@ export default function EnterpriseLoginPolicyPage() {
   return (
     <AuthGate>
       <PermissionGate anyOf={[PERMISSIONS.organizationsManage]}>
-        <AppShell currentPath="/admin">
+        <AppShell currentPath="/admin/enterprise/login-policy">
           <PageHeader
             eyebrow="Enterprise"
             title="Login policy"
