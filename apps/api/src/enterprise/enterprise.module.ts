@@ -1,12 +1,12 @@
 ﻿import { Module } from "@nestjs/common";
 import { PrismaModule } from "../prisma/prisma.module";
 import { RbacModule } from "../rbac/rbac.module";
-import { EnterpriseController } from "./enterprise.controller";
+import { EnterpriseController, SsoLoginController } from "./enterprise.controller";
 import { EnterpriseService } from "./enterprise.service";
 
 @Module({
   imports: [PrismaModule, RbacModule],
-  controllers: [EnterpriseController],
+  controllers: [EnterpriseController, SsoLoginController],
   providers: [EnterpriseService],
   exports: [EnterpriseService],
 })

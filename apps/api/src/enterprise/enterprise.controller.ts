@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Inject, UseGuards, Req } from "@nestjs/common";
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Inject, UseGuards, Req, Res } from "@nestjs/common";
+import { Response } from "express";
 import { PERMISSIONS } from "@lms/shared";
 import type { AuthenticatedRequest } from "../auth/types/authenticated-request";
 import { JwtAuthGuard } from "../rbac/guards/jwt-auth.guard";
@@ -137,5 +138,22 @@ export class EnterpriseController {
   @Permissions(PERMISSIONS.analyticsView)
   async getDeliveries(@Req() req: AuthenticatedRequest, @Param("endpointId") endpointId: string, @Query() query: EnterpriseQueryDto) {
     return this.enterprise.getWebhookDeliveries(req.organization!, endpointId, query);
+  }
+}
+
+@Controller("enterprise")
+export class SsoLoginController {
+  constructor(
+    @Inject(EnterpriseService) private readonly enterprise: EnterpriseService
+  ) {}
+
+  @Get("sso/:providerId/login")
+  async login(
+    @Param("providerId") providerId: string,
+    @Query("email") email: string | undefined,
+    @Res() res: Response,
+  ) {
+    const { authorizeUrl } = await this.enterprise.buildSsoLoginUrl(providerId, email);
+    return res.redirect(authorizeUrl);
   }
 }

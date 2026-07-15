@@ -1754,7 +1754,11 @@ export const api = {
     apiRequest("/courses/" + encodeURIComponent(courseId) + "/view", { method: "POST" }),
   recentlyViewed: () => apiRequest<RecentlyViewedCourse[]>("/recently-viewed"),
   adminReviews: (query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiList<CourseReview>("/admin/reviews?" + q.toString()); },
-  exportNotes: () => apiRequest<NotesExport>("/notes/export"),
+  exportNotes: (input: { lessonId?: string } = {}) =>
+    apiRequest<NotesExport>("/learn/transcript-notes/export", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
 
   // Phase 16: Experiences
   // SCORM
@@ -2361,7 +2365,7 @@ export const api = {
     const search = new URLSearchParams();
     if (params.lessonId) search.set("lessonId", params.lessonId);
     const query = search.toString();
-    return apiRequest<TranscriptNote[]>(`/learn/notes${query ? `?${query}` : ""}`);
+    return apiRequest<TranscriptNote[]>(`/learn/transcript-notes${query ? `?${query}` : ""}`);
   },
   searchTranscriptNotes: (params: { q?: string; lessonId?: string; activityId?: string; tags?: string[]; limit?: number } = {}) => {
     const search = new URLSearchParams();
@@ -2371,7 +2375,7 @@ export const api = {
     if (params.tags && params.tags.length) search.set("tags", params.tags.join(","));
     if (params.limit) search.set("limit", String(params.limit));
     const query = search.toString();
-    return apiRequest<TranscriptNote[]>(`/learn/notes/search${query ? `?${query}` : ""}`);
+    return apiRequest<TranscriptNote[]>(`/learn/transcript-notes/search${query ? `?${query}` : ""}`);
   },
   createTranscriptNote: (input: {
     lessonId: string;
@@ -2381,7 +2385,7 @@ export const api = {
     color?: "yellow" | "green" | "blue" | "pink" | "purple";
     tags?: string[];
   }) =>
-    apiRequest<TranscriptNote>("/learn/notes", {
+    apiRequest<TranscriptNote>("/learn/transcript-notes", {
       method: "POST",
       body: JSON.stringify(input),
     }),
@@ -2391,23 +2395,23 @@ export const api = {
     tags: string[];
     timestampSeconds: number;
   }>) =>
-    apiRequest<TranscriptNote>(`/learn/notes/${encodeURIComponent(id)}`, {
+    apiRequest<TranscriptNote>(`/learn/transcript-notes/${encodeURIComponent(id)}`, {
       method: "PATCH",
       body: JSON.stringify(input),
     }),
   deleteTranscriptNote: (id: string) =>
-    apiRequest<{ id: string }>(`/learn/notes/${encodeURIComponent(id)}`, {
+    apiRequest<{ id: string }>(`/learn/transcript-notes/${encodeURIComponent(id)}`, {
       method: "DELETE",
     }),
   generateNoteContext: (id: string, input: { providerKey?: string; candidateNoteIds?: string[] } = {}) =>
-    apiRequest<NoteContext>(`/learn/notes/${encodeURIComponent(id)}/context`, {
+    apiRequest<NoteContext>(`/learn/transcript-notes/${encodeURIComponent(id)}/context`, {
       method: "POST",
       body: JSON.stringify(input),
     }),
   getNoteContext: (id: string) =>
-    apiRequest<NoteContext | null>(`/learn/notes/${encodeURIComponent(id)}/context`),
+    apiRequest<NoteContext | null>(`/learn/transcript-notes/${encodeURIComponent(id)}/context`),
   exportTranscriptNotes: (input: { lessonId?: string } = {}) =>
-    apiRequest<NoteExportResult>("/learn/notes/export", {
+    apiRequest<NoteExportResult>("/learn/transcript-notes/export", {
       method: "POST",
       body: JSON.stringify(input),
     }),

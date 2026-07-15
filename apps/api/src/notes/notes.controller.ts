@@ -26,7 +26,7 @@ import {
 } from "./dto/notes.dto";
 import { TranscriptNoteService } from "./notes.service";
 
-@Controller("learn/notes")
+@Controller("learn/transcript-notes")
 @UseGuards(JwtAuthGuard, OrganizationContextGuard)
 export class TranscriptNoteController {
   constructor(

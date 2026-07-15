@@ -162,6 +162,37 @@ export class EnterpriseService {
     return { deleted: true };
   }
 
+  // ── SSO Login initiation (public, no auth guard) ──
+
+  async buildSsoLoginUrl(providerId: string, email?: string) {
+    const provider = await this.prisma.ssoProvider.findUnique({ where: { id: providerId } });
+    if (!provider) throw new NotFoundException("SSO provider not found");
+    if (!provider.enabled) throw new BadRequestException("SSO provider is disabled");
+
+    const base = provider.authorizationUrl;
+    if (!base) {
+      throw new BadRequestException("SSO provider has no authorization URL configured");
+    }
+
+    const callbackUrl = provider.callbackUrl || "";
+    const params = new URLSearchParams({
+      client_id: provider.clientId || "",
+      redirect_uri: callbackUrl,
+      response_type: "code",
+      scope: "openid email profile",
+      state: this.buildSsoState(providerId, email),
+    });
+    if (email) params.set("login_hint", email);
+
+    const sep = base.includes("?") ? "&" : "?";
+    return { authorizeUrl: `${base}${sep}${params.toString()}`, providerId };
+  }
+
+  private buildSsoState(providerId: string, email?: string) {
+    const payload = { p: providerId, e: email ?? null, n: Date.now() };
+    return Buffer.from(JSON.stringify(payload)).toString("base64url");
+  }
+
   // ── Login Policy ─────────────────────────────────────
 
   async getLoginPolicy(orgId: string) {
