@@ -19,9 +19,16 @@ const STATUS_TONE: Record<BulkJobStatus, "neutral" | "info" | "success" | "warni
 export interface BulkJobTableProps {
   jobs: BulkJob[];
   onChanged?: () => void;
+  size?: "default" | "compact";
 }
 
-export function BulkJobTable({ jobs, onChanged }: BulkJobTableProps) {
+export function BulkJobTable({
+  jobs,
+  onChanged,
+  size = "compact",
+}: BulkJobTableProps) {
+  const cell = size === "compact" ? "px-3 py-2" : "px-4 py-3";
+  const head = size === "compact" ? "px-3 py-2" : "px-4 py-3";
   const [busyId, setBusyId] = useState<string | null>(null);
   const { mutate: cancel } = useApiMutation(async (id: string) => {
     setBusyId(id);
@@ -57,21 +64,21 @@ export function BulkJobTable({ jobs, onChanged }: BulkJobTableProps) {
       <table className="min-w-full divide-y divide-border text-sm">
         <thead className="bg-muted text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           <tr>
-            <th className="px-4 py-3">Type</th>
-            <th className="px-4 py-3">Status</th>
-            <th className="px-4 py-3">Progress</th>
-            <th className="px-4 py-3">Created</th>
-            <th className="px-4 py-3 text-right">Actions</th>
+            <th className={head}>Type</th>
+            <th className={head}>Status</th>
+            <th className={head}>Progress</th>
+            <th className={head}>Created</th>
+            <th className={`${head} text-right`}>Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border text-foreground">
           {jobs.map((job) => (
             <tr key={job.id}>
-              <td className="px-4 py-3 font-medium">{job.type}</td>
-              <td className="px-4 py-3">
+              <td className={`${cell} font-medium`}>{job.type}</td>
+              <td className={cell}>
                 <StatusBadge value={job.status} tone={STATUS_TONE[job.status]} />
               </td>
-              <td className="px-4 py-3">
+              <td className={cell}>
                 {job.progressDone}/{job.progressTotal}
                 {job.progressFailed > 0 ? (
                   <span className="ml-1 text-destructive">
@@ -79,10 +86,10 @@ export function BulkJobTable({ jobs, onChanged }: BulkJobTableProps) {
                   </span>
                 ) : null}
               </td>
-              <td className="px-4 py-3 text-xs text-muted-foreground">
+              <td className={`${cell} text-xs text-muted-foreground`}>
                 {new Date(job.createdAt).toLocaleString()}
               </td>
-              <td className="px-4 py-3 text-right">
+              <td className={`${cell} text-right`}>
                 {job.status === "RUNNING" || job.status === "PENDING" ? (
                   <button
                     className="inline-flex min-h-8 items-center rounded-md border border-border bg-card px-3 py-1 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-60"

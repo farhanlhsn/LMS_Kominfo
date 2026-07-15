@@ -6,7 +6,15 @@ import { EmptyState } from "../ui/states";
 import { formatCurrency } from "../../lib/marketplace";
 import { PaymentStatusBadge } from "./status-badges";
 
-export function PaymentList({ payments }: { payments: Payment[] }) {
+export function PaymentList({
+  payments,
+  size = "default",
+}: {
+  payments: Payment[];
+  size?: "default" | "compact";
+}) {
+  const cell = size === "compact" ? "px-3 py-2" : "px-4 py-3";
+  const head = size === "compact" ? "px-3 py-2" : "px-4 py-3";
   const [statusFilter, setStatusFilter] = useState<string>("");
 
   const statuses = useMemo(() => {
@@ -60,24 +68,24 @@ export function PaymentList({ payments }: { payments: Payment[] }) {
           <table className="min-w-full divide-y divide-border text-sm">
             <thead className="bg-muted text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               <tr>
-                <th className="px-4 py-3">Order</th>
-                <th className="px-4 py-3">Provider</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Bank</th>
-                <th className="px-4 py-3 text-right">Amount</th>
+                <th className={head}>Order</th>
+                <th className={head}>Provider</th>
+                <th className={head}>Status</th>
+                <th className={head}>Bank</th>
+                <th className={`${head} text-right`}>Amount</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border text-foreground">
               {filtered.map((payment) => (
                 <tr key={payment.id}>
-                  <td className="px-4 py-3 font-semibold">
+                  <td className={`${cell} font-semibold`}>
                     {payment.order?.orderNumber ?? payment.orderId}
                   </td>
-                  <td className="px-4 py-3">{payment.provider}</td>
-                  <td className="px-4 py-3">
+                  <td className={cell}>{payment.provider}</td>
+                  <td className={cell}>
                     <PaymentStatusBadge status={payment.status} />
                   </td>
-                  <td className="px-4 py-3">
+                  <td className={cell}>
                     {payment.bankName ?? "—"}
                     {payment.accountName ? (
                       <p className="text-xs text-muted-foreground">
@@ -85,7 +93,7 @@ export function PaymentList({ payments }: { payments: Payment[] }) {
                       </p>
                     ) : null}
                   </td>
-                  <td className="px-4 py-3 text-right font-semibold">
+                  <td className={`${cell} text-right font-semibold`}>
                     {formatCurrency(payment.amount, payment.currency)}
                   </td>
                 </tr>

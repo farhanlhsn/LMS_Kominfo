@@ -6,15 +6,18 @@ export function SimpleBarChart({
   data,
   className,
   height = 160,
+  ariaLabel = "Bar chart",
 }: {
   data: { label: string; value: number }[];
   className?: string;
   height?: number;
+  ariaLabel?: string;
 }) {
   const max = Math.max(...data.map((d) => d.value), 1);
   return (
-    <div className={cn("flex items-end gap-1", className)} style={{ height }}>
-      {data.map((d) => (
+    <>
+      <div aria-label={ariaLabel} className={cn("flex items-end gap-1", className)} role="img" style={{ height }}>
+        {data.map((d) => (
         <div
           key={d.label}
           className="flex flex-1 flex-col items-center gap-1"
@@ -28,8 +31,12 @@ export function SimpleBarChart({
             {d.label}
           </span>
         </div>
-      ))}
-    </div>
+        ))}
+      </div>
+      <ul className="sr-only">
+        {data.map((d) => <li key={d.label}>{d.label}: {d.value}</li>)}
+      </ul>
+    </>
   );
 }
 

@@ -13,13 +13,18 @@ export function OrderList({
   detailHrefBuilder,
   emptyTitle = "No orders yet",
   emptyDescription = "Orders you create will appear here.",
+  size = "default",
 }: {
   orders: Order[];
   basePath?: string;
   detailHrefBuilder?: (order: Order) => string;
   emptyTitle?: string;
   emptyDescription?: string;
+  /** compact = denser admin lists */
+  size?: "default" | "compact";
 }) {
+  const cell = size === "compact" ? "px-3 py-2" : "px-4 py-3";
+  const head = size === "compact" ? "px-3 py-2" : "px-4 py-3";
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("");
 
@@ -92,11 +97,11 @@ export function OrderList({
           <table className="min-w-full divide-y divide-border text-sm">
             <thead className="bg-muted text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               <tr>
-                <th className="px-4 py-3">Order</th>
-                <th className="px-4 py-3">Courses</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3 text-right">Total</th>
-                <th className="px-4 py-3" />
+                <th className={head}>Order</th>
+                <th className={head}>Courses</th>
+                <th className={head}>Status</th>
+                <th className={`${head} text-right`}>Total</th>
+                <th className={head} />
               </tr>
             </thead>
             <tbody className="divide-y divide-border text-foreground">
@@ -106,26 +111,26 @@ export function OrderList({
                   `${basePath}/${order.id}`;
                 return (
                   <tr key={order.id}>
-                    <td className="px-4 py-3">
+                    <td className={cell}>
                       <p className="font-semibold">{order.orderNumber}</p>
                       <p className="text-xs text-muted-foreground">
                         {new Date(order.createdAt).toLocaleDateString()}
                       </p>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className={cell}>
                       <p className="line-clamp-1">
                         {order.items
                           .map((item) => item.course.title)
                           .join(", ") || "—"}
                       </p>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className={cell}>
                       <OrderStatusBadge status={order.status} />
                     </td>
-                    <td className="px-4 py-3 text-right font-semibold">
+                    <td className={`${cell} text-right font-semibold`}>
                       {formatCurrency(order.total, order.currency)}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className={`${cell} text-right`}>
                       <ButtonLink href={href} variant="ghost">
                         View
                       </ButtonLink>

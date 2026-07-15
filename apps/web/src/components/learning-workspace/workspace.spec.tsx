@@ -55,10 +55,10 @@ describe("LearningWorkspace foundation", () => {
     ).toEqual(["upcoming"]);
     expect(
       Array.from(visiblePanelsForActivity(activity("core.text"), allPanels)),
-    ).toEqual(["notes", "resources", "ai", "discussion", "upcoming"]);
+    ).toEqual(["notes", "resources", "ai", "discussion", "upcoming", "flashcards"]);
     expect(
       Array.from(visiblePanelsForActivity(activity("core.video"), allPanels)),
-    ).toEqual(["notes", "transcript", "resources", "ai", "bookmarks", "discussion", "upcoming"]);
+    ).toEqual(["notes", "transcript", "resources", "ai", "bookmarks", "discussion", "upcoming", "flashcards"]);
   });
 
   it("keeps the learning panel resizable within usable desktop bounds", () => {

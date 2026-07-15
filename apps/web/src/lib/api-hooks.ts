@@ -37,6 +37,9 @@ import type {
   LearnerAssignmentResponse,
   LearnerCourseProgress,
   LearnerDashboard,
+  LearnerGrades,
+  LearnerStreak,
+  StudySession,
   LearningGoal,
   LearningPath,
   LearningPathEnrollment,
@@ -655,6 +658,29 @@ export function useUpdateAiItem() {
     api.updateInstructorAiItem(itemId, input), []);
 }
 
+export function useActivityFlashcards(activityId: string | null) {
+  return useApiQuery<unknown[]>(async () => {
+    if (!activityId) throw new Error("Activity id is required");
+    return api.activityFlashcards(activityId);
+  }, [activityId]);
+}
+
+export function useInstructorAiIndexCourse() {
+  return useCallback((courseId: string) => api.instructorAiIndexCourse(courseId), []);
+}
+
+export function useInstructorAiIndexStatus(courseId: string | null) {
+  return useApiQuery<{
+    status: string;
+    documentCount: number;
+    chunkCount: number;
+    needsReindex: boolean;
+  }>(async () => {
+    if (!courseId) throw new Error("Course id is required");
+    return api.instructorAiIndexStatus(courseId);
+  }, [courseId]);
+}
+
 // Phase 17 caption cue editor hooks
 export function useListCaptionCues(trackId: string | null) {
   return useApiQuery<unknown[]>(async () => {
@@ -1122,6 +1148,13 @@ export function useSubmitSubmission() {
   );
 }
 
+export function useInstructorSubmission(submissionId: string | null) {
+  return useApiQuery<AssignmentSubmission>(async () => {
+    if (!submissionId) throw new Error("Submission id is required");
+    return api.submission(submissionId);
+  }, [submissionId]);
+}
+
 export function useSubmissionResult(submissionId: string | null) {
   return useApiQuery<AssignmentSubmission>(async () => {
     if (!submissionId) throw new Error("Submission id is required");
@@ -1251,6 +1284,43 @@ export function useLearnerCourseProgress(courseId: string | null) {
   }, [courseId]);
 }
 
+export function useLearnerGrades(courseId?: string) {
+  return useApiQuery<LearnerGrades>(async () => {
+    return api.learnerGrades(courseId);
+  }, [courseId]);
+}
+
+export function useLearnerStreak() {
+  return useApiQuery<LearnerStreak>(async () => {
+    return api.learnerStreak();
+  }, []);
+}
+
+export function useStartStudySession() {
+  return useCallback((input: { courseId?: string; goalId?: string; targetSeconds?: number }) =>
+    api.startStudySession(input), []);
+}
+
+export function useListStudySessions(params?: { status?: string; from?: string; to?: string; limit?: number }) {
+  return useApiQuery<StudySession[]>(async () => api.listStudySessions(params), [JSON.stringify(params)]);
+}
+
+export function useGetStudySession(id: string | null) {
+  return useApiQuery<StudySession>(async () => {
+    if (!id) throw new Error("Session id required");
+    return api.getStudySession(id);
+  }, [id]);
+}
+
+export function useUpdateStudySession() {
+  return useCallback((id: string, input: { status?: string; elapsedSeconds?: number }) =>
+    api.updateStudySession(id, input), []);
+}
+
+export function useCancelStudySession() {
+  return useCallback((id: string) => api.cancelStudySession(id), []);
+}
+
 export function useInstructorDashboard() {
   return useApiQuery<InstructorDashboard>(async () => {
     return api.instructorDashboard();
@@ -1288,6 +1358,18 @@ export function useInstructorCourseRoster(courseId: string | null, query?: Recor
     const result = await api.instructorCourseRoster(courseId, query);
     return result;
   }, [courseId, JSON.stringify(query)]);
+}
+
+export function useInstructorCourseGradebook(courseId: string | null) {
+  return useApiQuery(async () => {
+    if (!courseId) throw new Error("Course id is required");
+    const data = await api.instructorCourseGradebook(courseId);
+    return { data, meta: {} };
+  }, [courseId]);
+}
+
+export function useReviewLateSubmission() {
+  return useCallback((submissionId: string, input: Record<string, unknown>) => api.reviewLateSubmission(submissionId, input), []);
 }
 
 export function useInstructorCourseEngagement(courseId: string | null, query?: Record<string, string>) {
@@ -1960,6 +2042,56 @@ export function useRequestAnonymization() {
   return useCallback(
     (input: { confirm: boolean; reason?: string }) =>
       api.requestAnonymization(input),
+    [],
+  );
+}
+
+// Admin Organizations
+export function useAdminOrganizations(query?: Record<string, string>) {
+  return useApiQuery(async () => {
+    return api.adminOrganizations(query);
+  }, [JSON.stringify(query)]);
+}
+
+export function useAdminCreateOrganization() {
+  return useCallback(
+    (input: Record<string, unknown>) => api.adminCreateOrganization(input),
+    [],
+  );
+}
+
+export function useAdminUpdateOrganization() {
+  return useCallback(
+    (id: string, input: Record<string, unknown>) => api.adminUpdateOrganization(id, input),
+    [],
+  );
+}
+
+// Admin Users
+export function useAdminUsers(query?: Record<string, string>) {
+  return useApiQuery(async () => {
+    const result = await api.adminUsers(query);
+    return result;
+  }, [JSON.stringify(query)]);
+}
+
+export function useAdminUser(id: string | null) {
+  return useApiQuery(async () => {
+    if (!id) return null;
+    return api.adminUser(id);
+  }, [id]);
+}
+
+export function useUpdateAdminUser() {
+  return useCallback(
+    (id: string, input: Record<string, unknown>) => api.updateAdminUser(id, input),
+    [],
+  );
+}
+
+export function useUpdateAdminUserStatus() {
+  return useCallback(
+    (id: string, status: string) => api.updateAdminUserStatus(id, status),
     [],
   );
 }

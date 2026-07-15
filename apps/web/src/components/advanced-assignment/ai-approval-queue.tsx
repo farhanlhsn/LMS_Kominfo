@@ -69,8 +69,8 @@ export function AiApprovalQueue({ activityId }: AiApprovalQueueProps) {
                   await approve(item.id);
                   await allItems.refresh();
                 }}
-                onReject={async () => {
-                  await reject(item.id, "Reviewed by instructor");
+                onReject={async (reason) => {
+                  await reject(item.id, reason || undefined);
                   await allItems.refresh();
                 }}
                 onSaveEdit={async () => {
@@ -100,7 +100,11 @@ export function AiApprovalQueue({ activityId }: AiApprovalQueueProps) {
             >
               <div>
                 <p className="font-medium">{item.title}</p>
-                <p className="text-xs text-muted-foreground">{item.status}</p>
+                <p className="text-xs text-muted-foreground">
+                  {item.status}
+                  {item.type === "QUIZ" ? " · Publish sends questions to a new question bank" : ""}
+                </p>
+                {item.type === "QUIZ" ? <QuizDraftPreview item={item} /> : null}
               </div>
               <Button
                 onClick={async () => {
@@ -108,22 +112,43 @@ export function AiApprovalQueue({ activityId }: AiApprovalQueueProps) {
                   await allItems.refresh();
                 }}
               >
-                Publish
+                {item.type === "QUIZ" ? "Publish to bank" : "Publish"}
               </Button>
             </div>
           ))}
-          {published.map((item) => (
-            <div
-              key={item.id}
-              className="flex flex-col gap-2 rounded-md border border-border p-3 md:flex-row md:items-center md:justify-between"
-            >
-              <div>
-                <p className="font-medium">{item.title}</p>
-                <p className="text-xs text-muted-foreground">{item.status}</p>
+          {published.map((item) => {
+            const bankId =
+              item.metadata && typeof item.metadata === "object"
+                ? String((item.metadata as { questionBankId?: string }).questionBankId ?? "")
+                : "";
+            const count =
+              item.metadata && typeof item.metadata === "object"
+                ? Number((item.metadata as { questionsCreated?: number }).questionsCreated ?? 0)
+                : 0;
+            return (
+              <div
+                key={item.id}
+                className="flex flex-col gap-2 rounded-md border border-border p-3 md:flex-row md:items-center md:justify-between"
+              >
+                <div>
+                  <p className="font-medium">{item.title}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {item.status}
+                    {item.type === "QUIZ" && count
+                      ? ` · ${count} questions in bank`
+                      : ""}
+                  </p>
+                </div>
+                {item.type === "QUIZ" && bankId ? (
+                  <a className="text-sm font-semibold text-primary" href="/instructor/question-banks">
+                    Open question banks
+                  </a>
+                ) : (
+                  <span className="text-xs text-muted-foreground">Published</span>
+                )}
               </div>
-              <span className="text-xs text-muted-foreground">Published</span>
-            </div>
-          ))}
+            );
+          })}
         </CardContent>
       </Card>
     </div>
@@ -148,12 +173,14 @@ function DraftItem({
   onStartEdit: () => void;
   onCancelEdit: () => void;
   onApprove: () => Promise<void>;
-  onReject: () => Promise<void>;
+  onReject: (reason?: string) => Promise<void>;
   onSaveEdit: () => Promise<void>;
 }) {
   const save = useApiMutation(onSaveEdit);
   const approve = useApiMutation(onApprove);
-  const reject = useApiMutation(onReject);
+  const reject = useApiMutation(() => onReject(rejectReason));
+  const [rejecting, setRejecting] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
   return (
     <div className="rounded-md border border-border p-3">
       <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
@@ -176,16 +203,39 @@ function DraftItem({
           >
             {approve.loading ? "Approving…" : "Approve"}
           </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={async () => {
-              await reject.mutate();
-            }}
-            disabled={reject.loading}
-          >
-            {reject.loading ? "Rejecting…" : "Reject"}
-          </Button>
+          {!rejecting ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setRejecting(true)}
+              disabled={reject.loading}
+            >
+              Reject
+            </Button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <input
+                className="h-8 w-40 rounded border border-input bg-background px-2 text-xs outline-none"
+                placeholder="Reject reason (optional)"
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+              />
+              <Button size="sm" variant="ghost" onClick={() => setRejecting(false)} disabled={reject.loading}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={async () => {
+                  await reject.mutate();
+                  setRejecting(false);
+                }}
+                disabled={reject.loading}
+              >
+                {reject.loading ? "Rejecting…" : "Confirm"}
+              </Button>
+            </div>
+          )}
         </div>
       </div>
       {editing ? (
@@ -212,6 +262,25 @@ function DraftItem({
           </div>
         </div>
       ) : null}
+      {item.type === "QUIZ" ? <QuizDraftPreview item={item} /> : null}
     </div>
+  );
+}
+
+function QuizDraftPreview({ item }: { item: AiGeneratedItem }) {
+  const output = item.output ?? {};
+  const questions = Array.isArray(output.questions) ? output.questions : [];
+  if (!questions.length) return null;
+  return (
+    <ul className="mt-2 max-h-40 list-decimal space-y-1 overflow-y-auto pl-5 text-xs text-muted-foreground">
+      {questions.slice(0, 8).map((q, i) => {
+        const prompt =
+          q && typeof q === "object" && !Array.isArray(q) && typeof (q as { prompt?: unknown }).prompt === "string"
+            ? String((q as { prompt: string }).prompt)
+            : "Question";
+        return <li key={i}>{prompt.slice(0, 120)}</li>;
+      })}
+      {questions.length > 8 ? <li>…and {questions.length - 8} more</li> : null}
+    </ul>
   );
 }

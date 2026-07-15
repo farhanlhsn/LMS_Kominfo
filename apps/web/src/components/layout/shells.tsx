@@ -3,41 +3,20 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  Award,
   BookOpen,
   Building2,
   Check,
   ChevronDown,
   ChevronLeft,
-  FolderOpen,
+  ChevronRight,
   GraduationCap,
-  Library,
-  ListChecks,
   LayoutDashboard,
-  MessageSquareQuote,
-  CircleDot,
-  ClipboardList,
-  BarChart3,
   LogOut,
   Menu,
-  Receipt,
-  Settings,
-  ShieldCheck,
-  Plug,
-  Tag,
-  Trophy,
-  UserCircle,
-  Wallet,
-  X,
-  CalendarDays,
-  Radio,
   MessageSquare,
-  KeyRound,
-  Globe,
-  Heart,
-  HelpCircle,
-  LayoutGrid,
-  Users,
+  ShieldCheck,
+  UserCircle,
+  X,
   Search,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -55,67 +34,16 @@ import { cn } from "../../lib/utils";
 import { SearchBar } from "../search/SearchBar";
 import { IconButton } from "../ui/core";
 import { NotificationBadge } from "../engagement/engagement";
-
-type NavItem = { key: string; href: string; label: string; icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }> };
-type NavGroup = { label: string; items: NavItem[] };
-
-const navGroups: NavGroup[] = [
-  {
-    label: "Learning",
-    items: [
-      { key: "dashboard", href: "/", label: "Dashboard", icon: LayoutDashboard },
-      { key: "catalog", href: "/courses", label: "Catalog", icon: BookOpen },
-      { key: "catalog", href: "/search", label: "Search", icon: Search },
-      { key: "my-learning", href: "/my-learning", label: "My Learning", icon: GraduationCap },
-      { key: "my-learning", href: "/live-classes", label: "Live Classes", icon: Radio },
-      { key: "my-learning", href: "/discussions", label: "Discussions", icon: MessageSquare },
-      { key: "my-learning", href: "/calendar", label: "Calendar", icon: CalendarDays },
-      { key: "my-learning", href: "/learning-paths", label: "Learning Paths", icon: BookOpen },
-      { key: "my-learning", href: "/leaderboard", label: "Leaderboard", icon: Trophy },
-      { key: "my-learning", href: "/achievements", label: "Achievements", icon: Award },
-      { key: "my-learning", href: "/wishlist", label: "Wishlist", icon: Heart },
-      { key: "my-learning", href: "/help", label: "Help Center", icon: HelpCircle },
-    ],
-  },
-  {
-    label: "Instructor",
-    items: [
-      { key: "instructor", href: "/instructor/courses", label: "My Courses", icon: Settings },
-      { key: "quizzes", href: "/instructor/quizzes", label: "Quizzes", icon: ListChecks },
-      { key: "files", href: "/instructor/files", label: "Files", icon: FolderOpen },
-      { key: "library", href: "/instructor/content-library", label: "Library", icon: Library },
-      { key: "instructor", href: "/instructor/discussions", label: "Discussions", icon: MessageSquare },
-      { key: "instructor", href: "/instructor/calendar", label: "Teaching Schedule", icon: CalendarDays },
-    ],
-  },
-  {
-    label: "Administration",
-    items: [
-      { key: "admin", href: "/admin", label: "Admin Dashboard", icon: LayoutDashboard },
-      { key: "admin", href: "/admin/members", label: "Members & Roles", icon: ShieldCheck },
-      { key: "admin", href: "/admin/orders", label: "Orders", icon: Receipt },
-      { key: "admin", href: "/admin/payments", label: "Payments", icon: Wallet },
-      { key: "admin", href: "/admin/coupons", label: "Coupons", icon: Tag },
-      { key: "admin", href: "/admin/reviews", label: "Reviews", icon: MessageSquare },
-      { key: "admin", href: "/admin/surveys", label: "Surveys", icon: ClipboardList },
-      { key: "admin", href: "/admin/polls", label: "Polls", icon: CircleDot },
-      { key: "admin", href: "/admin/feedback", label: "Feedback", icon: MessageSquareQuote },
-      { key: "admin", href: "/admin/xapi", label: "xAPI Statements", icon: BarChart3 },
-      { key: "admin", href: "/admin/enterprise/branding", label: "Branding", icon: Globe },
-      { key: "admin", href: "/admin/enterprise/sso", label: "SSO Providers", icon: KeyRound },
-      { key: "admin", href: "/admin/enterprise/domains", label: "Verified Domains", icon: ShieldCheck },
-      { key: "admin", href: "/admin/enterprise/api-keys", label: "API Keys", icon: KeyRound },
-      { key: "admin", href: "/admin/enterprise/webhooks", label: "Webhooks", icon: Plug },
-      { key: "admin", href: "/admin/enterprise/login-policy", label: "Login Policy", icon: ShieldCheck },
-      { key: "moderation", href: "/admin/discussions", label: "Moderation", icon: ShieldCheck },
-      { key: "plugins", href: "/admin/plugins", label: "Plugins", icon: Plug },
-      { key: "plugins", href: "/admin/plugin-marketplace", label: "Plugin Marketplace", icon: LayoutGrid },
-    ],
-  },
-];
-
-// flat list kept for active-path matching
-const dashboardNav = navGroups.flatMap((g) => g.items);
+import { ThemeModeToggle } from "../theme/theme-mode";
+import { MobileNav } from "./mobile";
+import {
+  filterNavGroups,
+  flatNavItems,
+  isPrimaryMobilePath,
+  MOBILE_PRIMARY_TABS,
+  resolveActiveHref,
+  type NavGroup,
+} from "./nav-config";
 
 export function ThemeProvider({
   branding,
@@ -188,15 +116,57 @@ export function AppShell({
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const resolvedBranding = useRuntimeBranding(branding);
+  const pathname = usePathname();
+  const path = currentPath ?? pathname;
+  const moreActive = !immersive && !isPrimaryMobilePath(path);
+
+  const mobileTabItems = useMemo(
+    () =>
+      MOBILE_PRIMARY_TABS.map((tab) => {
+        if (tab.id === "more") {
+          return {
+            id: tab.id,
+            label: tab.label,
+            href: tab.href,
+            isMore: true as const,
+            icon: <Menu aria-hidden="true" className="h-5 w-5" />,
+          };
+        }
+        const Icon =
+          tab.id === "home"
+            ? LayoutDashboard
+            : tab.id === "catalog"
+              ? BookOpen
+              : tab.id === "learn"
+                ? GraduationCap
+                : MessageSquare;
+        return {
+          id: tab.id,
+          label: tab.label,
+          href: tab.href,
+          isMore: false as const,
+          icon: <Icon aria-hidden="true" className="h-5 w-5" />,
+        };
+      }),
+    [],
+  );
 
   return (
     <ThemeProvider branding={resolvedBranding}>
       <div className="min-h-screen bg-background text-foreground">
-        {!immersive ? <DashboardSidebar branding={resolvedBranding} currentPath={currentPath} /> : null}
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-primary-foreground"
+        >
+          Skip to main content
+        </a>
+        {!immersive ? (
+          <DashboardSidebar branding={resolvedBranding} currentPath={path} />
+        ) : null}
         {!immersive ? (
           <MobileSidebar
             branding={resolvedBranding}
-            currentPath={currentPath}
+            currentPath={path}
             onClose={() => setMobileOpen(false)}
             open={mobileOpen}
           />
@@ -211,8 +181,10 @@ export function AppShell({
             backLabel={backLabel}
           />
           <main
+            id="main-content"
             className={cn(
               "px-4 py-6 sm:px-6 lg:px-8",
+              !immersive && "pb-20 lg:pb-6",
               immersive && "px-2 py-3 sm:px-4 lg:px-6",
               mainClassName,
             )}
@@ -220,6 +192,14 @@ export function AppShell({
             {children}
           </main>
         </div>
+        {!immersive ? (
+          <MobileNav
+            items={mobileTabItems}
+            currentPath={path}
+            moreActive={moreActive || mobileOpen}
+            onMoreClick={() => setMobileOpen(true)}
+          />
+        ) : null}
       </div>
     </ThemeProvider>
   );
@@ -265,76 +245,129 @@ function SidebarBrand({ branding }: { branding?: OrganizationBranding | null }) 
   );
 }
 
-// Exact-match-only hrefs: these are parent/index routes that should NOT
-// light up when a child route is active.
-const EXACT_MATCH_HREFS = new Set(["/", "/admin", "/instructor/courses"]);
-
-function matchesNavigationPath(path: string, href: string) {
-  if (EXACT_MATCH_HREFS.has(href)) return path === href;
-  return path === href || path.startsWith(`${href}/`);
-}
-
 function DashboardNav({
   currentPath,
   onNavigate,
+  forceExpandAll = false,
 }: {
   currentPath?: string;
   onNavigate?: () => void;
+  /** Mobile drawer: show all groups expanded */
+  forceExpandAll?: boolean;
 }) {
   const session = useSession();
   const pathname = usePathname();
-  const visibleKeys = useMemo(() => new Set(visibleNavigationKeys(session)), [session]);
+  const path = currentPath ?? pathname;
+  const visibleKeys = useMemo(
+    () => new Set(visibleNavigationKeys(session)),
+    [session],
+  );
 
-  const visibleGroups = useMemo(() =>
-    navGroups
-      .map((group) => ({ ...group, items: group.items.filter((item) => visibleKeys.has(item.key as import("../../lib/authz").NavigationKey)) }))
-      .filter((group) => group.items.length > 0),
+  const visibleGroups = useMemo(
+    () => filterNavGroups(visibleKeys),
     [visibleKeys],
   );
 
-  const allVisibleItems = useMemo(() => visibleGroups.flatMap((g) => g.items), [visibleGroups]);
+  const allVisibleItems = useMemo(
+    () => flatNavItems(visibleGroups),
+    [visibleGroups],
+  );
 
-  const activeHref = useMemo(() => {
-    return (
-      allVisibleItems
-        .filter((item) => matchesNavigationPath(pathname, item.href))
-        .sort((a, b) => b.href.length - a.href.length)[0]?.href ?? null
-    );
-  }, [pathname, allVisibleItems]);
+  const activeHref = useMemo(
+    () => resolveActiveHref(path, allVisibleItems),
+    [path, allVisibleItems],
+  );
+
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    setExpanded((prev) => {
+      const next = { ...prev };
+      for (const group of visibleGroups) {
+        if (!group.collapsible) {
+          next[group.id] = true;
+          continue;
+        }
+        if (forceExpandAll) {
+          next[group.id] = true;
+          continue;
+        }
+        // Auto-expand when route is under this group
+        if (group.pathPrefix && path.startsWith(group.pathPrefix)) {
+          next[group.id] = true;
+        } else if (next[group.id] === undefined) {
+          next[group.id] = false;
+        }
+      }
+      return next;
+    });
+  }, [path, visibleGroups, forceExpandAll]);
+
+  function toggleGroup(group: NavGroup) {
+    if (!group.collapsible || forceExpandAll) return;
+    setExpanded((prev) => ({ ...prev, [group.id]: !prev[group.id] }));
+  }
 
   return (
-    <nav aria-label="Primary" className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 [scrollbar-gutter:stable]">
-      <div className="pb-4 space-y-4">
-        {visibleGroups.map((group) => (
-          <div key={group.label}>
-            <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">
-              {group.label}
-            </p>
-            <div className="space-y-0.5">
-              {group.items.map(({ href, icon: Icon, label }) => {
-                const active = activeHref === href;
-                return (
-                  <Link
-                    key={href}
-                    href={href}
-                    onClick={onNavigate}
-                    aria-current={active ? "page" : undefined}
-                    title={label}
-                    className={cn(
-                      "flex min-h-9 items-center gap-3 rounded-md px-3 py-1.5 text-sm font-medium transition",
-                      active
-                        ? "bg-primary/10 text-primary"
-                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                    )}
-                  >
-                    <Icon aria-hidden={true} className="h-4 w-4 shrink-0" />
-                    <span className="min-w-0 truncate">{label}</span>
-                  </Link>
-                );
-              })}
+    <nav
+      aria-label="Primary"
+      className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 [scrollbar-gutter:stable]"
+    >
+      <div className="space-y-4 pb-4">
+        {visibleGroups.map((group) => {
+          const isOpen =
+            forceExpandAll ||
+            !group.collapsible ||
+            Boolean(expanded[group.id]);
+          return (
+            <div key={group.id}>
+              {group.collapsible && !forceExpandAll ? (
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group)}
+                  aria-expanded={isOpen}
+                  className="mb-1 flex w-full items-center justify-between rounded-md px-3 py-1 text-left text-xs font-semibold uppercase tracking-widest text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <span>{group.label}</span>
+                  {isOpen ? (
+                    <ChevronDown aria-hidden="true" className="h-3.5 w-3.5" />
+                  ) : (
+                    <ChevronRight aria-hidden="true" className="h-3.5 w-3.5" />
+                  )}
+                </button>
+              ) : (
+                <p className="mb-1 px-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  {group.label}
+                </p>
+              )}
+              {isOpen ? (
+                <div className="space-y-0.5">
+                  {group.items.map(({ id, href, icon: Icon, label }) => {
+                    const active = activeHref === href;
+                    return (
+                      <Link
+                        key={id}
+                        href={href}
+                        onClick={onNavigate}
+                        aria-current={active ? "page" : undefined}
+                        title={label}
+                        className={cn(
+                          "flex min-h-9 items-center gap-3 rounded-md px-3 py-1.5 text-sm font-medium transition",
+                          active
+                            ? "bg-primary/10 text-primary"
+                            : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                        )}
+                      >
+                        <Icon aria-hidden={true} className="h-4 w-4 shrink-0" />
+                        <span className="min-w-0 truncate">{label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              ) : null}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </nav>
   );
@@ -356,7 +389,7 @@ function MobileSidebar({
   return (
     <div className="fixed inset-0 z-40 lg:hidden">
       <button
-        aria-label="Close navigation"
+        aria-label="Dismiss navigation overlay"
         className="absolute inset-0 bg-foreground/30"
         onClick={onClose}
         type="button"
@@ -384,7 +417,11 @@ function MobileSidebar({
             <X aria-hidden="true" className="h-4 w-4" />
           </IconButton>
         </div>
-        <DashboardNav currentPath={currentPath} onNavigate={onClose} />
+        <DashboardNav
+          currentPath={currentPath}
+          onNavigate={onClose}
+          forceExpandAll
+        />
       </aside>
     </div>
   );
@@ -466,6 +503,7 @@ export function DashboardTopbar({
               </div>
             )}
           </div>
+          <ThemeModeToggle />
           <NotificationBadge />
           <UserMenu />
         </div>

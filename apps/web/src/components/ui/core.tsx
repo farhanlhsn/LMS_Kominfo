@@ -1,7 +1,9 @@
+import Link from "next/link";
 import { Search, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { cn } from "../../lib/utils";
+import { isExternalHref } from "./core-link";
 
 export function ButtonLink({
   href,
@@ -21,17 +23,24 @@ export function ButtonLink({
     ghost: "border-transparent text-primary hover:bg-primary/10",
   };
 
+  const classNames = cn(
+    "inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-4 py-2 text-sm font-semibold transition",
+    classes[variant],
+    className,
+  );
+
+  if (isExternalHref(href)) {
+    return (
+      <a className={classNames} href={href}>
+        {children}
+      </a>
+    );
+  }
+
   return (
-    <a
-      className={cn(
-        "inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-4 py-2 text-sm font-semibold transition",
-        classes[variant],
-        className,
-      )}
-      href={href}
-    >
+    <Link className={classNames} href={href}>
       {children}
-    </a>
+    </Link>
   );
 }
 
@@ -285,34 +294,57 @@ export function Pagination({
 export function DataTable({
   columns,
   rows,
+  size = "default",
+  emptyMessage,
 }: {
-  columns: string[];
+  columns: Array<string | ReactNode>;
   rows: ReactNode[][];
+  /** compact = denser admin lists */
+  size?: "default" | "compact";
+  emptyMessage?: string;
 }) {
+  const compact = size === "compact";
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-card shadow-subtle">
+    <div
+      className={cn(
+        "overflow-hidden rounded-lg border border-border bg-card shadow-subtle",
+        compact && "text-sm",
+      )}
+    >
       <div
-        className="hidden bg-muted px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground md:grid"
+        className={cn(
+          "hidden bg-muted text-xs font-semibold uppercase tracking-wide text-muted-foreground md:grid",
+          compact ? "px-3 py-2" : "px-4 py-3",
+        )}
         style={{
           gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))`,
         }}
       >
-        {columns.map((column) => (
-          <span key={column}>{column}</span>
+        {columns.map((column, i) => (
+          <span key={typeof column === "string" ? column : i}>{column}</span>
         ))}
       </div>
       <div className="divide-y divide-border">
+        {rows.length === 0 && emptyMessage ? (
+          <p className={cn("px-4 py-6 text-center text-sm text-muted-foreground", compact && "py-4")}>
+            {emptyMessage}
+          </p>
+        ) : null}
         {rows.map((row, index) => (
           <div
             key={index}
-            className="grid gap-3 px-4 py-3 text-sm md:items-center"
+            className={cn(
+              "grid gap-3 text-sm md:items-center",
+              compact ? "px-3 py-2" : "px-4 py-3",
+            )}
             style={{
-              gridTemplateColumns:
-                "repeat(auto-fit, minmax(min(12rem, 100%), 1fr))",
+              gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))`,
             }}
           >
             {row.map((cell, cellIndex) => (
-              <div key={cellIndex}>{cell}</div>
+              <div key={cellIndex} className="min-w-0">
+                {cell}
+              </div>
             ))}
           </div>
         ))}

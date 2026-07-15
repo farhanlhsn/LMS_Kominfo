@@ -107,6 +107,21 @@ export interface Activity {
   progress?: ActivityProgress[];
 }
 
+export interface StudySession {
+  id: string;
+  organizationId: string;
+  userId: string;
+  courseId?: string | null;
+  goalId?: string | null;
+  startedAt: string;
+  endedAt?: string | null;
+  targetSeconds?: number | null;
+  elapsedSeconds: number;
+  status: "ACTIVE" | "PAUSED" | "COMPLETED" | "CANCELLED";
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ActivityProgress {
   id: string;
   activityId: string;
@@ -402,6 +417,9 @@ export interface LearnerBookmark {
   metadata?: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
+  course?: { id: string; title: string; slug: string };
+  lesson?: { id: string; title: string } | null;
+  activity?: { id: string; title: string } | null;
 }
 
 export interface TranscriptSegment {
@@ -497,6 +515,15 @@ export interface Question {
   acceptedAnswers?: string[];
   numericTolerance?: number | null;
   options: QuestionOption[];
+  metadata?: Record<string, unknown> | null;
+}
+
+/** Optional image attached to the stem (file id in storage). */
+export function questionImageFileId(
+  q: { metadata?: Record<string, unknown> | null },
+): string | null {
+  const id = q.metadata?.imageFileId;
+  return typeof id === "string" && id.length > 0 ? id : null;
 }
 
 export interface QuestionBank {
@@ -507,6 +534,13 @@ export interface QuestionBank {
   _count?: { questions?: number };
 }
 
+/** Tags live in metadata.tags (string[]). */
+export function questionTags(q: { metadata?: Record<string, unknown> | null }): string[] {
+  const raw = q.metadata?.tags;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((t): t is string => typeof t === "string" && t.trim().length > 0);
+}
+
 export interface QuizQuestion {
   id: string;
   questionId: string;
@@ -514,6 +548,12 @@ export interface QuizQuestion {
   points?: number | null;
   question: Question;
 }
+
+export type QuizRandomPool = {
+  bankId: string;
+  count: number;
+  type?: string;
+};
 
 export interface Quiz {
   id: string;
@@ -528,7 +568,9 @@ export interface Quiz {
   shuffleQuestions: boolean;
   showCorrectAnswers: boolean;
   showFeedback: boolean;
+  metadata?: Record<string, unknown> | null;
   questions?: QuizQuestion[];
+  randomPools?: QuizRandomPool[];
   _count?: { questions?: number; attempts?: number };
 }
 
@@ -610,6 +652,7 @@ export interface AiCitation {
 
 export interface AiTutorResponse {
   conversationId: string;
+  messageId: string;
   answer: string;
   sourceType:
     | "COURSE_MATERIAL"
@@ -1088,6 +1131,52 @@ export interface LearnerDashboard {
   monthlyActivityEvents: number;
 }
 
+export interface LearnerStreak {
+  currentStreak: number;
+  longestStreak: number;
+  todayActive: boolean;
+  dailyActivity: Array<{ date: string; eventCount: number; activityMinutes: number }>;
+}
+
+export interface LearnerGrades {
+  courses: LearnerCourseGrade[];
+  overallGpa: number | null;
+}
+
+export interface LearnerCourseGrade {
+  courseId: string;
+  courseTitle: string;
+  courseSlug: string;
+  overallGrade: number | null;
+  quizAverage: number | null;
+  assignmentAverage: number | null;
+  totalWeighted: number | null;
+  totalMaxWeight: number | null;
+  quizzes: LearnerQuizGrade[];
+  assignments: LearnerAssignmentGrade[];
+}
+
+export interface LearnerQuizGrade {
+  activityId: string;
+  quizTitle: string;
+  score: number;
+  maxScore: number;
+  percentage: number;
+  passed: boolean;
+  attemptedAt: string;
+}
+
+export interface LearnerAssignmentGrade {
+  activityId: string;
+  assignmentTitle: string;
+  score: number | null;
+  maxScore: number | null;
+  percentage: number | null;
+  status: string;
+  submittedAt: string | null;
+  gradedAt: string | null;
+}
+
 export interface LearnerCourseProgress {
   enrollment: Record<string, unknown> | null;
   activityProgress: ActivityProgress[];
@@ -1111,6 +1200,36 @@ export interface InstructorCourseMetric {
   completedCount: number;
   completionRate: number;
   weeklyActivity: number;
+}
+
+export interface InstructorGradebookRow {
+  studentId: string;
+  student: { id: string; name?: string | null; email: string };
+  enrollmentStatus: string;
+  progressPercent: number;
+  lastAccessedAt?: string | null;
+  average: number | null;
+  assignmentScores: Array<{
+    assignmentId: string;
+    title: string;
+    score: number | null;
+    maxScore: number | null;
+    status: string;
+  }>;
+}
+
+export interface InstructorRosterRow {
+  id: string;
+  status: string;
+  progressPercent: number;
+  lastAccessedAt?: string | null;
+  enrolledAt: string;
+  user: { id: string; name?: string | null; email: string };
+}
+
+export interface InstructorRosterResponse {
+  data: InstructorRosterRow[];
+  meta: ApiMeta;
 }
 
 export interface AdminOverview {
@@ -2674,4 +2793,27 @@ export interface TaxCalculation {
   currency: string;
   regionCode: string;
   lines: TaxCalculationLine[];
+}
+
+export interface AdminUserRecord {
+  id: string;
+  email: string;
+  name: string | null;
+  status: string;
+  createdAt: string;
+  membership: {
+    id: string;
+    status: string;
+  } | null;
+  roles: Array<{ key: string; name: string }>;
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
 }

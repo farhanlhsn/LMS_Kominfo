@@ -43,11 +43,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
 }
 
 export function PermissionGate({
-  anyOf,
+  anyOf = [],
   allOf = [],
   children,
 }: {
-  anyOf: string[];
+  anyOf?: string[];
   allOf?: string[];
   children: ReactNode;
 }) {

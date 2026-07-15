@@ -115,10 +115,13 @@ export function WorkspaceUpcomingPanel({ courseId }: { courseId: string }) {
   return <div className="min-h-0 flex-1 overflow-y-auto p-3"><div className="mb-3"><h3 className="text-sm font-semibold">Upcoming</h3><p className="text-xs text-muted-foreground">Next 14 days in this course</p></div>{!query.data?.length ? <EmptyState icon={CalendarDays} title="Nothing upcoming" description="No live classes or deadlines in the next 14 days." /> : <div className="space-y-2">{query.data.slice(0, 8).map((event) => <article className="rounded-md border border-border bg-card p-3" key={`${event.sourceType}-${event.sourceId}-${event.type}`}><StatusBadge value={event.type.replaceAll("_", " ")} tone="info" /><h4 className="mt-2 text-sm font-semibold">{event.title}</h4><p className="mt-1 text-xs text-muted-foreground">{new Date(event.startsAt).toLocaleString()}</p>{event.actionUrl ? <Link className="mt-2 inline-block text-xs font-semibold text-primary" href={event.actionUrl}>Open event</Link> : null}</article>)}</div>}</div>;
 }
 
-export function CoursePhaseNavigation({ courseId, active = "overview", instructor = false }: { courseId: string; active?: "overview" | "discussion" | "live" | "calendar"; instructor?: boolean }) {
+export function CoursePhaseNavigation({ courseId, active = "overview", instructor = false }: { courseId: string; active?: "overview" | "discussion" | "live" | "calendar" | "announcements"; instructor?: boolean }) {
   const base = instructor ? `/instructor/courses/${courseId}` : `/learn/courses/${courseId}`;
   const items = instructor ? [
     { key: "overview", label: "Course builder", href: `${base}/builder` },
+    { key: "gradebook", label: "Gradebook", href: `${base}/gradebook` },
+    { key: "roster", label: "Roster", href: `${base}/roster` },
+    { key: "announcements", label: "Announcements", href: `${base}/announcements` },
     { key: "discussion", label: "Discussions", href: `${base}/discussions` },
     { key: "live", label: "Live classes", href: `${base}/live-classes` },
     { key: "calendar", label: "Schedule", href: `${base}/calendar` },

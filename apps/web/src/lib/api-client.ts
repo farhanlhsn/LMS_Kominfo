@@ -25,6 +25,7 @@ import type {
 import type {
   ActivityContentResponse,
   ActivityProgress,
+  ApiMeta,
   AiStatus,
   AiGeneratedItem,
   AiTutorResponse,
@@ -72,7 +73,12 @@ import type {
   WorkspaceContext,
   LearnerDashboard,
   LearnerCourseProgress,
+  LearnerGrades,
+  LearnerStreak,
+  StudySession,
   InstructorDashboard,
+  InstructorGradebookRow,
+  InstructorRosterResponse,
   AdminOverview,
   DailyTrend,
   AuditLogEntry,
@@ -190,6 +196,8 @@ import type {
   TaxCalculation,
   TaxRuleType,
   SupportedCurrency,
+  AdminUserRecord,
+  PaginatedResponse,
 } from "./lms-types";
 
 const SESSION_KEY = "lms.session.v1";
@@ -267,7 +275,8 @@ export function clearSession() {
   window.dispatchEvent(new Event("lms-session-changed"));
 }
 
-function authHeaders(session: AuthSession | null, base?: HeadersInit) {
+/** Auth + tenant headers for raw fetch (streams, FormData, etc.). */
+export function authHeaders(session: AuthSession | null, base?: HeadersInit) {
   const headers = new Headers(base);
   if (session?.accessToken) {
     headers.set("Authorization", `Bearer ${session.accessToken}`);
@@ -789,6 +798,10 @@ export const api = {
         method: "DELETE",
       },
     ),
+  activityFlashcards: (activityId: string) =>
+    apiRequest<unknown[]>(
+      `/learn/activities/${encodeURIComponent(activityId)}/flashcards`,
+    ),
   instructorAiGeneratedItems: (activityId: string) =>
     apiRequest<AiGeneratedItem[]>(
       `/instructor/activities/${encodeURIComponent(activityId)}/ai/generated-items`,
@@ -856,6 +869,18 @@ export const api = {
       `/instructor/ai/items/${encodeURIComponent(itemId)}/publish`,
       { method: "POST" },
     ),
+  instructorAiIndexCourse: (courseId: string) =>
+    apiRequest<{ message: string }>(
+      `/instructor/courses/${encodeURIComponent(courseId)}/ai/index`,
+      { method: "POST" },
+    ),
+  instructorAiIndexStatus: (courseId: string) =>
+    apiRequest<{
+      status: string;
+      documentCount: number;
+      chunkCount: number;
+      needsReindex: boolean;
+    }>(`/instructor/courses/${encodeURIComponent(courseId)}/ai/index/status`),
   // Phase 17 caption cue editor
   listInstructorCaptionCues: (trackId: string) =>
     apiRequest<unknown[]>(
@@ -1286,6 +1311,19 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  updateQuestionBank: (bankId: string, input: Record<string, unknown>) =>
+    apiRequest<QuestionBank>(
+      `/instructor/question-banks/${encodeURIComponent(bankId)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      },
+    ),
+  deleteQuestionBank: (bankId: string) =>
+    apiRequest<QuestionBank>(
+      `/instructor/question-banks/${encodeURIComponent(bankId)}`,
+      { method: "DELETE" },
+    ),
   questions: (bankId?: string | null) =>
     apiRequest<Question[]>(
       `/instructor/questions${bankId ? `?bankId=${encodeURIComponent(bankId)}` : ""}`,
@@ -1302,6 +1340,11 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify(input),
       },
+    ),
+  deleteQuestion: (questionId: string) =>
+    apiRequest<Question>(
+      `/instructor/questions/${encodeURIComponent(questionId)}`,
+      { method: "DELETE" },
     ),
   instructorQuizzes: () => apiRequest<Quiz[]>("/instructor/quizzes"),
   createQuiz: (input: Record<string, unknown>) =>
@@ -1332,6 +1375,14 @@ export const api = {
     apiRequest(
       `/instructor/quizzes/${encodeURIComponent(quizId)}/questions/${encodeURIComponent(questionId)}`,
       { method: "DELETE" },
+    ),
+  reorderQuizQuestions: (quizId: string, ids: string[]) =>
+    apiRequest<Quiz>(
+      `/instructor/quizzes/${encodeURIComponent(quizId)}/questions/reorder`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ ids }),
+      },
     ),
   attachQuizToActivity: (activityId: string, quizId: string) =>
     apiRequest<Quiz>(
@@ -1579,8 +1630,32 @@ export const api = {
   // Analytics
   learnerDashboard: () => apiRequest<LearnerDashboard>("/analytics/learner/dashboard"),
   learnerCourseProgress: (courseId: string) => apiRequest<LearnerCourseProgress>("/analytics/learner/progress/" + encodeURIComponent(courseId)),
+  learnerGrades: (courseId?: string) => {
+    const params = courseId ? `?courseId=${encodeURIComponent(courseId)}` : "";
+    return apiRequest<LearnerGrades>("/learn/grades" + params);
+  },
+  learnerStreak: () => apiRequest<LearnerStreak>("/learn/streak"),
+  startStudySession: (input: { courseId?: string; goalId?: string; targetSeconds?: number }) =>
+    apiRequest<StudySession>("/learn/study-sessions", { method: "POST", body: JSON.stringify(input) }),
+  listStudySessions: (params?: { status?: string; from?: string; to?: string; limit?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.status) q.set("status", params.status);
+    if (params?.from) q.set("from", params.from);
+    if (params?.to) q.set("to", params.to);
+    if (params?.limit) q.set("limit", String(params.limit));
+    return apiRequest<StudySession[]>(`/learn/study-sessions?${q.toString()}`);
+  },
+  getStudySession: (id: string) => apiRequest<StudySession>(`/learn/study-sessions/${encodeURIComponent(id)}`),
+  updateStudySession: (id: string, input: { status?: string; elapsedSeconds?: number }) =>
+    apiRequest<StudySession>(`/learn/study-sessions/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(input) }),
+  cancelStudySession: (id: string) =>
+    apiRequest<StudySession>(`/learn/study-sessions/${encodeURIComponent(id)}`, { method: "DELETE" }),
   instructorDashboard: () => apiRequest<InstructorDashboard>("/analytics/instructor/dashboard"),
-  instructorCourseRoster: (courseId: string, query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiRequest("/analytics/instructor/course/" + encodeURIComponent(courseId) + "/roster?" + q.toString()); },
+  instructorCourseRoster: (courseId: string, query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiRequest<InstructorRosterResponse>("/analytics/instructor/course/" + encodeURIComponent(courseId) + "/roster?" + q.toString()); },
+  instructorCourseGradebook: (courseId: string, query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiRequest<InstructorGradebookRow[]>("/instructor/courses/" + encodeURIComponent(courseId) + "/gradebook?" + q.toString()); },
+  reviewLateSubmission: (submissionId: string, input: Record<string, unknown>) => apiRequest<AssignmentSubmission>(`/instructor/submissions/${encodeURIComponent(submissionId)}/late-review`, { method: "PATCH", body: JSON.stringify(input) }),
+  instructorGradebook: (courseId: string) => apiRequest<InstructorGradebookRow[]>(`/instructor/courses/${encodeURIComponent(courseId)}/gradebook`),
+  instructorRoster: (courseId: string) => apiRequest<InstructorRosterResponse>(`/instructor/courses/${encodeURIComponent(courseId)}/roster`),
   instructorCourseEngagement: (courseId: string, query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiRequest<{ daily: { date: string; events: number }[]; totalActiveLearners: number }>("/analytics/instructor/course/" + encodeURIComponent(courseId) + "/engagement?" + q.toString()); },
   adminOverview: () => apiRequest<AdminOverview>("/analytics/admin/overview"),
   adminCourseMetrics: (query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiRequest("/analytics/admin/courses?" + q.toString()); },
@@ -2836,4 +2911,15 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+
+  // Admin Organizations
+  adminOrganizations: (query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiRequest("/organizations/admin/list?" + q.toString()); },
+  adminCreateOrganization: (input: Record<string, unknown>) => apiRequest("/organizations/admin/create", { method: "POST", body: JSON.stringify(input) }),
+  adminUpdateOrganization: (id: string, input: Record<string, unknown>) => apiRequest("/organizations/admin/" + encodeURIComponent(id), { method: "PATCH", body: JSON.stringify(input) }),
+
+  // Admin Users
+  adminUsers: (query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiRequest<PaginatedResponse<AdminUserRecord>>("/admin/users?" + q.toString()); },
+  adminUser: (id: string) => apiRequest<AdminUserRecord>("/admin/users/" + encodeURIComponent(id)),
+  updateAdminUser: (id: string, input: Record<string, unknown>) => apiRequest<AdminUserRecord>("/admin/users/" + encodeURIComponent(id), { method: "PATCH", body: JSON.stringify(input) }),
+  updateAdminUserStatus: (id: string, status: string) => apiRequest<AdminUserRecord>("/admin/users/" + encodeURIComponent(id) + "/status", { method: "PATCH", body: JSON.stringify({ status }) }),
 };

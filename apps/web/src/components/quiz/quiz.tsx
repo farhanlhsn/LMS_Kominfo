@@ -13,6 +13,7 @@ import type {
 } from "../../lib/lms-types";
 import { StatusBadge } from "../ui/core";
 import { ApiErrorState, EmptyState, LoadingState } from "../ui/states";
+import { QuestionStemImage } from "./question-image";
 
 type AnswerDraft = {
   selectedOptionIds?: string[];
@@ -31,6 +32,7 @@ export function QuizActivityRenderer({
   const [result, setResult] = useState<QuizResult | null>(null);
   const [answers, setAnswers] = useState<Record<string, AnswerDraft>>({});
   const [message, setMessage] = useState<string | null>(null);
+  const [savedAt, setSavedAt] = useState<Record<string, number>>({});
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -55,6 +57,57 @@ export function QuizActivityRenderer({
     return () => window.clearInterval(timer);
   }, [attempt?.dueAt, result]);
 
+  // Auto-submit when time limit hits zero
+  useEffect(() => {
+    if (!attempt?.dueAt || result) return;
+    if (new Date(attempt.dueAt).getTime() - now > 0) return;
+    void (async () => {
+      try {
+        for (const questionId of Object.keys(answers)) {
+          await api.saveQuizAnswer(attempt.id, {
+            questionId,
+            ...(answers[questionId] ?? {}),
+          });
+        }
+        setResult(await api.submitQuizAttempt(attempt.id));
+        setMessage("Time is up — quiz submitted automatically.");
+        await quizQuery.reload();
+      } catch {
+        setMessage("Time is up — could not auto-submit. Submit manually.");
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once when timer expires
+  }, [attempt?.dueAt, now, result]);
+
+  // ponytail: debounce autosave; websocket sync if multi-device becomes real
+  useEffect(() => {
+    if (!attempt || result) return;
+    const ids = Object.keys(answers);
+    if (!ids.length) return;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          for (const questionId of ids) {
+            await api.saveQuizAnswer(attempt.id, {
+              questionId,
+              ...(answers[questionId] ?? {}),
+            });
+          }
+          const stamp = Date.now();
+          setSavedAt((prev) => {
+            const next = { ...prev };
+            for (const id of ids) next[id] = stamp;
+            return next;
+          });
+          setMessage("All answers auto-saved.");
+        } catch {
+          setMessage("Auto-save failed. Use Save on each question.");
+        }
+      })();
+    }, 1200);
+    return () => window.clearTimeout(timer);
+  }, [answers, attempt, result]);
+
   const remainingLabel = useMemo(() => {
     if (!attempt?.dueAt) return null;
     const remainingMs = Math.max(new Date(attempt.dueAt).getTime() - now, 0);
@@ -62,6 +115,19 @@ export function QuizActivityRenderer({
     const seconds = Math.floor((remainingMs % 60_000) / 1000);
     return `${minutes}:${String(seconds).padStart(2, "0")}`;
   }, [attempt?.dueAt, now]);
+
+  const answeredCount = useMemo(() => {
+    const total = quizQuery.data?.quiz.questions?.length ?? 0;
+    let n = 0;
+    for (const q of quizQuery.data?.quiz.questions ?? []) {
+      const a = answers[q.id];
+      if (!a) continue;
+      if (a.selectedOptionIds?.length) n += 1;
+      else if (a.textAnswer?.trim()) n += 1;
+      else if (a.numericAnswer !== undefined && a.numericAnswer !== null && !Number.isNaN(a.numericAnswer)) n += 1;
+    }
+    return { n, total };
+  }, [answers, quizQuery.data?.quiz.questions]);
 
   async function start() {
     setMessage(null);
@@ -75,6 +141,7 @@ export function QuizActivityRenderer({
       questionId,
       ...(answers[questionId] ?? {}),
     });
+    setSavedAt((prev) => ({ ...prev, [questionId]: Date.now() }));
     setMessage("Answer saved.");
   }
 
@@ -84,6 +151,13 @@ export function QuizActivityRenderer({
       return;
     }
     setMessage(null);
+    // flush current drafts before submit
+    for (const questionId of Object.keys(answers)) {
+      await api.saveQuizAnswer(attempt.id, {
+        questionId,
+        ...(answers[questionId] ?? {}),
+      });
+    }
     setResult(await api.submitQuizAttempt(attempt.id));
     await quizQuery.reload();
   }
@@ -135,11 +209,18 @@ export function QuizActivityRenderer({
         </div>
       ) : null}
 
-      {remainingLabel && !finalResult ? (
-        <p className="mt-4 inline-flex items-center gap-2 text-sm text-muted-foreground">
-          <Clock aria-hidden="true" className="h-4 w-4 text-primary" />
-          Time remaining {remainingLabel}
-        </p>
+      {attempt && !finalResult ? (
+        <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+          {remainingLabel ? (
+            <span className="inline-flex items-center gap-2">
+              <Clock aria-hidden="true" className="h-4 w-4 text-primary" />
+              Time remaining {remainingLabel}
+            </span>
+          ) : null}
+          <span>
+            Answered {answeredCount.n}/{answeredCount.total}
+          </span>
+        </div>
       ) : null}
 
       {finalResult ? (
@@ -152,6 +233,7 @@ export function QuizActivityRenderer({
                 key={question.id}
                 index={index}
                 question={question}
+                saved={Boolean(savedAt[question.id])}
                 value={answers[question.id] ?? {}}
                 onChange={(value) =>
                   setAnswers((current) => ({
@@ -191,12 +273,14 @@ function QuestionCard({
   question,
   index,
   value,
+  saved,
   onChange,
   onSave,
 }: {
   question: Question;
   index: number;
   value: AnswerDraft;
+  saved: boolean;
   onChange: (value: AnswerDraft) => void;
   onSave: () => void;
 }) {
@@ -206,8 +290,10 @@ function QuestionCard({
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Question {index + 1}
+            {saved ? " · saved" : ""}
           </p>
           <h3 className="mt-1 text-base font-semibold">{question.prompt}</h3>
+          <QuestionStemImage metadata={question.metadata} />
         </div>
         <StatusBadge value={`${question.points} pt`} />
       </div>
@@ -220,7 +306,7 @@ function QuestionCard({
         type="button"
       >
         <Save aria-hidden="true" className="h-4 w-4" />
-        Save answer
+        Save now
       </button>
     </article>
   );
@@ -297,10 +383,37 @@ function renderQuestionInput(
   );
 }
 
-function QuizResultPanel({ result }: { result: QuizResult }) {
+function formatLearnerAnswer(
+  question: Question,
+  answer?: QuizAnswer,
+): string {
+  if (!answer) return "No answer";
+  if (answer.selectedOptionIds?.length) {
+    const labels = question.options
+      .filter((o) => answer.selectedOptionIds?.includes(o.id))
+      .map((o) => o.text);
+    return labels.length ? labels.join(", ") : "Selected options";
+  }
+  if (answer.textAnswer?.trim()) return answer.textAnswer;
+  if (answer.numericAnswer !== null && answer.numericAnswer !== undefined) {
+    return String(answer.numericAnswer);
+  }
+  return "No answer";
+}
+
+function formatCorrectAnswer(question: Question): string | null {
+  const correctOptions = question.options.filter((o) => o.isCorrect);
+  if (correctOptions.length) return correctOptions.map((o) => o.text).join(", ");
+  if (question.acceptedAnswers?.length) return question.acceptedAnswers.join(", ");
+  return null;
+}
+
+export function QuizResultPanel({ result }: { result: QuizResult }) {
   const answerByQuestion = new Map(
     result.answers.map((answer) => [answer.questionId, answer]),
   );
+  const showCorrect = result.quiz.showCorrectAnswers;
+  const showFeedback = result.quiz.showFeedback;
   return (
     <div className="mt-5 grid gap-4">
       <div className="rounded-md border border-border bg-muted p-4">
@@ -309,6 +422,9 @@ function QuizResultPanel({ result }: { result: QuizResult }) {
             <p className="text-sm font-medium text-muted-foreground">Result</p>
             <p className="mt-1 text-2xl font-semibold">
               {Math.round(result.attempt.percentage)}%
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {result.attempt.score}/{result.attempt.maxScore} points
             </p>
           </div>
           <StatusBadge
@@ -325,22 +441,44 @@ function QuizResultPanel({ result }: { result: QuizResult }) {
       </div>
       {result.quiz.questions?.map((question, index) => {
         const answer = answerByQuestion.get(question.id);
+        const correct = showCorrect ? formatCorrectAnswer(question) : null;
         return (
           <article key={question.id} className="rounded-md border border-border p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <h3 className="text-sm font-semibold">
                 {index + 1}. {question.prompt}
               </h3>
+              <QuestionStemImage metadata={question.metadata} />
               {answer ? <AnswerStatus answer={answer} /> : null}
             </div>
-            {question.explanation ? (
+            <dl className="mt-3 grid gap-1 text-sm">
+              <div>
+                <dt className="text-muted-foreground">Your answer</dt>
+                <dd className="font-medium">{formatLearnerAnswer(question, answer)}</dd>
+              </div>
+              {correct ? (
+                <div>
+                  <dt className="text-muted-foreground">Correct answer</dt>
+                  <dd className="font-medium">{correct}</dd>
+                </div>
+              ) : null}
+              {answer ? (
+                <div>
+                  <dt className="text-muted-foreground">Points</dt>
+                  <dd>
+                    {answer.pointsAwarded}/{answer.maxPoints}
+                  </dd>
+                </div>
+              ) : null}
+            </dl>
+            {showFeedback && question.explanation ? (
               <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                {question.explanation}
+                Explanation: {question.explanation}
               </p>
             ) : null}
-            {answer?.feedback ? (
-              <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                {answer.feedback}
+            {showFeedback && answer?.feedback ? (
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Feedback: {answer.feedback}
               </p>
             ) : null}
           </article>
