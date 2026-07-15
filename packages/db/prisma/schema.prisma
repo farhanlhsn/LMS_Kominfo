@@ -2355,6 +2355,32 @@ model LearnerDailyActivity {
   @@index([organizationId, userId, date])
 }
 
+model StudySession {
+  id             String             @id @default(cuid())
+  organizationId String
+  userId         String
+  courseId       String?
+  goalId         String?
+  startedAt      DateTime           @default(now())
+  endedAt        DateTime?
+  targetSeconds  Int?
+  elapsedSeconds Int                @default(0)
+  status         StudySessionStatus @default(ACTIVE)
+  metadata       Json               @default("{}")
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@index([userId, status])
+  @@index([organizationId, userId, startedAt])
+}
+
+enum StudySessionStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
 enum LearningPathStatus {
   DRAFT
   PUBLISHED

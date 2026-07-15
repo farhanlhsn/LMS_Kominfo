@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { createAiConfig } from "./index";
+import {
+  API_VERSION_PREFIX,
+  createAiConfig,
+  DEFAULT_PORTS,
+  DEFAULT_TIMEZONE,
+  readRequiredEnv,
+  validateEnvironment,
+} from "./index";
+
 
 describe("createAiConfig", () => {
   it("uses disabled mock defaults without provider keys", () => {
@@ -122,4 +130,38 @@ describe("createAiConfig", () => {
         .enabled,
     ).toBe(false);
   });
+
+  it("rejects non-integer and out-of-range numbers", () => {
+    expect(() =>
+      createAiConfig({ AI_RATE_LIMIT_PER_USER_PER_MINUTE: "1.5" }),
+    ).toThrow(/must be an integer/);
+    expect(() =>
+      createAiConfig({ AI_RATE_LIMIT_PER_USER_PER_MINUTE: "0" }),
+    ).toThrow(/must be at least/);
+    expect(() => createAiConfig({ AI_MAX_OUTPUT_TOKENS: "not-a-number" })).toThrow(
+      /must be a number/,
+    );
+  });
+
+  it("exports package constants and validateEnvironment", () => {
+    expect(API_VERSION_PREFIX).toBe("api/v1");
+    expect(DEFAULT_TIMEZONE).toBe("UTC");
+    expect(DEFAULT_PORTS.api).toBe(4000);
+    expect(validateEnvironment({})).toEqual({});
+  });
+
+  it("readRequiredEnv requires process env", () => {
+    const key = "LMS_TEST_REQUIRED_ENV_KEY";
+    const prev = process.env[key];
+    delete process.env[key];
+    try {
+      expect(() => readRequiredEnv(key)).toThrow(/Missing required/);
+      process.env[key] = "present";
+      expect(readRequiredEnv(key)).toBe("present");
+    } finally {
+      if (prev === undefined) delete process.env[key];
+      else process.env[key] = prev;
+    }
+  });
 });
+
