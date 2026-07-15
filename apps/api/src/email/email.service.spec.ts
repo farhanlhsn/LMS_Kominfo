@@ -29,7 +29,7 @@ describe("EmailService", () => {
 
   it("skips send when SMTP is not configured", async () => {
     const { EmailService } = await import("./email.service");
-    const service = new EmailService();
+    const service = new EmailService({} as any);
     await service.sendPasswordReset("a@b.c", "A", "http://reset");
     await service.sendOrganizationInvite("a@b.c", "Admin", "Org", "http://login", "hi");
     await service.sendWelcome("a@b.c", null, "Org", "http://login");
@@ -44,7 +44,7 @@ describe("EmailService", () => {
     process.env.SMTP_FROM = "LMS <noreply@example.com>";
     sendMail.mockResolvedValue({});
     const { EmailService } = await import("./email.service");
-    const service = new EmailService();
+    const service = new EmailService({} as any);
     expect(createTransport).toHaveBeenCalled();
     await service.sendPasswordReset("a@b.c", null, "http://reset");
     await service.sendOrganizationInvite("a@b.c", "Admin", "Org", "http://login");
@@ -58,7 +58,7 @@ describe("EmailService", () => {
     process.env.SMTP_PASS = "p";
     sendMail.mockRejectedValue(new Error("smtp down"));
     const { EmailService } = await import("./email.service");
-    const service = new EmailService();
+    const service = new EmailService({} as any);
     await expect(
       service.sendPasswordReset("a@b.c", "A", "http://reset"),
     ).resolves.toBeUndefined();

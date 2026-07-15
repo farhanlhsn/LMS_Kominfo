@@ -5,12 +5,15 @@ import {
   NotFoundException,
   OnModuleDestroy,
   Optional,
+  forwardRef,
 } from "@nestjs/common";
 import { Prisma, RealtimeEvent } from "@lms/db";
 import { randomUUID } from "crypto";
 import type Redis from "ioredis";
 import { PrismaService } from "../prisma/prisma.service";
 import { REDIS_CLIENT } from "../redis/redis.constants";
+import { RealtimeGateway } from "./realtime.gateway";
+import type { RealtimeGateway as RealtimeGatewayType } from "./realtime.gateway";
 
 export interface RealtimeTransportInfo {
   preferred: "polling" | "sse" | "websocket";
@@ -33,6 +36,8 @@ export class RealtimeService implements OnModuleDestroy {
   constructor(
     private readonly prisma: PrismaService,
     @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
+    @Optional() @Inject(forwardRef(() => RealtimeGateway))
+    private readonly gateway?: RealtimeGatewayType,
   ) {
     void this.initRedisBus();
   }
@@ -95,6 +100,7 @@ export class RealtimeService implements OnModuleDestroy {
 
     this.dispatchLocal(event);
     await this.publishRedis(event);
+    this.deliverToSockets(event);
 
     return event;
   }
@@ -219,6 +225,14 @@ export class RealtimeService implements OnModuleDestroy {
       } catch {
         // Swallow handler errors to avoid breaking publishing for other listeners
       }
+    }
+  }
+
+  private deliverToSockets(event: RealtimeEvent) {
+    try {
+      this.gateway?.deliver(event);
+    } catch {
+      // gateway may be unavailable during shutdown
     }
   }
 

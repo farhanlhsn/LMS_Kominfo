@@ -1,6 +1,8 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { Prisma } from "@lms/db";
+import { PushService } from "../push/push.service";
+import { EmailService } from "../email/email.service";
 
 export interface NotificationInput {
   organizationId: string;
@@ -16,7 +18,11 @@ export interface NotificationInput {
 
 @Injectable()
 export class NotificationService {
-  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+  constructor(
+    @Inject(PrismaService) private readonly prisma: PrismaService,
+    @Inject(PushService) private readonly push: PushService,
+    @Inject(EmailService) private readonly email: EmailService,
+  ) {}
 
   async createForUser(input: NotificationInput) {
     const preference = await this.prisma.notificationPreference.findUnique({
@@ -38,7 +44,21 @@ export class NotificationService {
       });
       if (duplicate) return duplicate;
     }
-    return this.prisma.notification.create({ data: { ...input, metadata: (input.metadata ?? {}) as Prisma.InputJsonObject } });
+    const notification = await this.prisma.notification.create({
+      data: { ...input, metadata: (input.metadata ?? {}) as Prisma.InputJsonObject },
+    });
+    void this.fanOut(input, preference);
+    return notification;
+  }
+
+  private async fanOut(input: NotificationInput, preference?: { emailEnabled?: boolean | null } | null) {
+    const payload = { title: input.title, body: input.body, url: input.actionUrl };
+    // Push: sendToUser no-ops when no subscriptions exist.
+    void this.push.sendToUser(input.organizationId, input.userId, payload).catch(() => undefined);
+    // Email: only when user opted in.
+    if (preference?.emailEnabled !== false) {
+      void this.email.sendNotification(input.userId, input.title, input.body, input.actionUrl).catch(() => undefined);
+    }
   }
 
   async createForCourseParticipants(input: Omit<NotificationInput, "userId">, excludeUserId?: string) {

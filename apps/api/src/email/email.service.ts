@@ -1,6 +1,7 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import nodemailer from "nodemailer";
 import type { Transporter } from "nodemailer";
+import { PrismaService } from "../prisma/prisma.service";
 
 @Injectable()
 export class EmailService {
@@ -9,7 +10,7 @@ export class EmailService {
   private readonly from: string;
   private readonly enabled: boolean;
 
-  constructor() {
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {
     const host = process.env.SMTP_HOST;
     const port = Number(process.env.SMTP_PORT ?? 587);
     const user = process.env.SMTP_USER;
@@ -90,6 +91,22 @@ export class EmailService {
         </div>
       `,
     });
+  }
+
+  async sendNotification(toUserId: string, title: string, body: string, actionUrl?: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: toUserId },
+      select: { email: true, name: true },
+    });
+    if (!user?.email) return;
+    const html = `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+        <h2 style="margin-bottom:8px">${title}</h2>
+        <p>${body}</p>
+        ${actionUrl ? `<a href="${actionUrl}" style="display:inline-block;margin:20px 0;padding:12px 24px;background:#6366f1;color:#fff;border-radius:8px;text-decoration:none;font-weight:600">View</a>` : ""}
+      </div>
+    `;
+    await this.send({ to: user.email, subject: title, html });
   }
 
   private async send(options: { to: string; subject: string; html: string }): Promise<void> {

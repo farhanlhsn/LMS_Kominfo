@@ -50,6 +50,12 @@ export class ModerationService {
       targetType: dto.targetType,
       targetId: dto.targetId,
     });
+    // Auto-flag reported content/discussion so it surfaces in the flag queue.
+    if (dto.targetType !== "USER") {
+      await this.flagContent(organization, user, dto.targetType, dto.targetId, "user_report", {
+        reason: dto.reason,
+      }).catch(() => undefined);
+    }
     return report;
   }
 
@@ -144,6 +150,7 @@ export class ModerationService {
       targetType: dto.targetType,
       targetId: dto.targetId,
     });
+    await this.enforceAction(dto);
     return action;
   }
 
@@ -181,6 +188,23 @@ export class ModerationService {
       where: { organizationId: organization.id },
       orderBy: { createdAt: "desc" },
       take: 100,
+    });
+  }
+
+  private async enforceAction(dto: CreateActionDto) {
+    if (dto.targetType !== "USER" || !dto.targetId) return;
+    const status =
+      dto.actionType === "BAN"
+        ? "DEACTIVATED"
+        : dto.actionType === "SUSPEND"
+        ? "SUSPENDED"
+        : dto.actionType === "RESTORE"
+        ? "ACTIVE"
+        : null;
+    if (!status) return;
+    await this.prisma.user.update({
+      where: { id: dto.targetId },
+      data: { status: status as any },
     });
   }
 

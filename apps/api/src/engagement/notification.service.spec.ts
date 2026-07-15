@@ -22,7 +22,13 @@ function setup(overrides: Record<string, any> = {}) {
     quiz: { findMany: vi.fn().mockResolvedValue([]) },
     ...overrides,
   } as any;
-  return { service: new NotificationService(prisma), prisma };
+  const push = {
+    sendToUser: vi.fn().mockResolvedValue({ attempted: 0, delivered: 0, failed: 0, removed: 0 }),
+  };
+  const email = {
+    sendNotification: vi.fn().mockResolvedValue(undefined),
+  };
+  return { service: new NotificationService(prisma, push as any, email as any), prisma, push, email };
 }
 
 describe("NotificationService.list", () => {

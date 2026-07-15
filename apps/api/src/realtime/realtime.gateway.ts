@@ -1,4 +1,4 @@
-import { Logger } from "@nestjs/common";
+import { Inject, Logger, forwardRef } from "@nestjs/common";
 import {
   ConnectedSocket,
   MessageBody,
@@ -46,7 +46,10 @@ export class RealtimeGateway
   @WebSocketServer()
   server!: Server;
 
-  constructor(private readonly service: RealtimeService) {}
+  constructor(
+    @Inject(forwardRef(() => RealtimeService))
+    private readonly service: RealtimeService,
+  ) {}
 
   afterInit() {
     this.logger.log(`WebSocket gateway initialized on namespace /realtime`);
@@ -91,6 +94,11 @@ export class RealtimeGateway
     const event = await this.service.publish(organizationId, actorId, channel, type, payload);
     this.server?.to(channel).emit("event", event);
     return event;
+  }
+
+  // Deliver an already-persisted event to connected sockets without re-publishing.
+  deliver(event: RealtimeEvent): void {
+    this.server?.to(event.channel).emit("event", event);
   }
 
   subscriberCount(channel: string): number {
