@@ -21,6 +21,20 @@ const AUTH_MAX = 20;
 const AUTH_PATH_RE =
   /^\/api\/v1\/auth\/(login|register|forgot-password|reset-password)\/?$/i;
 
+/** Fail closed at process start if misconfigured for production (F0). */
+export function assertRateLimitEnvSafe(
+  env: NodeJS.ProcessEnv = process.env,
+): void {
+  if (
+    env.DISABLE_RATE_LIMIT === "true" &&
+    env.NODE_ENV === "production"
+  ) {
+    throw new Error(
+      "DISABLE_RATE_LIMIT is not allowed when NODE_ENV=production",
+    );
+  }
+}
+
 @Injectable()
 export class RateLimitMiddleware implements NestMiddleware {
   private readonly buckets = new Map<string, RateLimitBucket>();
@@ -30,7 +44,9 @@ export class RateLimitMiddleware implements NestMiddleware {
     @Inject(RATE_LIMIT_OPTIONS)
     private readonly options: RateLimitOptions = {},
     @Optional() private readonly redis?: RedisService,
-  ) {}
+  ) {
+    assertRateLimitEnvSafe();
+  }
 
   private getKey(req: Request) {
     if (this.options.keyExtractor) return this.options.keyExtractor(req);
@@ -59,7 +75,8 @@ export class RateLimitMiddleware implements NestMiddleware {
     response: Response,
     next: NextFunction,
   ) {
-    // E2E suites login many times from one IP (Playwright sets this on webServer).
+    // E2E: Playwright sets DISABLE_RATE_LIMIT on the API webServer (non-prod only).
+    // Production misuse is rejected in the constructor via assertRateLimitEnvSafe().
     if (process.env.DISABLE_RATE_LIMIT === "true") {
       next();
       return;

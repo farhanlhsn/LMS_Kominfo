@@ -191,6 +191,19 @@ export class LearningWorkspaceController {
     return this.workspace.getCaptionTracks(organization.id, user.id, activityId);
   }
 
+  @Get("learn/activities/:activityId/flashcards")
+  flashcards(
+    @ActiveOrganization() organization: OrganizationContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("activityId") activityId: string,
+  ) {
+    return this.workspace.getActivityFlashcards(
+      organization.id,
+      user.id,
+      activityId,
+    );
+  }
+
   @Get("learn/activities/:activityId/workspace-context")
   context(
     @ActiveOrganization() organization: OrganizationContext,

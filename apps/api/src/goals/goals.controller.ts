@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
 import { ActiveOrganization } from "../rbac/decorators/active-organization.decorator";
 import { CurrentUser } from "../rbac/decorators/current-user.decorator";
 import { JwtAuthGuard } from "../rbac/guards/jwt-auth.guard";
@@ -38,5 +38,36 @@ export class GoalsController {
   @Post(":goalId/complete")
   complete(@ActiveOrganization() org: OrganizationContext, @CurrentUser() user: AuthenticatedUser, @Param("goalId") goalId: string) {
     return this.service.complete(org.id, user.id, goalId);
+  }
+}
+
+@Controller("learn/study-sessions")
+@UseGuards(JwtAuthGuard, OrganizationContextGuard)
+export class StudySessionController {
+  constructor(@Inject(GoalsService) private readonly service: GoalsService) {}
+
+  @Post()
+  start(@ActiveOrganization() org: OrganizationContext, @CurrentUser() user: AuthenticatedUser, @Body() body: { courseId?: string; goalId?: string; targetSeconds?: number }) {
+    return this.service.startStudySession(org.id, user.id, body);
+  }
+
+  @Get()
+  list(@ActiveOrganization() org: OrganizationContext, @CurrentUser() user: AuthenticatedUser, @Query("status") status?: string, @Query("from") from?: string, @Query("to") to?: string, @Query("limit") limit?: number) {
+    return this.service.listStudySessions(org.id, user.id, { status, from, to, limit });
+  }
+
+  @Get(":id")
+  get(@ActiveOrganization() org: OrganizationContext, @CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
+    return this.service.getStudySession(org.id, user.id, id);
+  }
+
+  @Patch(":id")
+  update(@ActiveOrganization() org: OrganizationContext, @CurrentUser() user: AuthenticatedUser, @Param("id") id: string, @Body() body: { status?: string; elapsedSeconds?: number }) {
+    return this.service.updateStudySession(org.id, user.id, id, body);
+  }
+
+  @Delete(":id")
+  cancel(@ActiveOrganization() org: OrganizationContext, @CurrentUser() user: AuthenticatedUser, @Param("id") id: string) {
+    return this.service.cancelStudySession(org.id, user.id, id);
   }
 }

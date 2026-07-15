@@ -191,6 +191,58 @@ export class QuizService {
       prompt: dto.prompt ?? question.prompt,
       options: dto.options ?? question.options,
     });
+
+    // ponytail: fork when used in published quiz so live attempts keep old stem
+    if (await this.isQuestionLockedInPublishedQuiz(organization.id, questionId)) {
+      if (dto.questionBankId && dto.questionBankId !== question.questionBankId) {
+        throw new BadRequestException(
+          "Cannot move a question that is used in a published quiz; edit creates a copy instead",
+        );
+      }
+      const forked = await this.prisma.question.create({
+        data: {
+          organizationId: organization.id,
+          questionBankId: question.questionBankId,
+          createdById: userId,
+          type: nextType,
+          prompt: dto.prompt ?? question.prompt,
+          explanation:
+            dto.explanation !== undefined ? dto.explanation : question.explanation,
+          points: dto.points ?? question.points,
+          acceptedAnswers: (dto.acceptedAnswers ??
+            (question.acceptedAnswers as string[])) as Prisma.InputJsonArray,
+          numericTolerance:
+            dto.numericTolerance !== undefined
+              ? dto.numericTolerance
+              : question.numericTolerance,
+          metadata: {
+            ...((question.metadata ?? {}) as Record<string, unknown>),
+            ...((dto.metadata ?? {}) as Record<string, unknown>),
+            forkedFrom: questionId,
+            forkedAt: new Date().toISOString(),
+          } as Prisma.InputJsonObject,
+          options: {
+            create: (
+              dto.options ??
+              question.options.map((o) => ({
+                text: o.text,
+                isCorrect: o.isCorrect,
+                orderIndex: o.orderIndex,
+                feedback: o.feedback ?? undefined,
+              }))
+            ).map((option, index) => ({
+              text: option.text,
+              isCorrect: option.isCorrect ?? false,
+              orderIndex: option.orderIndex ?? index,
+              feedback: option.feedback,
+            })),
+          },
+        },
+        include: { options: { orderBy: { orderIndex: "asc" } } },
+      });
+      return { ...forked, forkedFrom: questionId };
+    }
+
     if (dto.options) {
       await this.prisma.questionOption.deleteMany({ where: { questionId } });
     }
@@ -231,6 +283,11 @@ export class QuizService {
       userId,
       question.questionBankId,
     );
+    if (await this.isQuestionLockedInPublishedQuiz(organization.id, questionId)) {
+      throw new BadRequestException(
+        "Cannot delete a question used in a published quiz",
+      );
+    }
     return this.prisma.question.update({
       where: { id: questionId },
       data: { deletedAt: new Date() },
@@ -338,6 +395,7 @@ export class QuizService {
         title: dto.title,
         description: dto.description,
         courseId: dto.courseId,
+        status: dto.status,
         passingScorePercent: dto.passingScorePercent,
         attemptLimit: dto.attemptLimit,
         timeLimitMinutes: dto.timeLimitMinutes,
@@ -355,11 +413,18 @@ export class QuizService {
     quizId: string,
   ) {
     await this.ensureCanManageQuiz(organization, userId, quizId);
+    const quiz = await this.getQuiz(organization.id, quizId);
     const questionCount = await this.prisma.quizQuestion.count({
       where: { quizId },
     });
-    if (!questionCount) {
-      throw new BadRequestException("Quiz must have at least one question");
+    const poolCount = this.readRandomPools(quiz.metadata).reduce(
+      (sum, p) => sum + p.count,
+      0,
+    );
+    if (!questionCount && !poolCount) {
+      throw new BadRequestException(
+        "Quiz must have at least one fixed question or random pool",
+      );
     }
     return this.prisma.quiz.update({
       where: { id: quizId },
@@ -483,8 +548,18 @@ export class QuizService {
       orderBy: { attemptNumber: "desc" },
       include: { answers: true },
     });
+    const questionOrder =
+      lastAttempt?.status === "IN_PROGRESS"
+        ? this.readQuestionOrder(lastAttempt.metadata)
+        : undefined;
+    const learnerQuestions = questionOrder?.length
+      ? await this.resolveAttemptQuestions(organizationId, quiz, questionOrder)
+      : null;
     return {
-      quiz: this.sanitizeQuizForLearner(quiz),
+      quiz: this.sanitizeQuizForLearner(quiz, {
+        attemptQuestions: learnerQuestions ?? undefined,
+        includePools: !learnerQuestions,
+      }),
       lastAttempt,
     };
   }
@@ -516,6 +591,12 @@ export class QuizService {
     const dueAt = quiz.timeLimitMinutes
       ? new Date(now.getTime() + quiz.timeLimitMinutes * 60_000)
       : null;
+
+    const selection = await this.buildAttemptQuestionSelection(
+      organizationId,
+      quiz,
+    );
+
     return this.prisma.quizAttempt.create({
       data: {
         organizationId,
@@ -525,7 +606,11 @@ export class QuizService {
         userId,
         attemptNumber,
         dueAt,
-        maxScore: this.maxScore(quiz),
+        maxScore: selection.maxScore,
+        metadata: {
+          questionOrder: selection.questionOrder,
+          poolPicks: selection.poolPicks,
+        } as Prisma.InputJsonObject,
       },
     });
   }
@@ -541,11 +626,23 @@ export class QuizService {
       throw new ForbiddenException("Submitted attempts are immutable");
     }
     this.assertAttemptStillOpen(attempt);
-    const quizQuestion = await this.prisma.quizQuestion.findFirst({
+    const order = this.readQuestionOrder(attempt.metadata);
+    if (order?.length && !order.includes(dto.questionId)) {
+      throw new NotFoundException("Question not in this attempt");
+    }
+
+    const fixed = await this.prisma.quizQuestion.findFirst({
       where: { quizId: attempt.quizId, questionId: dto.questionId },
       include: { question: true },
     });
-    if (!quizQuestion) throw new NotFoundException("Question not in quiz");
+    let maxPoints: number;
+    if (fixed) {
+      maxPoints = fixed.points ?? fixed.question.points;
+    } else {
+      // Random-pool pick: question not permanently on quiz
+      const question = await this.getQuestion(organizationId, dto.questionId);
+      maxPoints = question.points;
+    }
     return this.prisma.quizAnswer.upsert({
       where: {
         attemptId_questionId: {
@@ -557,7 +654,7 @@ export class QuizService {
         selectedOptionIds: (dto.selectedOptionIds ?? []) as Prisma.InputJsonArray,
         textAnswer: dto.textAnswer,
         numericAnswer: dto.numericAnswer,
-        maxPoints: quizQuestion.points ?? quizQuestion.question.points,
+        maxPoints,
         status: "NOT_GRADED",
       },
       create: {
@@ -567,7 +664,7 @@ export class QuizService {
         selectedOptionIds: (dto.selectedOptionIds ?? []) as Prisma.InputJsonArray,
         textAnswer: dto.textAnswer,
         numericAnswer: dto.numericAnswer,
-        maxPoints: quizQuestion.points ?? quizQuestion.question.points,
+        maxPoints,
       },
     });
   }
@@ -576,6 +673,8 @@ export class QuizService {
     const attempt = await this.getOwnAttempt(organizationId, userId, attemptId);
     if (attempt.status !== "IN_PROGRESS") return this.result(organizationId, userId, attemptId);
     const quiz = await this.getQuizForGrading(organizationId, attempt.quizId);
+    const order = this.readQuestionOrder(attempt.metadata);
+    const gradeTargets = await this.resolveAttemptQuestions(organizationId, quiz, order);
     const answers = await this.prisma.quizAnswer.findMany({
       where: { organizationId, attemptId },
     });
@@ -583,32 +682,32 @@ export class QuizService {
       answers.map((answer) => [answer.questionId, answer]),
     );
     const graded = await Promise.all(
-      quiz.questions.map(async (quizQuestion) => {
-        const answer = answersByQuestion.get(quizQuestion.questionId);
+      gradeTargets.map(async (target) => {
+        const answer = answersByQuestion.get(target.questionId);
         const grade = this.gradeAnswer(
-          quizQuestion.question,
-          quizQuestion.points ?? quizQuestion.question.points,
+          target.question,
+          target.points,
           answer,
         );
         return this.prisma.quizAnswer.upsert({
           where: {
             attemptId_questionId: {
               attemptId,
-              questionId: quizQuestion.questionId,
+              questionId: target.questionId,
             },
           },
           update: grade,
           create: {
             organizationId,
             attemptId,
-            questionId: quizQuestion.questionId,
+            questionId: target.questionId,
             selectedOptionIds: [],
             ...grade,
           },
         });
       }),
     );
-    const summary = this.scoreSummary(quiz, graded);
+    const summary = this.scoreSummaryFromAnswers(quiz.passingScorePercent, graded);
     const needsManual = graded.some((answer) => answer.status === "NEEDS_MANUAL_GRADING");
     const updated = await this.prisma.quizAttempt.update({
       where: { id: attemptId },
@@ -642,11 +741,18 @@ export class QuizService {
     const answers = await this.prisma.quizAnswer.findMany({
       where: { organizationId, attemptId },
     });
+    const questionOrder = this.readQuestionOrder(attempt.metadata);
+    const attemptQuestions = await this.resolveAttemptQuestions(
+      organizationId,
+      quiz,
+      questionOrder,
+    );
     return {
       attempt,
       quiz: this.sanitizeQuizForLearner(quiz, {
         revealCorrect: quiz.showCorrectAnswers,
         revealFeedback: quiz.showFeedback,
+        attemptQuestions,
       }),
       answers: answers.map((answer) => ({
         ...answer,
@@ -897,6 +1003,7 @@ export class QuizService {
         pointsAwarded: 0,
         isCorrect: null,
         status: "NEEDS_MANUAL_GRADING" as const,
+        feedback: null as string | null,
       };
     }
     if (question.type === "SHORT_ANSWER") {
@@ -907,6 +1014,7 @@ export class QuizService {
           pointsAwarded: 0,
           isCorrect: null,
           status: "NEEDS_MANUAL_GRADING" as const,
+          feedback: null as string | null,
         };
       }
       const normalized = (answer?.textAnswer ?? "").trim().toLowerCase();
@@ -930,7 +1038,16 @@ export class QuizService {
     const exact =
       selected.size === correctSet.size &&
       [...selected].every((id) => correctSet.has(id));
-    return this.finalGrade(exact, maxPoints);
+    // ponytail: join option feedbacks for selected choices when present
+    const optionFeedback = question.options
+      .filter((o) => selected.has(o.id) && o.feedback)
+      .map((o) => o.feedback)
+      .filter(Boolean)
+      .join(" ");
+    return {
+      ...this.finalGrade(exact, maxPoints),
+      feedback: optionFeedback || null,
+    };
   }
 
   private finalGrade(correct: boolean, maxPoints: number) {
@@ -939,6 +1056,7 @@ export class QuizService {
       pointsAwarded: correct ? maxPoints : 0,
       isCorrect: correct,
       status: correct ? ("CORRECT" as const) : ("INCORRECT" as const),
+      feedback: null as string | null,
     };
   }
 
@@ -946,14 +1064,24 @@ export class QuizService {
     quiz: QuizForGrading,
     answers: Array<{ pointsAwarded: number; maxPoints: number }>,
   ) {
-    const maxScore = this.maxScore(quiz);
+    return this.scoreSummaryFromAnswers(quiz.passingScorePercent, answers, this.maxScore(quiz));
+  }
+
+  private scoreSummaryFromAnswers(
+    passingScorePercent: number,
+    answers: Array<{ pointsAwarded: number; maxPoints: number }>,
+    maxScoreOverride?: number,
+  ) {
+    const maxScore =
+      maxScoreOverride ??
+      answers.reduce((sum, answer) => sum + answer.maxPoints, 0);
     const score = answers.reduce((sum, answer) => sum + answer.pointsAwarded, 0);
     const percentage = maxScore > 0 ? Math.round((score / maxScore) * 10000) / 100 : 0;
     return {
       score,
       maxScore,
       percentage,
-      passed: percentage >= quiz.passingScorePercent,
+      passed: percentage >= passingScorePercent,
     };
   }
 
@@ -964,10 +1092,201 @@ export class QuizService {
     );
   }
 
+  private async isQuestionLockedInPublishedQuiz(
+    organizationId: string,
+    questionId: string,
+  ) {
+    const count = await this.prisma.quizQuestion.count({
+      where: {
+        questionId,
+        quiz: {
+          organizationId,
+          status: "PUBLISHED",
+          deletedAt: null,
+        },
+      },
+    });
+    return count > 0;
+  }
+
+  private readRandomPools(metadata: Prisma.JsonValue | null | undefined): Array<{
+    bankId: string;
+    count: number;
+    type?: string;
+  }> {
+    if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return [];
+    const raw = (metadata as { randomPools?: unknown }).randomPools;
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .map((item) => {
+        if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+        const rec = item as Record<string, unknown>;
+        const bankId = typeof rec.bankId === "string" ? rec.bankId : "";
+        const count = Number(rec.count);
+        if (!bankId || !Number.isFinite(count) || count < 1) return null;
+        return {
+          bankId,
+          count: Math.min(50, Math.floor(count)),
+          type: typeof rec.type === "string" ? rec.type : undefined,
+        };
+      })
+      .filter(Boolean) as Array<{ bankId: string; count: number; type?: string }>;
+  }
+
+  private readQuestionOrder(
+    metadata: Prisma.JsonValue | null | undefined,
+  ): string[] | undefined {
+    if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+      return undefined;
+    }
+    const raw = (metadata as { questionOrder?: unknown }).questionOrder;
+    if (!Array.isArray(raw)) return undefined;
+    const ids = raw.filter((id): id is string => typeof id === "string" && id.length > 0);
+    return ids.length ? ids : undefined;
+  }
+
+  private shuffleIds(ids: string[]) {
+    const next = [...ids];
+    for (let i = next.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const t = next[i]!;
+      next[i] = next[j]!;
+      next[j] = t;
+    }
+    return next;
+  }
+
+  private async buildAttemptQuestionSelection(
+    organizationId: string,
+    quiz: QuizForGrading,
+  ) {
+    const fixedIds = quiz.questions.map((q) => q.questionId);
+    const used = new Set(fixedIds);
+    const poolPicks: Array<{ bankId: string; questionIds: string[] }> = [];
+    let poolPoints = 0;
+
+    for (const pool of this.readRandomPools(quiz.metadata)) {
+      const candidates = await this.prisma.question.findMany({
+        where: {
+          organizationId,
+          questionBankId: pool.bankId,
+          deletedAt: null,
+          id: { notIn: [...used] },
+          ...(pool.type ? { type: pool.type as never } : {}),
+        },
+        select: { id: true, points: true },
+      });
+      const shuffled = this.shuffleIds(candidates.map((c) => c.id));
+      const pick = shuffled.slice(0, pool.count);
+      for (const id of pick) used.add(id);
+      for (const id of pick) {
+        const row = candidates.find((c) => c.id === id);
+        poolPoints += row?.points ?? 1;
+      }
+      poolPicks.push({ bankId: pool.bankId, questionIds: pick });
+    }
+
+    let questionOrder = [...fixedIds, ...poolPicks.flatMap((p) => p.questionIds)];
+    if (quiz.shuffleQuestions) {
+      questionOrder = this.shuffleIds(questionOrder);
+    }
+
+    const fixedMax = this.maxScore(quiz);
+    return {
+      questionOrder,
+      poolPicks,
+      maxScore: fixedMax + poolPoints,
+    };
+  }
+
+  private async resolveAttemptQuestions(
+    organizationId: string,
+    quiz: QuizForGrading,
+    order: string[] | undefined,
+  ) {
+    const fixedById = new Map(
+      quiz.questions.map((qq) => [
+        qq.questionId,
+        {
+          questionId: qq.questionId,
+          points: qq.points ?? qq.question.points,
+          question: qq.question,
+        },
+      ]),
+    );
+    const ids = order?.length ? order : quiz.questions.map((q) => q.questionId);
+    const missing = ids.filter((id) => !fixedById.has(id));
+    const loaded =
+      missing.length > 0
+        ? await this.prisma.question.findMany({
+            where: { organizationId, id: { in: missing }, deletedAt: null },
+            include: { options: { orderBy: { orderIndex: "asc" } } },
+          })
+        : [];
+    const loadedById = new Map(loaded.map((q) => [q.id, q]));
+
+    return ids
+      .map((id) => {
+        const fixed = fixedById.get(id);
+        if (fixed) return fixed;
+        const q = loadedById.get(id);
+        if (!q) return null;
+        return { questionId: id, points: q.points, question: q };
+      })
+      .filter(Boolean) as Array<{
+      questionId: string;
+      points: number;
+      question: QuestionWithOptions;
+    }>;
+  }
+
   private sanitizeQuizForLearner(
     quiz: QuizForGrading,
-    options: { revealCorrect?: boolean; revealFeedback?: boolean } = {},
+    options: {
+      revealCorrect?: boolean;
+      revealFeedback?: boolean;
+      attemptQuestions?: Array<{
+        questionId: string;
+        points: number;
+        question: QuestionWithOptions;
+      }>;
+      includePools?: boolean;
+    } = {},
   ) {
+    const mapQuestion = (
+      question: QuestionWithOptions,
+      quizQuestionId?: string,
+      points?: number,
+    ) => ({
+      id: question.id,
+      quizQuestionId,
+      type: question.type,
+      prompt: question.prompt,
+      points: points ?? question.points,
+      explanation: options.revealFeedback ? question.explanation : undefined,
+      metadata: question.metadata ?? {},
+      options: question.options.map((option) => ({
+        id: option.id,
+        text: option.text,
+        isCorrect: options.revealCorrect ? option.isCorrect : undefined,
+        feedback: options.revealFeedback ? option.feedback : undefined,
+      })),
+    });
+
+    const questions = options.attemptQuestions
+      ? options.attemptQuestions.map((t) =>
+          mapQuestion(t.question, undefined, t.points),
+        )
+      : quiz.questions.map((quizQuestion) =>
+          mapQuestion(
+            quizQuestion.question,
+            quizQuestion.id,
+            quizQuestion.points ?? quizQuestion.question.points,
+          ),
+        );
+
+    const pools = this.readRandomPools(quiz.metadata);
+
     return {
       id: quiz.id,
       title: quiz.title,
@@ -977,20 +1296,9 @@ export class QuizService {
       timeLimitMinutes: quiz.timeLimitMinutes,
       showCorrectAnswers: quiz.showCorrectAnswers,
       showFeedback: quiz.showFeedback,
-      questions: quiz.questions.map((quizQuestion) => ({
-        id: quizQuestion.question.id,
-        quizQuestionId: quizQuestion.id,
-        type: quizQuestion.question.type,
-        prompt: quizQuestion.question.prompt,
-        points: quizQuestion.points ?? quizQuestion.question.points,
-        explanation: options.revealFeedback ? quizQuestion.question.explanation : undefined,
-        options: quizQuestion.question.options.map((option) => ({
-          id: option.id,
-          text: option.text,
-          isCorrect: options.revealCorrect ? option.isCorrect : undefined,
-          feedback: options.revealFeedback ? option.feedback : undefined,
-        })),
-      })),
+      shuffleQuestions: quiz.shuffleQuestions,
+      questions,
+      randomPools: options.includePools ? pools : undefined,
     };
   }
 

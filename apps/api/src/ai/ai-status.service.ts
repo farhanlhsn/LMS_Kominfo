@@ -18,7 +18,7 @@ export class AiStatusService {
   async getStatus(organizationId: string) {
     const chat = this.chatFactory.create().capabilities;
     const embedding = this.embeddingFactory.create().capabilities;
-    const needsReindex = await this.detectAndMarkModelMismatch(
+    const needsReindex = await this.detectModelMismatch(
       organizationId,
       embedding.model,
     );
@@ -44,7 +44,7 @@ export class AiStatusService {
     };
   }
 
-  private async detectAndMarkModelMismatch(
+  private async detectModelMismatch(
     organizationId: string,
     model: string | null,
   ): Promise<boolean> {
@@ -75,48 +75,17 @@ export class AiStatusService {
           : [{ embeddingDimensions: { not: dimensions } }]),
       ],
     };
-
-    const [chunks, questions, prototypes] = await this.prisma.$transaction([
-      this.prisma.aiDocumentChunk.updateMany({
-        where: { organizationId, status: "READY", ...mismatch },
-        data: { status: "NEEDS_REINDEX" },
-      }),
-      this.prisma.aiCanonicalQuestion.updateMany({
-        where: { organizationId, status: "READY", ...mismatch },
-        data: { status: "NEEDS_REINDEX" },
-      }),
-      this.prisma.aiClassificationPrototype.updateMany({
-        where: { organizationId, status: "READY", ...mismatch },
-        data: { status: "NEEDS_REINDEX" },
-      }),
-    ]);
-
-    if (chunks.count > 0) {
-      const affected = await this.prisma.aiDocumentChunk.findMany({
-        where: {
-          organizationId,
-          status: "NEEDS_REINDEX",
-          sourceDocumentId: { not: null },
-        },
-        select: { sourceDocumentId: true },
-        distinct: ["sourceDocumentId"],
-      });
-      await this.prisma.aiDocument.updateMany({
-        where: {
-          organizationId,
-          id: {
-            in: affected
-              .map((item) => item.sourceDocumentId)
-              .filter((id): id is string => Boolean(id)),
-          },
-        },
-        data: { status: "NEEDS_REINDEX" },
-      });
-    }
-    if (chunks.count + questions.count + prototypes.count > 0) return true;
-
-    const [chunkCount, questionCount, prototypeCount] =
+    const [mismatchedChunks, mismatchedQuestions, mismatchedPrototypes, pendingChunks, pendingQuestions, pendingPrototypes] =
       await this.prisma.$transaction([
+        this.prisma.aiDocumentChunk.count({
+          where: { organizationId, status: "READY", ...mismatch },
+        }),
+        this.prisma.aiCanonicalQuestion.count({
+          where: { organizationId, status: "READY", ...mismatch },
+        }),
+        this.prisma.aiClassificationPrototype.count({
+          where: { organizationId, status: "READY", ...mismatch },
+        }),
         this.prisma.aiDocumentChunk.count({
           where: { organizationId, status: "NEEDS_REINDEX" },
         }),
@@ -127,6 +96,14 @@ export class AiStatusService {
           where: { organizationId, status: "NEEDS_REINDEX" },
         }),
       ]);
-    return chunkCount + questionCount + prototypeCount > 0;
+    return (
+      mismatchedChunks +
+        mismatchedQuestions +
+        mismatchedPrototypes +
+        pendingChunks +
+        pendingQuestions +
+        pendingPrototypes >
+      0
+    );
   }
 }

@@ -38,7 +38,11 @@ export class AiChunkerService {
       const pieces =
         paragraph.length > targetCharacters
           ? (paragraph.match(
-              new RegExp(`.{1,${targetCharacters}}(?:\\s|$)`, "gs"),
+              // Clamp width so attacker-controlled config cannot inflate ReDoS risk.
+              new RegExp(
+                `.{1,${Math.min(Math.max(1, targetCharacters | 0), 8000)}}(?:\\s|$)`,
+                "gs",
+              ),
             ) ?? [paragraph])
           : [paragraph];
       for (const piece of pieces) {

@@ -54,6 +54,7 @@ import { SchedulingModule } from "./scheduling/scheduling.module";
 import { ProctoringModule } from "./proctoring/proctoring.module";
 import { PayoutModule } from "./payout/payout.module";
 import { TaxModule } from "./tax/tax.module";
+import { UsersModule } from "./users/users.module";
 
 @Module({
   imports: [
@@ -110,6 +111,7 @@ import { TaxModule } from "./tax/tax.module";
     ProctoringModule,
     PayoutModule,
     TaxModule,
+    UsersModule,
   ],
 })
 export class AppModule implements NestModule {

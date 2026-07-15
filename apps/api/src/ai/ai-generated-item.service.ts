@@ -171,14 +171,101 @@ export class AiGeneratedItemService {
     if (item.status !== "APPROVED") {
       throw new BadRequestException("Item must be approved before publishing");
     }
+
+    // ponytail: materialize QUIZ drafts into question bank on publish
+    let bankMeta: Record<string, unknown> = {};
+    if (item.type === "QUIZ") {
+      bankMeta = await this.materializeQuizToBank(organization, userId, item);
+    }
+
     const updated = await this.prisma.aiGeneratedItem.update({
       where: { id: item.id },
       data: {
         status: "PUBLISHED",
+        metadata: {
+          ...((item.metadata ?? {}) as Record<string, unknown>),
+          ...bankMeta,
+          publishedAt: new Date().toISOString(),
+          publishedById: userId,
+        } as Prisma.InputJsonObject,
       },
     });
     await this.audit(organization.id, userId, "ai_generated_item.published", item.id);
     return updated;
+  }
+
+  private async materializeQuizToBank(
+    organization: OrganizationContext,
+    userId: string,
+    item: {
+      id: string;
+      title: string | null;
+      courseId: string | null;
+      output: Prisma.JsonValue;
+    },
+  ) {
+    const output =
+      item.output && typeof item.output === "object" && !Array.isArray(item.output)
+        ? (item.output as Record<string, unknown>)
+        : {};
+    const rawQuestions = Array.isArray(output.questions) ? output.questions : [];
+    const title =
+      (typeof output.title === "string" && output.title.trim()) ||
+      item.title?.trim() ||
+      "AI quiz draft";
+
+    const bank = await this.prisma.questionBank.create({
+      data: {
+        organizationId: organization.id,
+        courseId: item.courseId,
+        title: `${title} (AI)`,
+        description:
+          typeof output.instructions === "string"
+            ? output.instructions
+            : "Imported from AI quiz draft",
+        ownerId: userId,
+        metadata: {
+          source: "ai_generated_item",
+          aiGeneratedItemId: item.id,
+        } as Prisma.InputJsonObject,
+      },
+    });
+
+    let created = 0;
+    for (const raw of rawQuestions) {
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+      const q = raw as Record<string, unknown>;
+      const prompt = typeof q.prompt === "string" ? q.prompt.trim() : "";
+      if (prompt.length < 2) continue;
+      const suggested =
+        typeof q.suggestedAnswer === "string" ? q.suggestedAnswer.trim() : "";
+      const explanation =
+        typeof q.explanation === "string" ? q.explanation.trim() : undefined;
+      await this.prisma.question.create({
+        data: {
+          organizationId: organization.id,
+          questionBankId: bank.id,
+          createdById: userId,
+          type: "SHORT_ANSWER",
+          prompt,
+          explanation,
+          points: 1,
+          acceptedAnswers: (suggested ? [suggested] : []) as Prisma.InputJsonArray,
+          metadata: {
+            source: "ai_generated_item",
+            aiGeneratedItemId: item.id,
+            sourceTimestamp:
+              typeof q.sourceTimestamp === "number" ? q.sourceTimestamp : null,
+          } as Prisma.InputJsonObject,
+        },
+      });
+      created += 1;
+    }
+
+    return {
+      questionBankId: bank.id,
+      questionsCreated: created,
+    };
   }
 
   async generateVideoSummary(

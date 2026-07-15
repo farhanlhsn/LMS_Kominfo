@@ -166,6 +166,15 @@ export class LearnerCohortController {
   ) {
     return this.service.listMyCohorts(org.id, user.id);
   }
+
+  @Get(":id/deadlines")
+  deadlines(
+    @ActiveOrganization() org: OrganizationContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("id") id: string,
+  ) {
+    return this.service.getCohortDeadlines(org.id, user.id, id);
+  }
 }
 
 @Controller("me/timezone")

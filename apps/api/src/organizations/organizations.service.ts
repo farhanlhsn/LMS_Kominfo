@@ -13,9 +13,11 @@ import { PrismaService } from "../prisma/prisma.service";
 import { NotificationService } from "../engagement/notification.service";
 import { EmailService } from "../email/email.service";
 import type {
+  CreateOrganizationDto,
   CreateOrganizationMemberDto,
   CreateOrganizationRoleDto,
   InviteOrganizationMemberDto,
+  UpdateOrganizationDto,
   UpdateOrganizationMemberRolesDto,
   UpdateOrganizationMemberStatusDto,
   UpdateOrganizationRoleDto,
@@ -527,6 +529,95 @@ export class OrganizationsService {
         description: rolePermission.permission.description,
       })),
     };
+  }
+
+  async adminList(query: { status?: string; search?: string }) {
+    const where: Record<string, unknown> = {};
+    if (query.status) where.status = query.status;
+    if (query.search) {
+      where.OR = [
+        { name: { contains: query.search, mode: "insensitive" } },
+        { slug: { contains: query.search, mode: "insensitive" } },
+      ];
+    }
+
+    return this.prisma.organization.findMany({
+      where,
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        status: true,
+        createdAt: true,
+        _count: { select: { members: true, courses: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  }
+
+  async adminCreate(actorUserId: string, dto: CreateOrganizationDto) {
+    const existing = await this.prisma.organization.findUnique({
+      where: { slug: dto.slug },
+    });
+    if (existing) throw new ConflictException("Organization slug already exists");
+
+    return this.prisma.$transaction(async (tx) => {
+      const org = await tx.organization.create({
+        data: {
+          name: dto.name.trim(),
+          slug: dto.slug,
+          status: "ACTIVE",
+          loginPolicy: {
+            create: {
+              allowPasswordLogin: true,
+              allowSocialLogin: false,
+              allowSsoLogin: false,
+              requireSsoForVerifiedDomains: false,
+              jitProvisioningEnabled: false,
+              inviteOnly: false,
+              mfaRequired: false,
+              sessionTtlMinutes: 43200,
+            },
+          },
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          organizationId: org.id,
+          userId: actorUserId,
+          action: "organization.created",
+          entityType: "Organization",
+          entityId: org.id,
+          metadata: { name: dto.name, slug: dto.slug },
+        },
+      });
+
+      return org;
+    });
+  }
+
+  async adminUpdate(id: string, dto: UpdateOrganizationDto) {
+    const org = await this.prisma.organization.findUnique({ where: { id } });
+    if (!org) throw new NotFoundException("Organization not found");
+
+    if (dto.slug) {
+      const existing = await this.prisma.organization.findUnique({
+        where: { slug: dto.slug },
+      });
+      if (existing && existing.id !== id) {
+        throw new ConflictException("Organization slug already in use");
+      }
+    }
+
+    return this.prisma.organization.update({
+      where: { id },
+      data: {
+        ...(dto.name && { name: dto.name.trim() }),
+        ...(dto.slug && { slug: dto.slug }),
+        ...(dto.status && { status: dto.status }),
+      },
+    });
   }
 
   private async audit(

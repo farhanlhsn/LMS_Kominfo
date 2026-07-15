@@ -60,11 +60,88 @@ export class SchedulingService {
       },
       include: {
         course: { select: { id: true, title: true, slug: true } },
+        schedule: { orderBy: [{ weekday: "asc" }, { startTime: "asc" }] },
         _count: { select: { members: true } },
       },
       orderBy: { startAt: "asc" },
       take: 50,
     });
+  }
+
+  async getCohortDeadlines(organizationId: string, userId: string, cohortId: string) {
+    const cohort = await this.prisma.cohort.findFirst({
+      where: { id: cohortId, organizationId, members: { some: { userId, status: "ACTIVE" } } },
+      include: {
+        schedule: { orderBy: [{ weekday: "asc" }, { startTime: "asc" }] },
+        course: { select: { id: true, title: true } },
+      },
+    });
+    if (!cohort) throw new NotFoundException("Cohort not found");
+
+    const lessons = await this.prisma.lesson.findMany({
+      where: { courseId: cohort.courseId, organizationId },
+      include: {
+        activities: {
+          where: {
+            OR: [
+              { activityTypeKey: "core.quiz" },
+              { activityTypeKey: "core.assignment" },
+            ],
+          },
+          select: { id: true, title: true, activityTypeKey: true },
+        },
+      },
+      orderBy: { orderIndex: "asc" },
+    });
+
+    const now = new Date();
+    const upcomingDeadlines: Array<{ type: string; title: string; dueAt: string; lessonTitle: string }> = [];
+    // Ponytail: estimate next session for each lesson with graded activities
+    if (cohort.schedule.length > 0) {
+      const weekdays = cohort.schedule.map((s) => s.weekday);
+      for (const lesson of lessons) {
+        if (lesson.activities.length === 0) continue;
+        const dueDate = this.nextWeekdayDate(weekdays, now);
+        for (const activity of lesson.activities) {
+          upcomingDeadlines.push({
+            type: activity.activityTypeKey === "core.quiz" ? "quiz" : "assignment",
+            title: activity.title,
+            dueAt: dueDate.toISOString(),
+            lessonTitle: lesson.title,
+          });
+        }
+      }
+    }
+
+    return {
+      cohortId,
+      cohortName: cohort.name,
+      courseTitle: cohort.course.title,
+      startAt: cohort.startAt.toISOString(),
+      endAt: cohort.endAt.toISOString(),
+      schedule: cohort.schedule.map((s) => ({
+        weekday: s.weekday,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        meetingUrl: s.meetingUrl,
+      })),
+      upcomingDeadlines: upcomingDeadlines.slice(0, 20),
+    };
+  }
+
+  private nextWeekdayDate(weekdays: number[], from: Date): Date {
+    const day = from.getDay();
+    for (let offset = 0; offset < 14; offset++) {
+      const candidate = (day + offset) % 7;
+      if (weekdays.includes(candidate)) {
+        const d = new Date(from);
+        d.setDate(d.getDate() + offset);
+        return d;
+      }
+    }
+    const d = new Date(from);
+    d.setDate(d.getDate() + 7);
+    return d;
   }
 
   async getCohort(organization: OrganizationContext, userId: string, cohortId: string) {

@@ -157,6 +157,75 @@ export class GoalsService {
     return ensureEnrollment(this.prisma, organizationId, userId, courseId);
   }
 
+  // ── Study Sessions ─────────────────────────────────
+
+  async startStudySession(
+    organizationId: string,
+    userId: string,
+    data: { courseId?: string; goalId?: string; targetSeconds?: number },
+  ) {
+    return this.prisma.studySession.create({
+      data: { organizationId, userId, courseId: data.courseId, goalId: data.goalId, targetSeconds: data.targetSeconds },
+    });
+  }
+
+  async updateStudySession(
+    organizationId: string,
+    userId: string,
+    sessionId: string,
+    data: { status?: string; elapsedSeconds?: number },
+  ) {
+    const session = await this.prisma.studySession.findFirst({ where: { id: sessionId, organizationId, userId } });
+    if (!session) throw new NotFoundException("Study session not found");
+    const updated = await this.prisma.studySession.update({
+      where: { id: sessionId },
+      data: { status: data.status as any, elapsedSeconds: data.elapsedSeconds, endedAt: data.status === "COMPLETED" || data.status === "CANCELLED" ? new Date() : undefined },
+    });
+    // ponytail: auto-update STUDY_TIME goal progress on completion
+    if (updated.status === "COMPLETED" && updated.goalId) {
+      const goal = await this.prisma.learningGoal.findFirst({ where: { id: updated.goalId, organizationId, userId } });
+      if (goal && goal.targetType === "STUDY_TIME") {
+        const existing = (goal.progressValue as Record<string, unknown>)?.elapsedSeconds ?? 0;
+        await this.prisma.learningGoal.update({
+          where: { id: goal.id },
+          data: { progressValue: { elapsedSeconds: Number(existing) + (updated.elapsedSeconds ?? 0) } },
+        });
+      }
+    }
+    return updated;
+  }
+
+  async listStudySessions(
+    organizationId: string,
+    userId: string,
+    filters: { status?: string; from?: string; to?: string; limit?: number },
+  ) {
+    const where: Record<string, unknown> = { organizationId, userId };
+    if (filters.status) where.status = filters.status;
+    if (filters.from || filters.to) {
+      where.startedAt = {};
+      if (filters.from) (where.startedAt as Record<string, unknown>).gte = new Date(filters.from);
+      if (filters.to) (where.startedAt as Record<string, unknown>).lte = new Date(filters.to);
+    }
+    return this.prisma.studySession.findMany({
+      where: where as any,
+      orderBy: { startedAt: "desc" },
+      take: filters.limit ?? 50,
+    });
+  }
+
+  async getStudySession(organizationId: string, userId: string, sessionId: string) {
+    const session = await this.prisma.studySession.findFirst({ where: { id: sessionId, organizationId, userId } });
+    if (!session) throw new NotFoundException("Study session not found");
+    return session;
+  }
+
+  async cancelStudySession(organizationId: string, userId: string, sessionId: string) {
+    const session = await this.prisma.studySession.findFirst({ where: { id: sessionId, organizationId, userId } });
+    if (!session) throw new NotFoundException("Study session not found");
+    return this.prisma.studySession.update({ where: { id: sessionId }, data: { status: "CANCELLED", endedAt: new Date() } });
+  }
+
   private date(value?: string) {
     return value ? new Date(value) : undefined;
   }

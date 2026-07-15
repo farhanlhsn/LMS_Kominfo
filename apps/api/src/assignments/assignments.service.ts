@@ -17,6 +17,7 @@ import type {
   CreateRubricDto,
   GradeSubmissionDto,
   ReturnSubmissionDto,
+  ReviewLateSubmissionDto,
   SaveSubmissionDto,
   UpdateAssignmentDto,
   UpdateRubricDto,
@@ -353,6 +354,18 @@ export class AssignmentsService {
   ) {
     const submission = await this.getSubmission(organization, userId, submissionId);
     const rubricScores = dto.rubricScores ?? [];
+    const criteria = submission.assignment.rubric?.criteria ?? [];
+    const criteriaById = new Map(criteria.map((criterion) => [criterion.id, criterion]));
+    for (const item of rubricScores) {
+      const criterion = criteriaById.get(item.criterionId);
+      if (!criterion) throw new BadRequestException("Rubric criterion does not belong to assignment");
+      if (!Number.isFinite(item.points) || item.points < 0 || item.points > criterion.maxPoints) {
+        throw new BadRequestException("Rubric score is outside criterion limits");
+      }
+      if (item.levelId && !criterion.levels?.some((level) => level.id === item.levelId)) {
+        throw new BadRequestException("Rubric level does not belong to criterion");
+      }
+    }
     const score = rubricScores.length
       ? rubricScores.reduce((sum, item) => sum + item.points, 0)
       : (dto.score ?? 0);
@@ -361,6 +374,16 @@ export class AssignmentsService {
       submission.assignment.rubric?.totalPoints ??
       submission.maxScore ??
       score;
+    if (!Number.isFinite(score) || score < 0) {
+      throw new BadRequestException("Score must be a finite non-negative number");
+    }
+    if (maxScore != null && (!Number.isFinite(maxScore) || maxScore <= 0)) {
+      throw new BadRequestException("Max score must be a positive finite number");
+    }
+    if (maxScore != null && score > maxScore) {
+      throw new BadRequestException("Score must be between zero and maximum score");
+    }
+    if (dto.feedback && dto.feedback.length > 20000) throw new BadRequestException("Feedback is too long");
     await this.prisma.rubricScore.deleteMany({ where: { submissionId } });
     const graded = await this.prisma.assignmentSubmission.update({
       where: { id: submissionId },
@@ -398,6 +421,55 @@ export class AssignmentsService {
     });
     await this.audit(organization.id, userId, "assignment_submission.graded", submissionId);
     return graded;
+  }
+
+  async reviewLateSubmission(
+    organization: OrganizationContext,
+    userId: string,
+    submissionId: string,
+    dto: ReviewLateSubmissionDto,
+  ) {
+    const submission = await this.getSubmission(organization, userId, submissionId);
+    if (submission.status !== "LATE") throw new BadRequestException("Submission is not late");
+    if (dto.extensionUntil && Number.isNaN(new Date(dto.extensionUntil).getTime())) throw new BadRequestException("Invalid extension deadline");
+    if (dto.feedback && dto.feedback.length > 20000) throw new BadRequestException("Feedback is too long");
+    const metadata = (submission.metadata && typeof submission.metadata === "object" && !Array.isArray(submission.metadata)) ? submission.metadata as Record<string, unknown> : {};
+    const reviewed = await this.prisma.assignmentSubmission.update({
+      where: { id: submission.id },
+      data: {
+        status: dto.action === "APPROVE" ? "SUBMITTED" : "RETURNED",
+        feedback: dto.feedback,
+        metadata: {
+          ...metadata,
+          lateReview: { action: dto.action, reviewedById: userId, reviewedAt: new Date().toISOString(), extensionUntil: dto.extensionUntil ?? null },
+        },
+      },
+      include: { assignment: true },
+    });
+    if (dto.action === "REJECT") await this.updateAssignmentProgress(organization.id, reviewed.userId, reviewed, false);
+    await this.audit(organization.id, userId, `assignment_submission.late_${dto.action.toLowerCase()}`, submissionId);
+    return reviewed;
+  }
+
+  async getGradebook(organization: OrganizationContext, userId: string, courseId: string) {
+    await this.ensureCanGradeCourse(organization, userId, courseId);
+    const [enrollments, assignments] = await Promise.all([
+      this.prisma.enrollment.findMany({ where: { organizationId: organization.id, courseId }, include: { user: { select: { id: true, name: true, email: true } } }, orderBy: { enrolledAt: "asc" } }),
+      this.prisma.assignment.findMany({ where: { organizationId: organization.id, courseId, deletedAt: null }, include: { rubric: { select: { totalPoints: true } }, submissions: { select: { userId: true, score: true, maxScore: true, status: true } } }, orderBy: { createdAt: "asc" } }),
+    ]);
+    return enrollments.map((enrollment) => {
+      const assignmentScores = assignments.map((assignment) => {
+        const submission = assignment.submissions.find((item) => item.userId === enrollment.userId && ["GRADED", "SUBMITTED", "LATE"].includes(item.status));
+        return { assignmentId: assignment.id, title: assignment.title, score: submission?.score ?? null, maxScore: submission?.maxScore ?? assignment.rubric?.totalPoints ?? null, status: submission?.status ?? "NOT_STARTED" };
+      });
+      const graded = assignmentScores.filter((item) => item.score != null && item.maxScore);
+      return { studentId: enrollment.userId, student: enrollment.user, enrollmentStatus: enrollment.status, progressPercent: enrollment.progressPercent, lastAccessedAt: enrollment.lastAccessedAt, average: graded.length ? Math.round(graded.reduce((sum, item) => sum + (Number(item.score) / Number(item.maxScore)) * 100, 0) / graded.length) : null, assignmentScores };
+    });
+  }
+
+  async getRoster(organization: OrganizationContext, userId: string, courseId: string) {
+    await this.ensureCanGradeCourse(organization, userId, courseId);
+    return this.prisma.enrollment.findMany({ where: { organizationId: organization.id, courseId }, include: { user: { select: { id: true, name: true, email: true } } }, orderBy: { enrolledAt: "asc" } });
   }
 
   async returnSubmission(

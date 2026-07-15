@@ -234,6 +234,10 @@ export class UpdateQuizDto {
   activityId?: string;
 
   @IsOptional()
+  @IsIn(["DRAFT", "PUBLISHED", "ARCHIVED"])
+  status?: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+
+  @IsOptional()
   @IsNumber()
   @Min(0)
   passingScorePercent?: number;

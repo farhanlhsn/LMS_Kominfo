@@ -25,6 +25,7 @@ import {
   CreateRubricDto,
   GradeSubmissionDto,
   ReturnSubmissionDto,
+  ReviewLateSubmissionDto,
   SaveSubmissionDto,
   UpdateAssignmentDto,
   UpdateRubricDto,
@@ -124,6 +125,24 @@ export class InstructorAssignmentsController {
   @Permissions(PERMISSIONS.assignmentsGrade)
   returnSubmission(@ActiveOrganization() org: OrganizationContext, @CurrentUser() user: AuthenticatedUser, @Param("submissionId") submissionId: string, @Body() dto: ReturnSubmissionDto) {
     return this.service.returnSubmission(org, user.id, submissionId, dto);
+  }
+
+  @Patch("submissions/:submissionId/late-review")
+  @Permissions(PERMISSIONS.assignmentsGrade)
+  reviewLateSubmission(@ActiveOrganization() org: OrganizationContext, @CurrentUser() user: AuthenticatedUser, @Param("submissionId") submissionId: string, @Body() dto: ReviewLateSubmissionDto) {
+    return this.service.reviewLateSubmission(org, user.id, submissionId, dto);
+  }
+
+  @Get("courses/:courseId/gradebook")
+  @Permissions(PERMISSIONS.assignmentsGrade)
+  gradebook(@ActiveOrganization() org: OrganizationContext, @CurrentUser() user: AuthenticatedUser, @Param("courseId") courseId: string) {
+    return this.service.getGradebook(org, user.id, courseId);
+  }
+
+  @Get("courses/:courseId/roster")
+  @Permissions(PERMISSIONS.assignmentsGrade)
+  roster(@ActiveOrganization() org: OrganizationContext, @CurrentUser() user: AuthenticatedUser, @Param("courseId") courseId: string) {
+    return this.service.getRoster(org, user.id, courseId);
   }
 }
 

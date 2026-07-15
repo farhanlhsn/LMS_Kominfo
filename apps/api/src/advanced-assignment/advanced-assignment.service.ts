@@ -7,7 +7,7 @@ import {
   NotFoundException,
   Optional,
 } from "@nestjs/common";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomInt } from "node:crypto";
 import { Prisma } from "@lms/db";
 import { PrismaService } from "../prisma/prisma.service";
 import type { OrganizationContext } from "../auth/types/authenticated-request";
@@ -344,7 +344,7 @@ export class AdvancedAssignmentService {
         "Not enough eligible reviewers to generate matches",
       );
     }
-    const shuffled = [...submissions].sort(() => Math.random() - 0.5);
+    const shuffled = this.shuffleInPlace([...submissions]);
     for (const submission of shuffled) {
       const candidates = eligibleReviewers.filter(
         (reviewerId) =>
@@ -1109,6 +1109,17 @@ export class AdvancedAssignmentService {
       return reviewer;
     }
     return undefined;
+  }
+
+  /** Fisher–Yates with crypto.randomInt (unbiased vs Math.random sort). */
+  private shuffleInPlace<T>(items: T[]): T[] {
+    for (let i = items.length - 1; i > 0; i--) {
+      const j = randomInt(0, i + 1);
+      const tmp = items[i] as T;
+      items[i] = items[j] as T;
+      items[j] = tmp;
+    }
+    return items;
   }
 
   private generateShareToken() {

@@ -122,9 +122,7 @@ export class ModerationService {
     dto: CreateActionDto,
   ) {
     if (dto.actionType === "BAN" || dto.actionType === "SUSPEND") {
-      if (!user.isPlatformAdmin && !user.role?.includes("admin")) {
-        // Permission check: the controller already enforces organizations.manage
-        // for the admin endpoint. This is a defensive fallback.
+      if (!organization.isPlatformAdmin && !organization.roleKeys.some((r) => r.includes("admin"))) {
         throw new ForbiddenException(
           "Banning or suspending a user requires admin privileges",
         );

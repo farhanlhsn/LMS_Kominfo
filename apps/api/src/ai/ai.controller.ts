@@ -22,11 +22,12 @@ import {
 } from "./dto/video-ai.dto";
 
 @Controller("ai")
-@UseGuards(JwtAuthGuard, OrganizationContextGuard)
+@UseGuards(JwtAuthGuard, OrganizationContextGuard, PermissionsGuard)
 export class AiController {
   constructor(private readonly statusService: AiStatusService) {}
 
   @Get("status")
+  @Permissions(PERMISSIONS.coursesRead)
   getStatus(@ActiveOrganization() organization: OrganizationContext) {
     return this.statusService.getStatus(organization.id);
   }

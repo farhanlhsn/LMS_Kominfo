@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   UseGuards,
+  Query,
 } from "@nestjs/common";
 import { PERMISSIONS } from "@lms/shared";
 import { CurrentUser } from "../rbac/decorators/current-user.decorator";
@@ -20,9 +21,11 @@ import type {
   OrganizationContext,
 } from "../auth/types/authenticated-request";
 import {
+  CreateOrganizationDto,
   CreateOrganizationMemberDto,
   CreateOrganizationRoleDto,
   InviteOrganizationMemberDto,
+  UpdateOrganizationDto,
   UpdateOrganizationMemberRolesDto,
   UpdateOrganizationMemberStatusDto,
   UpdateOrganizationRoleDto,
@@ -153,5 +156,37 @@ export class OrganizationsController {
     @Param("organizationId") _organizationId: string
   ): Promise<unknown> {
     return this.organizationsService.listPermissions();
+  }
+
+  // ── Platform admin: organization management ──
+
+  @Get("admin/list")
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions(PERMISSIONS.platformAdmin)
+  adminList(
+    @Query("status") status?: string,
+    @Query("search") search?: string,
+  ) {
+    return this.organizationsService.adminList({ status, search });
+  }
+
+  @Post("admin/create")
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions(PERMISSIONS.platformAdmin)
+  adminCreate(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateOrganizationDto,
+  ) {
+    return this.organizationsService.adminCreate(user.id, dto);
+  }
+
+  @Patch("admin/:id")
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions(PERMISSIONS.platformAdmin)
+  adminUpdate(
+    @Param("id") id: string,
+    @Body() dto: UpdateOrganizationDto,
+  ) {
+    return this.organizationsService.adminUpdate(id, dto);
   }
 }

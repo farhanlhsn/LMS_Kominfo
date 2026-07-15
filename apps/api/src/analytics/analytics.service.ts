@@ -47,7 +47,8 @@ export class AnalyticsService {
 
 
   private dateRange(from?: string, to?: string) {
-    const gte = from ? new Date(from) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const relativeDays = from?.match(/^(\d+)d$/)?.[1];
+    const gte = relativeDays ? new Date(Date.now() - Number(relativeDays) * 24 * 60 * 60 * 1000) : from ? new Date(from) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const lte = to ? new Date(to) : new Date();
     return { gte, lte };
   }
@@ -80,6 +81,161 @@ export class AnalyticsService {
       this.prisma.learningEvent.count({ where: where as any }),
     ]);
     return { data, meta: pageMeta(page, limit, total) };
+  }
+
+  // ── Learner streak ────────────────────────────────────
+
+  async getLearnerStreak(org: OrganizationContext, userId: string) {
+    const days = await this.prisma.learnerDailyActivity.findMany({
+      where: { organizationId: org.id, userId },
+      orderBy: { date: "desc" },
+      take: 62,
+    });
+
+    let currentStreak = 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const checkDate = new Date(today);
+
+    for (const day of days) {
+      if (!day) break;
+      const d = new Date(day.date);
+      d.setHours(0, 0, 0, 0);
+      if (d.getTime() === checkDate.getTime() && day.eventCount > 0) {
+        currentStreak++;
+        checkDate.setDate(checkDate.getDate() - 1);
+      } else if (d.getTime() < checkDate.getTime()) {
+        break;
+      }
+    }
+
+    let longestStreak = 0;
+    let run = 0;
+    const sorted = [...days].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    for (const day of sorted) {
+      if (!day) continue;
+      if (day.eventCount > 0) {
+        run++;
+        longestStreak = Math.max(longestStreak, run);
+      } else {
+        run = 0;
+      }
+    }
+
+    const todayActivity = days.find(
+      (d) => new Date(d.date).toISOString().slice(0, 10) === today.toISOString().slice(0, 10),
+    );
+
+    return {
+      currentStreak,
+      longestStreak,
+      todayActive: todayActivity ? todayActivity.eventCount > 0 : false,
+      dailyActivity: days.slice(0, 31).map((d) => ({
+        date: d.date.toISOString().slice(0, 10),
+        eventCount: d.eventCount,
+        activityMinutes: d.activityMinutes,
+      })),
+    };
+  }
+
+  // ── Learner grades ────────────────────────────────────
+
+  async getLearnerGrades(
+    org: OrganizationContext,
+    userId: string,
+    courseId?: string,
+  ) {
+    const enrollments = await this.prisma.enrollment.findMany({
+      where: { organizationId: org.id, userId, ...(courseId ? { courseId } : {}) },
+      include: { course: { select: { id: true, title: true, slug: true } } },
+    });
+
+    const courses = await Promise.all(
+      enrollments.map(async (enrollment) => {
+        const [quizAttempts, assignmentSubmissions] = await Promise.all([
+          this.prisma.quizAttempt.findMany({
+            where: {
+              organizationId: org.id,
+              userId,
+              courseId: enrollment.courseId,
+              status: { in: ["GRADED", "SUBMITTED"] },
+            },
+            include: {
+              quiz: { select: { title: true } },
+            },
+            orderBy: { submittedAt: "desc" },
+          }),
+          this.prisma.assignmentSubmission.findMany({
+            where: {
+              organizationId: org.id,
+              userId,
+              courseId: enrollment.courseId,
+              status: "GRADED",
+            },
+            include: {
+              assignment: { select: { title: true } },
+            },
+            orderBy: { gradedAt: "desc" },
+          }),
+        ]);
+
+        const quizzes = quizAttempts.map((a) => ({
+          activityId: a.activityId ?? "",
+          quizTitle: a.quiz.title,
+          score: a.score,
+          maxScore: a.maxScore,
+          percentage: a.percentage,
+          passed: a.passed,
+          attemptedAt: a.submittedAt?.toISOString() ?? a.startedAt.toISOString(),
+        }));
+
+        const assignments = assignmentSubmissions.map((s) => ({
+          activityId: s.activityId ?? "",
+          assignmentTitle: s.assignment.title,
+          score: s.score,
+          maxScore: s.maxScore,
+          percentage: s.score != null && s.maxScore ? Math.round((s.score / s.maxScore) * 100) : null,
+          status: s.status,
+          submittedAt: s.submittedAt?.toISOString() ?? null,
+          gradedAt: s.gradedAt?.toISOString() ?? null,
+        }));
+
+        const quizAvg =
+          quizzes.length > 0
+            ? Math.round(quizzes.reduce((s, q) => s + q.percentage, 0) / quizzes.length)
+            : null;
+        const assignmentAvg =
+          assignments.length > 0
+            ? Math.round(
+                assignments.reduce((s, a) => s + (a.percentage ?? 0), 0) / assignments.length,
+              )
+            : null;
+
+        const totalWeighted = quizzes.reduce((s, q) => s + q.score, 0) + assignments.reduce((s, a) => s + (a.score ?? 0), 0);
+        const totalMaxWeight = quizzes.reduce((s, q) => s + q.maxScore, 0) + assignments.reduce((s, a) => s + (a.maxScore ?? 0), 0);
+        const overallGrade =
+          totalMaxWeight > 0 ? Math.round((totalWeighted / totalMaxWeight) * 100) : null;
+
+        return {
+          courseId: enrollment.courseId,
+          courseTitle: enrollment.course.title,
+          courseSlug: enrollment.course.slug,
+          overallGrade,
+          quizAverage: quizAvg,
+          assignmentAverage: assignmentAvg,
+          totalWeighted,
+          totalMaxWeight,
+          quizzes,
+          assignments,
+        };
+      }),
+    );
+
+    const totalWeightedSum = courses.reduce((s, c) => s + (c.totalWeighted ?? 0), 0);
+    const totalMaxSum = courses.reduce((s, c) => s + (c.totalMaxWeight ?? 0), 0);
+    const overallGpa = totalMaxSum > 0 ? Math.round((totalWeightedSum / totalMaxSum) * 100) : null;
+
+    return { courses, overallGpa };
   }
 
   // ── Learner dashboard ─────────────────────────────────
@@ -176,6 +332,65 @@ export class AnalyticsService {
     });
     const total = await this.prisma.enrollment.count({ where: { organizationId: org.id, courseId } });
     return { data: enrollments, meta: pageMeta(page, limit, total) };
+  }
+
+  async getInstructorCourseGradebook(org: OrganizationContext, userId: string, courseId: string, query: AnalyticsQueryDto) {
+    await this.course(org.id, courseId);
+    const managedIds = await this.managedCourseIds(org, userId);
+    if (!managedIds.includes(courseId)) throw new ForbiddenException("Access denied");
+
+    const { page, limit, skip } = normalizePageLimit(query.page, query.limit, 100);
+    const [enrollments, total, assignments] = await Promise.all([
+      this.prisma.enrollment.findMany({
+        where: { organizationId: org.id, courseId },
+        include: { user: { select: { id: true, name: true, email: true } } },
+        orderBy: { enrolledAt: "asc" },
+        skip,
+        take: limit,
+      }),
+      this.prisma.enrollment.count({ where: { organizationId: org.id, courseId } }),
+      this.prisma.assignment.findMany({
+        where: { organizationId: org.id, courseId, deletedAt: null },
+        select: {
+          id: true,
+          title: true,
+          rubric: { select: { totalPoints: true } },
+          submissions: { select: { userId: true, score: true, maxScore: true, status: true, gradedAt: true } },
+        },
+        orderBy: { createdAt: "asc" },
+      }),
+    ]);
+
+    const data = enrollments.map((enrollment) => {
+      const assignmentScores = assignments.map((assignment) => {
+        const submissions = assignment.submissions
+          .filter((submission) => submission.userId === enrollment.userId)
+          .sort((a, b) => Number(Boolean(b.gradedAt)) - Number(Boolean(a.gradedAt)));
+        const submission = submissions[0];
+        return {
+          assignmentId: assignment.id,
+          title: assignment.title,
+          score: submission?.score ?? null,
+          maxScore: submission?.maxScore ?? assignment.rubric?.totalPoints ?? null,
+          status: submission?.status ?? "NOT_STARTED",
+        };
+      });
+      const graded = assignmentScores.filter((item) => item.score != null && item.maxScore);
+      const average = graded.length
+        ? Math.round((graded.reduce((sum, item) => sum + (Number(item.score) / Number(item.maxScore)) * 100, 0) / graded.length) * 10) / 10
+        : null;
+      return {
+        studentId: enrollment.userId,
+        student: enrollment.user,
+        enrollmentStatus: enrollment.status,
+        progressPercent: enrollment.progressPercent,
+        lastAccessedAt: enrollment.lastAccessedAt,
+        assignmentScores,
+        average,
+      };
+    });
+
+    return { data, meta: pageMeta(page, limit, total) };
   }
 
   async getInstructorCourseEngagement(org: OrganizationContext, userId: string, courseId: string, query: AnalyticsQueryDto) {
@@ -446,4 +661,44 @@ export class AnalyticsService {
 
     return { coursesProcessed: courses.length, learnersProcessed: learners.length };
   }
+
+  // ── Progress Export CSV ────────────────────────────
+
+  async exportLearnerProgressCsv(org: OrganizationContext, userId: string): Promise<string> {
+    const data = await this.getLearnerGrades(org, userId);
+    const lines: string[] = [];
+
+    lines.push("Course,Type,Title,Score,Max Score,Percentage (%),Passed/Graded,Date");
+
+    for (const course of data.courses) {
+      for (const q of course.quizzes) {
+        lines.push([
+          escCsv(course.courseTitle), "Quiz", escCsv(q.quizTitle),
+          q.score, q.maxScore, q.percentage, q.passed ? "Passed" : "Failed", q.attemptedAt,
+        ].join(","));
+      }
+      for (const a of course.assignments) {
+        lines.push([
+          escCsv(course.courseTitle), "Assignment", escCsv(a.assignmentTitle),
+          a.score ?? "", a.maxScore ?? "", a.percentage ?? "", a.status,
+          a.gradedAt ?? a.submittedAt ?? "",
+        ].join(","));
+      }
+    }
+
+    lines.push("", "Course Average Summary");
+    lines.push("Course,Quiz Average (%),Assignment Average (%),Overall Grade (%)");
+    for (const course of data.courses) {
+      lines.push([
+        escCsv(course.courseTitle), course.quizAverage ?? "", course.assignmentAverage ?? "", course.overallGrade ?? "",
+      ].join(","));
+    }
+    lines.push("Overall GPA," + (data.overallGpa ?? ""));
+
+    return lines.join("\r\n");
+  }
+}
+
+function escCsv(val: string): string {
+  return val.includes(",") || val.includes('"') ? `"${val.replace(/"/g, '""')}"` : val;
 }

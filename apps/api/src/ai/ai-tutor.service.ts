@@ -825,6 +825,9 @@ export class AiTutorService {
           id: dto.conversationId,
           organizationId,
           userId,
+          courseId: dto.courseId,
+          lessonId: dto.lessonId,
+          activityId: dto.activityId,
           type: "LEARNER_TUTOR",
         },
       });
@@ -888,20 +891,15 @@ export class AiTutorService {
 
   private async enforceRateLimitRedis(organizationId: string, userId: string) {
     try {
-      const client = this.redis!.getClient();
-      const userKey = `ai:rl:user:${organizationId}:${userId}`;
-      const orgKey = `ai:rl:org:${organizationId}`;
-      const userCount = await client.incr(userKey);
-      if (userCount === 1) await client.expire(userKey, 60);
-      if (userCount > this.config.rateLimit.perUserPerMinute) {
-        throw new HttpException(
-          "AI request rate limit exceeded",
-          HttpStatus.TOO_MANY_REQUESTS,
-        );
-      }
-      const orgCount = await client.incr(orgKey);
-      if (orgCount === 1) await client.expire(orgKey, 60);
-      if (orgCount > this.config.rateLimit.perOrgPerMinute) {
+      const result = (await this.redis!.getClient().eval(
+        "local user = tonumber(redis.call('GET', KEYS[1]) or '0'); local org = tonumber(redis.call('GET', KEYS[2]) or '0'); if user >= tonumber(ARGV[1]) or org >= tonumber(ARGV[2]) then return 0 end; user = redis.call('INCR', KEYS[1]); if user == 1 then redis.call('EXPIRE', KEYS[1], 60) end; org = redis.call('INCR', KEYS[2]); if org == 1 then redis.call('EXPIRE', KEYS[2], 60) end; return 1",
+        2,
+        `ai:rl:user:${organizationId}:${userId}`,
+        `ai:rl:org:${organizationId}`,
+        this.config.rateLimit.perUserPerMinute,
+        this.config.rateLimit.perOrgPerMinute,
+      )) as number;
+      if (result !== 1) {
         throw new HttpException(
           "AI request rate limit exceeded",
           HttpStatus.TOO_MANY_REQUESTS,

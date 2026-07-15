@@ -313,6 +313,11 @@ export class AiIndexingService {
       const vectors = await provider.embedBatch(
         chunks.map((chunk) => chunk.content),
       );
+      this.assertValidEmbeddings(
+        vectors,
+        chunks.length,
+        provider.capabilities.embeddingDimensions,
+      );
       const model = provider.capabilities.model ?? "unknown";
       await this.prisma.$transaction([
         this.prisma.aiDocumentChunk.deleteMany({
@@ -356,6 +361,28 @@ export class AiIndexingService {
         },
       });
       return 0;
+    }
+  }
+
+  private assertValidEmbeddings(
+    vectors: number[][],
+    expectedCount: number,
+    expectedDimensions?: number,
+  ) {
+    if (vectors.length !== expectedCount) {
+      throw new Error("Embedding provider returned an unexpected vector count");
+    }
+    const dimensions = vectors[0]?.length ?? 0;
+    if (
+      !dimensions ||
+      (expectedDimensions !== undefined && dimensions !== expectedDimensions) ||
+      vectors.some(
+        (vector) =>
+          vector.length !== dimensions ||
+          vector.some((value) => !Number.isFinite(value)),
+      )
+    ) {
+      throw new Error("Embedding provider returned invalid vectors");
     }
   }
 

@@ -73,6 +73,31 @@ export class InviteOrganizationMemberDto {
   message?: string;
 }
 
+export class CreateOrganizationDto {
+  @IsString()
+  @MinLength(2)
+  name!: string;
+
+  @IsString()
+  @Matches(/^[a-z][a-z0-9-]*$/)
+  slug!: string;
+}
+
+export class UpdateOrganizationDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  slug?: string;
+
+  @IsOptional()
+  @IsIn(["ACTIVE", "SUSPENDED"])
+  status?: "ACTIVE" | "SUSPENDED";
+}
+
 export class UpdateOrganizationRoleDto {
   @IsOptional()
   @IsString()

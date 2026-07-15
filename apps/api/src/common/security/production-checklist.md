@@ -13,7 +13,7 @@ Deploy:
 
 1. `pnpm db:deploy` only — **never** `db:seed` in production
 2. Health gate on `/api/v1/health/live` after compose up
-3. Code runner: set `JUDGE0_BASE_URL` (+ optional `JUDGE0_API_KEY`); mock host spawn is blocked in production
+3. Code runner: set `JUDGE0_BASE_URL` (+ optional `JUDGE0_API_KEY`); mock host spawn is blocked in production. Local: `docker compose --profile code-runner up -d`
 4. Payment flow: user `confirm` → `AWAITING_REVIEW`; admin `approve` → `PAID` + enroll
 5. Rate limits: Redis (`REDIS_URL`) shared across API instances; falls back to in-memory
 6. Realtime: Redis pub/sub bus + Socket.IO Redis adapter when `REDIS_URL` set

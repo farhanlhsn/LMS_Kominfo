@@ -229,15 +229,19 @@ export class LearningWorkspaceService {
     userId: string,
     query: ListWorkspaceItemsDto,
   ) {
-    const scope = await this.resolveScope(organizationId, userId, query);
+    const hasScope = query.courseId || query.lessonId || query.activityId;
+    const scope = hasScope ? await this.resolveScope(organizationId, userId, query) : null;
     return this.prisma.learnerBookmark.findMany({
       where: {
         organizationId,
         userId,
         deletedAt: null,
-        courseId: scope.courseId,
-        lessonId: scope.lessonId,
-        activityId: scope.activityId,
+        ...(scope ? { courseId: scope.courseId, lessonId: scope.lessonId, activityId: scope.activityId } : {}),
+      },
+      include: {
+        course: { select: { id: true, title: true, slug: true } },
+        lesson: { select: { id: true, title: true } },
+        activity: { select: { id: true, title: true } },
       },
       orderBy: { updatedAt: "desc" },
     });
@@ -417,6 +421,24 @@ export class LearningWorkspaceService {
       notesCount,
       bookmarksCount,
     };
+  }
+
+  async getActivityFlashcards(
+    organizationId: string,
+    userId: string,
+    activityId: string,
+  ) {
+    const activity = await this.getActivity(organizationId, activityId);
+    await this.ensureEnrollment(organizationId, userId, activity.courseId);
+    const items = await this.prisma.aiGeneratedItem.findMany({
+      where: { organizationId, activityId, type: "FLASHCARD", status: "PUBLISHED" },
+      orderBy: { createdAt: "desc" },
+    });
+    return items.map((item) => {
+      const output = item.output as Record<string, unknown>;
+      const cards = Array.isArray(output.cards) ? output.cards : [{ front: output.front ?? "?", back: output.back ?? "" }];
+      return { id: item.id, title: item.title, cards };
+    });
   }
 
   async instructorTranscript(

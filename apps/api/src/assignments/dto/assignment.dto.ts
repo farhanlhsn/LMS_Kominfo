@@ -264,3 +264,16 @@ export class ReturnSubmissionDto {
   @IsString()
   feedback?: string;
 }
+
+export class ReviewLateSubmissionDto {
+  @IsIn(["APPROVE", "REJECT"])
+  action!: "APPROVE" | "REJECT";
+
+  @IsOptional()
+  @IsString()
+  feedback?: string;
+
+  @IsOptional()
+  @IsString()
+  extensionUntil?: string;
+}
