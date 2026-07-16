@@ -280,7 +280,7 @@ describe("SearchService", () => {
     });
     const analytics = await service.getAnalytics(org.id, 7, 5);
     expect(analytics.topQueries[0]).toMatchObject({ query: "t" });
-    expect(analytics.topQueries[0].count).toBeGreaterThan(0);
+    expect(analytics.topQueries[0]?.count).toBeGreaterThan(0);
     expect(analytics.recent[0]).toMatchObject({ query: "t" });
 
     const bare = new SearchService(prisma, {

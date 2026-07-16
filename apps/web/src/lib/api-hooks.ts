@@ -812,6 +812,13 @@ export function useSubmissionAnnotations(submissionId: string | null) {
   }, [submissionId]);
 }
 
+export function useLearnerSubmissionAnnotations(submissionId: string | null) {
+  return useApiQuery(async () => {
+    if (!submissionId) throw new Error("Submission id is required");
+    return api.listLearnerSubmissionAnnotations(submissionId);
+  }, [submissionId]);
+}
+
 export function useCreateSubmissionAnnotation() {
   return useCallback(
     (
@@ -1022,6 +1029,10 @@ export function useLearnerQuiz(activityId: string | null) {
     if (!activityId) throw new Error("Activity id is required");
     return api.learnerQuiz(activityId);
   }, [activityId]);
+}
+
+export function useMyQuizAttempts() {
+  return useApiQuery<QuizAttempt[]>(() => api.myQuizAttempts(), []);
 }
 
 export function useQuizAttempts(quizId: string | null) {
@@ -1398,6 +1409,40 @@ export function useMyLearningPathEnrollments() {
   return useApiQuery<LearningPathEnrollment[]>(async () => {
     return api.myLearningPathEnrollments();
   }, []);
+}
+
+export function useCreateLearningPath() {
+  return useCallback(
+    (input: Record<string, unknown>) => api.createLearningPath(input),
+    [],
+  );
+}
+
+export function useUpdateLearningPath() {
+  return useCallback(
+    (id: string, input: Record<string, unknown>) =>
+      api.updateLearningPath(id, input),
+    [],
+  );
+}
+
+export function useDeleteLearningPath() {
+  return useCallback((id: string) => api.deleteLearningPath(id), []);
+}
+
+export function useAddCourseToPath() {
+  return useCallback(
+    (id: string, input: Record<string, unknown>) =>
+      api.addCourseToPath(id, input),
+    [],
+  );
+}
+
+export function useRemoveCourseFromPath() {
+  return useCallback(
+    (id: string, courseId: string) => api.removeCourseFromPath(id, courseId),
+    [],
+  );
 }
 
 export function useSkills(category?: string) {
@@ -1884,6 +1929,18 @@ export function useCreateHelpCategory() {
       api.createHelpCategory(input),
     [],
   );
+}
+
+export function useUpdateHelpCategory() {
+  return useCallback(
+    (id: string, input: Partial<{ key: string; title: string; description?: string; icon?: string; orderIndex?: number }>) =>
+      api.updateHelpCategory(id, input),
+    [],
+  );
+}
+
+export function useDeleteHelpCategory() {
+  return useCallback((id: string) => api.deleteHelpCategory(id), []);
 }
 
 // ── Phase 20: Support Tickets hooks ──────────────────

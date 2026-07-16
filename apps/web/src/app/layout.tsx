@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { PwaOverlay } from "../components/pwa/pwa-overlay";
 import { ThemeModeProvider, themeModeBootstrapScript } from "../components/theme/theme-mode";
+import { CookieBanner } from "../components/governance/CookieBanner";
 
 const serviceWorkerScript =
   process.env.NODE_ENV === "production"
@@ -76,6 +77,7 @@ export default function RootLayout({
       <body>
         <ThemeModeProvider>
           {children}
+          <CookieBanner />
           <PwaOverlay />
         </ThemeModeProvider>
         <script

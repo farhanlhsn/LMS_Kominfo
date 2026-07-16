@@ -3,7 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Clock, ListChecks, Save, Send } from "lucide-react";
 import { api } from "../../lib/api-client";
-import { useLearnerQuiz } from "../../lib/api-hooks";
+import {
+  useLearnerQuiz,
+  useStartProctoringSession,
+  useIngestProctoringEvent,
+} from "../../lib/api-hooks";
 import type {
   ActivityContentResponse,
   Question,
@@ -28,6 +32,9 @@ export function QuizActivityRenderer({
 }) {
   const activityId = response.activity.id;
   const quizQuery = useLearnerQuiz(activityId);
+  const startProctoring = useStartProctoringSession();
+  const ingestEvent = useIngestProctoringEvent();
+  const [proctoringSessionId, setProctoringSessionId] = useState<string | null>(null);
   const [attempt, setAttempt] = useState<QuizAttempt | null>(null);
   const [result, setResult] = useState<QuizResult | null>(null);
   const [answers, setAnswers] = useState<Record<string, AnswerDraft>>({});
@@ -68,6 +75,11 @@ export function QuizActivityRenderer({
             questionId,
             ...(answers[questionId] ?? {}),
           });
+        }
+        try {
+          await emitSubmitEvent();
+        } catch {
+          /* best-effort */
         }
         setResult(await api.submitQuizAttempt(attempt.id));
         setMessage("Time is up — quiz submitted automatically.");
@@ -131,7 +143,22 @@ export function QuizActivityRenderer({
 
   async function start() {
     setMessage(null);
-    setAttempt(await api.startQuizAttempt(activityId));
+    const started = await api.startQuizAttempt(activityId);
+    // ponytail: best-effort proctoring; never blocks the quiz
+    try {
+      const session = await startProctoring({
+        attemptId: started.id,
+        attemptType: "QUIZ",
+      });
+      setProctoringSessionId(session.id);
+      await ingestEvent(session.id, {
+        type: "TAB_SWITCH",
+        metadata: { lifecycle: "attempt_start", activityId },
+      });
+    } catch {
+      /* proctoring is optional */
+    }
+    setAttempt(started);
   }
 
   async function save(questionId: string) {
@@ -151,6 +178,11 @@ export function QuizActivityRenderer({
       return;
     }
     setMessage(null);
+    try {
+      await emitSubmitEvent();
+    } catch {
+      /* best-effort */
+    }
     // flush current drafts before submit
     for (const questionId of Object.keys(answers)) {
       await api.saveQuizAnswer(attempt.id, {
@@ -160,6 +192,14 @@ export function QuizActivityRenderer({
     }
     setResult(await api.submitQuizAttempt(attempt.id));
     await quizQuery.reload();
+  }
+
+  async function emitSubmitEvent() {
+    if (!proctoringSessionId) return;
+    await ingestEvent(proctoringSessionId, {
+      type: "TAB_SWITCH",
+      metadata: { lifecycle: "attempt_submit" },
+    });
   }
 
   if (quizQuery.loading) return <LoadingState title="Loading quiz" />;

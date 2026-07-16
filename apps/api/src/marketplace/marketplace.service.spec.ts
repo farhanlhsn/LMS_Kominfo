@@ -5,7 +5,7 @@ import { MarketplaceService } from "./marketplace.service";
 const org = { id: "org-a", slug: "a", name: "A", memberId: "m1", roleKeys: ["org_admin"], permissionKeys: [], isPlatformAdmin: false };
 
 function setup(overrides: Record<string, unknown> = {}) {
-  const prisma = {
+  const prisma: any = {
     course: { findFirst: vi.fn().mockResolvedValue({ id: "course-a", organizationId: "org-a", deletedAt: null, price: 100000, currency: "IDR" }), findMany: vi.fn().mockResolvedValue([{ id: "course-a", price: 100000, currency: "IDR" }]), update: vi.fn() },
     coupon: { findUnique: vi.fn().mockResolvedValue({ id: "coup-a", code: "DISKON10", discountPercent: 10, discountAmount: null, maxUses: 100, currentUses: 0, minAmount: 0, courseId: null, isActive: true, validFrom: null, validUntil: null }), findMany: vi.fn().mockResolvedValue([]), update: vi.fn(), create: vi.fn().mockResolvedValue({ id: "coup-a" }) },
     order: { create: vi.fn().mockResolvedValue({ id: "ord-a", orderNumber: "ORD-TEST", subtotal: 100000, total: 90000 }), findFirst: vi.fn().mockResolvedValue({ id: "ord-a", organizationId: "org-a", userId: "user-a", status: "PENDING", items: [{ courseId: "course-a" }] }), findMany: vi.fn().mockResolvedValue([]), update: vi.fn(), count: vi.fn().mockResolvedValue(1) },
@@ -15,7 +15,6 @@ function setup(overrides: Record<string, unknown> = {}) {
     enrollment: { upsert: vi.fn() },
     auditLog: { create: vi.fn() },
     subscriptionPlan: { create: vi.fn().mockResolvedValue({ id: "plan-a" }), findMany: vi.fn().mockResolvedValue([]), findFirst: vi.fn().mockResolvedValue({ id: "plan-a", organizationId: "org-a", isActive: true }) },
-    userSubscription: { upsert: vi.fn().mockResolvedValue({ id: "sub-a" }), findMany: vi.fn().mockResolvedValue([]) },
     ...overrides,
   };
   return { service: new MarketplaceService(prisma as never), prisma };

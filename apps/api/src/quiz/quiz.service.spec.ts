@@ -64,7 +64,7 @@ const org = {
 };
 
 function createService() {
-  const prisma = createPrismaMock();
+  const prisma = createPrismaMock() as any;
   return { prisma, service: new QuizService(prisma as never) };
 }
 
@@ -640,7 +640,7 @@ describe("QuizService", () => {
       { questionId: "q-ma", selectedOptionIds: ["a", "b"] },
       { questionId: "q-es", textAnswer: "long form" },
     ]);
-    prisma.quizAnswer.upsert.mockImplementation(async ({ update, create }) => ({
+    prisma.quizAnswer.upsert.mockImplementation(async ({ update, create }: any) => ({
       id: "ans",
       ...(create ?? {}),
       ...update,

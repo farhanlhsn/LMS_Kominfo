@@ -590,6 +590,7 @@ export interface QuizAttempt {
   percentage: number;
   passed: boolean;
   user?: { email: string; name?: string | null };
+  quiz?: { id: string; title: string } | null;
 }
 
 export interface QuizAnswer {

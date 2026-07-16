@@ -5,7 +5,7 @@ import { CertificatesService } from "./certificates.service";
 const organization = { id: "org_1", isPlatformAdmin: false, permissionKeys: [], roleKeys: [], memberId: "member_1", name: "Org", slug: "org" };
 
 function setup() {
-  const prisma = {
+  const prisma: any = {
     certificate: {
       findFirst: vi.fn(),
       findUnique: vi.fn(),

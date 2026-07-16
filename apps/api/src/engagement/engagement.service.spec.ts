@@ -9,7 +9,7 @@ import { EngagementService } from "./engagement.service";
 const org = { id: "org-a", slug: "a", name: "A", memberId: "m1", roleKeys: ["learner"], permissionKeys: [], isPlatformAdmin: false };
 
 function setup(overrides: Record<string, unknown> = {}) {
-  const prisma = {
+  const prisma: any = {
     course: { findFirst: vi.fn().mockResolvedValue({ id: "course-a" }), findMany: vi.fn() },
     courseInstructor: { findFirst: vi.fn().mockResolvedValue(null), findMany: vi.fn().mockResolvedValue([]) },
     enrollment: { findUnique: vi.fn().mockResolvedValue({ status: "ACTIVE" }), findMany: vi.fn().mockResolvedValue([]) },

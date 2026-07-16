@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { LearningWorkspaceService } from "./learning-workspace.service";
 
 function createService() {
-  const prisma = {
+  const prisma: any = {
     learningWorkspacePreference: {
       upsert: vi.fn().mockImplementation(({ create, update }) => ({
         id: "pref_1",
@@ -265,7 +265,7 @@ describe("LearningWorkspaceService", () => {
         { startSeconds: 1, endSeconds: 2, text: "World" },
       ],
     });
-    prisma.videoCaptionTrack.update.mockImplementation(({ data }) => ({
+    prisma.videoCaptionTrack.update.mockImplementation(({ data }: any) => ({
       id: "track_1",
       cues: data.cues,
     }));
@@ -343,7 +343,7 @@ describe("LearningWorkspaceService", () => {
         { startSeconds: 2, endSeconds: 3, text: "C" },
       ],
     });
-    prisma.videoCaptionTrack.update.mockImplementation(({ data }) => ({
+    prisma.videoCaptionTrack.update.mockImplementation(({ data }: any) => ({
       id: "track_1",
       cues: data.cues,
     }));

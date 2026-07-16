@@ -11,7 +11,7 @@ import { AuthService } from "./auth.service";
 function createAuthService(overrides?: {
   loginPolicy?: { allowPasswordLogin: boolean } | null;
 }) {
-  const prisma = {
+  const prisma: any = {
     user: {
       findUnique: vi.fn(),
       update: vi.fn(),

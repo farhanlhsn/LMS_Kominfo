@@ -6,7 +6,7 @@ const org = { id: "org-a", slug: "a", name: "A", memberId: "m1", roleKeys: ["lea
 const adminOrg = { ...org, roleKeys: ["org_admin"], isPlatformAdmin: true };
 
 function setup(overrides: Record<string, unknown> = {}) {
-  const prisma = {
+  const prisma: any = {
     course: { findFirst: vi.fn().mockResolvedValue({ id: "course-a", organizationId: "org-a" }), findMany: vi.fn().mockResolvedValue([{ id: "course-a" }]), count: vi.fn().mockResolvedValue(1) },
     enrollment: { findUnique: vi.fn().mockResolvedValue({ status: "ACTIVE" }), findMany: vi.fn().mockResolvedValue([{ id: "enr-a", courseId: "course-a", userId: "user-a", status: "ACTIVE", progressPercent: 50 }]), count: vi.fn().mockResolvedValue(1) },
     courseInstructor: { findFirst: vi.fn().mockResolvedValue(null), findMany: vi.fn().mockResolvedValue([]) },

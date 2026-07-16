@@ -17,7 +17,7 @@ const adminOrg = {
 };
 
 function setup() {
-  const prisma = {
+  const prisma: any = {
     cohort: {
       findMany: vi.fn().mockResolvedValue([]),
       findFirst: vi.fn(),

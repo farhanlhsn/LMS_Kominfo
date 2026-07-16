@@ -13,7 +13,7 @@ const dto = {
 
 function setup(overrides: Record<string, string> = {}) {
   const config = createAiConfig({ AI_ENABLED: "true", ...overrides });
-  const prisma = {
+  const prisma: any = {
     activity: {
       findFirst: vi.fn().mockResolvedValue({ assessmentDisplayPolicy: {} }),
     },
@@ -35,7 +35,7 @@ function setup(overrides: Record<string, string> = {}) {
     aiUsageLog: { create: vi.fn().mockReturnValue({}) },
     $transaction: vi.fn().mockResolvedValue([]),
   };
-  const chatProvider = {
+  const chatProvider: any = {
     capabilities: { providerName: "mock", model: "mock-chat" },
     generateText: vi.fn().mockResolvedValue({
       text: "Grounded answer [S1]",

@@ -169,7 +169,7 @@ describe("RealtimeService", () => {
       id: "evt_1",
       createdAt: new Date("2026-01-01T00:00:00Z"),
     });
-    await service.poll("org_1", { afterId: "evt_1", limit: 5 });
+    await service.poll("org_1", { since: "evt_1", limit: 5 });
     expect(prisma.realtimeEvent.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ organizationId: "org_1" }),

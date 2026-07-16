@@ -9,6 +9,7 @@ import { ApiErrorState, EmptyState, LoadingState } from "../ui/states";
 import { StatusBadge } from "../ui/core";
 import type { Cohort, CohortStatus } from "../../lib/lms-types";
 import { CohortForm } from "./cohort-form";
+import { CohortManage } from "./cohort-manage";
 
 const STATUS_TONES: Record<CohortStatus, "neutral" | "success" | "warning" | "danger" | "info"> = {
   PLANNED: "info",
@@ -22,6 +23,7 @@ export function CohortList() {
   const cohortsQuery = useCohorts(statusFilter ? { status: statusFilter } : {});
   const remove = useDeleteCohort();
   const [editing, setEditing] = useState<Cohort | null>(null);
+  const [managing, setManaging] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -120,6 +122,13 @@ export function CohortList() {
                   </div>
                   <div className="flex items-center gap-2">
                     <StatusBadge tone={STATUS_TONES[cohort.status]} value={cohort.status} />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setManaging((id) => (id === cohort.id ? null : cohort.id))}
+                    >
+                      {managing === cohort.id ? "Close" : "Manage"}
+                    </Button>
                     <Button size="sm" variant="ghost" onClick={() => setEditing(cohort)}>
                       Edit
                     </Button>
@@ -142,6 +151,11 @@ export function CohortList() {
                       }}
                       onCancel={() => setEditing(null)}
                     />
+                  </div>
+                ) : null}
+                {managing === cohort.id ? (
+                  <div className="mt-3 border-t border-border pt-3">
+                    <CohortManage cohortId={cohort.id} />
                   </div>
                 ) : null}
               </article>

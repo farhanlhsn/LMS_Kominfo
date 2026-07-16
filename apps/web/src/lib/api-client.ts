@@ -1022,6 +1022,10 @@ export const api = {
     apiRequest<SubmissionAnnotation[]>(
       `/instructor/submissions/${encodeURIComponent(submissionId)}/annotations`,
     ),
+  listLearnerSubmissionAnnotations: (submissionId: string) =>
+    apiRequest<SubmissionAnnotation[]>(
+      `/learn/submissions/${encodeURIComponent(submissionId)}/annotations`,
+    ),
   createSubmissionAnnotation: (
     submissionId: string,
     input: {
@@ -1430,6 +1434,8 @@ export const api = {
       `/learn/quiz-attempts/${encodeURIComponent(attemptId)}/submit`,
       { method: "POST" },
     ),
+  myQuizAttempts: () =>
+    apiRequest<QuizAttempt[]>("/learn/quiz-attempts"),
   quizResult: (attemptId: string) =>
     apiRequest<QuizResult>(
       `/learn/quiz-attempts/${encodeURIComponent(attemptId)}/result`,
@@ -2332,6 +2338,18 @@ export const api = {
     apiRequest<HelpCategory>("/admin/help/categories", {
       method: "POST",
       body: JSON.stringify(input),
+    }),
+  updateHelpCategory: (
+    id: string,
+    input: Partial<{ key: string; title: string; description?: string; icon?: string; orderIndex?: number }>,
+  ) =>
+    apiRequest<HelpCategory>(`/admin/help/categories/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  deleteHelpCategory: (id: string) =>
+    apiRequest<{ id: string }>(`/admin/help/categories/${encodeURIComponent(id)}`, {
+      method: "DELETE",
     }),
 
   // ── Phase 20: Support Tickets ──────────────────────

@@ -89,6 +89,7 @@ function buildPrisma() {
         return { id: `audit-${auditLogs.length}`, ...args.data };
       }),
     },
+    user: { update: vi.fn().mockResolvedValue({}) },
   };
 }
 
@@ -186,8 +187,9 @@ describe("ModerationService", () => {
       reason: "abuse",
     });
     const learner = { ...user, isPlatformAdmin: false, role: "learner" };
+    const learnerOrg = { ...org, isPlatformAdmin: false, roleKeys: ["learner"] };
     await expect(
-      service.createAction(org, learner, {
+      service.createAction(learnerOrg, learner, {
         targetType: "USER",
         targetId: "u-2",
         actionType: "SUSPEND",

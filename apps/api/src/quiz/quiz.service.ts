@@ -775,6 +775,14 @@ export class QuizService {
     });
   }
 
+  async listMyAttempts(organizationId: string, userId: string) {
+    return this.prisma.quizAttempt.findMany({
+      where: { organizationId, userId },
+      include: { quiz: true },
+      orderBy: { startedAt: "desc" },
+    });
+  }
+
   async attemptDetail(
     organization: OrganizationContext,
     userId: string,

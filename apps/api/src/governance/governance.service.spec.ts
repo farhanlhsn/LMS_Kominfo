@@ -375,7 +375,7 @@ describe("GovernanceService", () => {
     const { service, prisma } = setup();
     await service.listRetentionPolicies(org);
     await service.listBackupJobs(org);
-    await service.listDataExportRequests(org);
+    await service.listDataExportRequests(org, user.id);
     await service.previewDataExport(org, user.id);
     prisma.user.findFirst = vi.fn(async () => null);
     // requestDataExport still works via membership path in setup
@@ -399,7 +399,7 @@ describe("GovernanceService", () => {
     } as any);
     await service.getLatestLegalDocuments(org);
     await service.previewDataExport(org, user.id);
-    await service.listDataExportRequests(org);
+    await service.listDataExportRequests(org, user.id);
     await service.listRetentionPolicies(org);
     await service.listBackupJobs(org);
     expect(await service.listLegalDocuments(org)).toHaveLength(1);

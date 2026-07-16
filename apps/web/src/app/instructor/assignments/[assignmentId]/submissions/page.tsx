@@ -8,6 +8,8 @@ import { DataTable, PageHeader, StatusBadge } from "../../../../../components/ui
 import { ApiErrorState, EmptyState, LoadingState } from "../../../../../components/ui/states";
 import { api } from "../../../../../lib/api-client";
 import { useAssignmentSubmissions, useGradeSubmission, useReviewLateSubmission } from "../../../../../lib/api-hooks";
+import { PlagiarismPanel } from "../../../../../components/advanced-assignment/plagiarism-panel";
+import { SubmissionAnnotations } from "../../../../../components/advanced-assignment/submission-annotations";
 
 export default function AssignmentSubmissionsPage({ params }: { params: Promise<{ assignmentId: string }> }) {
   const { assignmentId } = use(params);
@@ -19,6 +21,8 @@ export default function AssignmentSubmissionsPage({ params }: { params: Promise<
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkScore, setBulkScore] = useState("");
   const [bulkFeedback, setBulkFeedback] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedSubmission = (submissions.data ?? []).find((item) => item.id === selectedId) ?? null;
   const filteredSubmissions = useMemo(
     () => (submissions.data ?? []).filter((submission) => tab === "all" || submission.status === "LATE"),
     [submissions.data, tab],
@@ -88,7 +92,7 @@ export default function AssignmentSubmissionsPage({ params }: { params: Promise<
                 String(submission.attemptNumber),
                 submission.score != null ? `${submission.score}/${submission.maxScore ?? 0}` : "Not graded",
                 submission.submittedAt ? new Date(submission.submittedAt).toLocaleString() : "Draft",
-                <div className="flex flex-wrap gap-2" key="review"><a className="font-semibold text-primary" href={`/instructor/submissions/${submission.id}`}>Review</a>{submission.status === "LATE" ? <><button className="text-sm font-semibold text-emerald-600 disabled:opacity-50" disabled={lateBusy === submission.id} onClick={() => { setLateBusy(submission.id); void reviewLateSubmission(submission.id, { action: "APPROVE" }).then(submissions.reload).finally(() => setLateBusy(null)); }} type="button">Approve</button><button className="text-sm font-semibold text-destructive disabled:opacity-50" disabled={lateBusy === submission.id} onClick={() => { const feedback = window.prompt("Reason for rejecting late submission:"); if (feedback === null) return; setLateBusy(submission.id); void reviewLateSubmission(submission.id, { action: "REJECT", feedback }).then(submissions.reload).finally(() => setLateBusy(null)); }} type="button">Reject</button></> : null}</div>,
+                <div className="flex flex-wrap gap-2" key="review"><a className="font-semibold text-primary" href={`/instructor/submissions/${submission.id}`}>Review</a><button className="text-sm font-semibold text-muted-foreground underline" onClick={() => setSelectedId(submission.id)} type="button">Details</button>{submission.status === "LATE" ? <><button className="text-sm font-semibold text-emerald-600 disabled:opacity-50" disabled={lateBusy === submission.id} onClick={() => { setLateBusy(submission.id); void reviewLateSubmission(submission.id, { action: "APPROVE" }).then(submissions.reload).finally(() => setLateBusy(null)); }} type="button">Approve</button><button className="text-sm font-semibold text-destructive disabled:opacity-50" disabled={lateBusy === submission.id} onClick={() => { const feedback = window.prompt("Reason for rejecting late submission:"); if (feedback === null) return; setLateBusy(submission.id); void reviewLateSubmission(submission.id, { action: "REJECT", feedback }).then(submissions.reload).finally(() => setLateBusy(null)); }} type="button">Reject</button></> : null}</div>,
               ])}
             />
             {!filteredSubmissions.length ? <EmptyState title="No late submissions" description="No late submissions need review." /> : null}
@@ -116,6 +120,29 @@ export default function AssignmentSubmissionsPage({ params }: { params: Promise<
                 ))}
               </div>
             </section>
+            {selectedSubmission ? (
+              <section className="grid gap-5">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold">
+                    Submission details ·{" "}
+                    {selectedSubmission.user?.email ?? selectedSubmission.userId} attempt{" "}
+                    {selectedSubmission.attemptNumber}
+                  </h2>
+                  <button
+                    className="text-sm text-muted-foreground underline"
+                    onClick={() => setSelectedId(null)}
+                    type="button"
+                  >
+                    Close
+                  </button>
+                </div>
+                <PlagiarismPanel
+                  submissionId={selectedSubmission.id}
+                  textAnswer={selectedSubmission.textAnswer ?? null}
+                />
+                <SubmissionAnnotations submissionId={selectedSubmission.id} />
+              </section>
+            ) : null}
           </div>
         ) : (
           <EmptyState title="No submissions yet" description="Learner submissions will appear here." />

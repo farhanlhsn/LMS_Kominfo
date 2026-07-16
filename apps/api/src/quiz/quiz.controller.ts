@@ -298,4 +298,12 @@ export class LearnerQuizController {
   ) {
     return this.quiz.result(organization.id, user.id, attemptId);
   }
+
+  @Get("quiz-attempts")
+  myAttempts(
+    @ActiveOrganization() organization: OrganizationContext,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.quiz.listMyAttempts(organization.id, user.id);
+  }
 }

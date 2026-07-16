@@ -41,12 +41,24 @@ services:
     volumes:
       - minio-data:/data
 
+  migrate:
+    image: ${API_IMAGE:?API_IMAGE is required}
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://lms:${POSTGRES_PASSWORD}@postgres:5432/lms?schema=public
+    command: ["sh", "-c", "/app/node_modules/.bin/prisma migrate deploy --schema=/app/prisma/schema.prisma"]
+
   api:
     image: ${API_IMAGE:?API_IMAGE is required}
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_started
       minio:

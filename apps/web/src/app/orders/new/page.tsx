@@ -6,6 +6,9 @@ import { Tag, ShoppingCart, Wallet } from "lucide-react";
 import { AuthGate } from "../../../components/auth/auth-gate";
 import { AppShell } from "../../../components/layout/shells";
 import { OrderStatusBadge } from "../../../components/marketplace/status-badges";
+import { Button } from "../../../components/ui/button";
+import { Input } from "../../../components/ui/input";
+import { Label } from "../../../components/ui/label";
 import { ButtonLink, PageHeader, StatCard } from "../../../components/ui/core";
 import { ApiErrorState, LoadingState } from "../../../components/ui/states";
 import { useCourseDetail } from "../../../lib/api-hooks";
@@ -27,6 +30,14 @@ function NewOrderInner() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
 
+  const paymentId = createdOrder?.payments?.[0]?.id ?? null;
+  const [bankName, setBankName] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [proofImageUrl, setProofImageUrl] = useState("");
+  const [confirming, setConfirming] = useState(false);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
+
   const course = detailQuery.data;
   const pricing = coursePricing(course);
   const isPaid = shouldShowPaidCheckout(pricing);
@@ -38,6 +49,12 @@ function NewOrderInner() {
     setAppliedCoupon(null);
     setCouponCode("");
     setCouponError(null);
+    setBankName("");
+    setAccountNumber("");
+    setProofImageUrl("");
+    setConfirmError(null);
+    setConfirming(false);
+    setConfirmed(false);
   }, [courseId]);
 
   const discountAmount = useMemo(() => {
@@ -82,6 +99,26 @@ function NewOrderInner() {
       setSubmitError(caught instanceof Error ? caught.message : String(caught));
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function confirmPayment() {
+    if (!paymentId) return;
+    setConfirming(true);
+    setConfirmError(null);
+    try {
+      const { api } = await import("../../../lib/api-client");
+      await api.confirmPayment({
+        paymentId,
+        ...(bankName.trim() ? { bankName: bankName.trim() } : {}),
+        ...(accountNumber.trim() ? { accountNumber: accountNumber.trim() } : {}),
+        ...(proofImageUrl.trim() ? { proofImageUrl: proofImageUrl.trim() } : {}),
+      });
+      setConfirmed(true);
+    } catch (caught) {
+      setConfirmError(caught instanceof Error ? caught.message : String(caught));
+    } finally {
+      setConfirming(false);
     }
   }
 
@@ -134,6 +171,58 @@ function NewOrderInner() {
               value={formatCurrency(createdOrder.discountAmount, createdOrder.currency)}
             />
           </section>
+
+          <article className="mt-5 rounded-lg border border-border bg-card p-5 shadow-subtle">
+            <h2 className="text-base font-semibold">Confirm payment</h2>
+            {confirmed ? (
+              <p className="mt-3 text-sm text-success" role="status">
+                Payment proof submitted. An admin will review it shortly.
+              </p>
+            ) : (
+              <div className="mt-3 space-y-3">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="bankName">Bank name</Label>
+                    <Input
+                      id="bankName"
+                      onChange={(event) => setBankName(event.target.value)}
+                      placeholder="e.g. BCA"
+                      value={bankName}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="accountNumber">Account number / payment reference</Label>
+                    <Input
+                      id="accountNumber"
+                      onChange={(event) => setAccountNumber(event.target.value)}
+                      placeholder="Reference or account number"
+                      value={accountNumber}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="proofImageUrl">Proof image URL (optional)</Label>
+                  <Input
+                    id="proofImageUrl"
+                    onChange={(event) => setProofImageUrl(event.target.value)}
+                    placeholder="https://…/receipt.png"
+                    value={proofImageUrl}
+                  />
+                </div>
+                <Button
+                  disabled={confirming || !paymentId}
+                  onClick={confirmPayment}
+                >
+                  {confirming ? "Submitting" : "Confirm payment"}
+                </Button>
+                {confirmError ? (
+                  <p className="text-sm text-destructive" role="alert">
+                    {confirmError}
+                  </p>
+                ) : null}
+              </div>
+            )}
+          </article>
 
           <div className="mt-5 flex flex-wrap gap-2">
             <ButtonLink href={`/orders/${encodeURIComponent(createdOrder.id)}`}>

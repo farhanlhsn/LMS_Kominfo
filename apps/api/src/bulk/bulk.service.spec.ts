@@ -8,20 +8,7 @@ import { CreateBulkJobDto } from "./dto/bulk.dto";
 
 describe("BulkOperationService", () => {
   let service: BulkOperationService;
-  let prisma: {
-    bulkJob: {
-      create: ReturnType<typeof vi.fn>;
-      findFirst: ReturnType<typeof vi.fn>;
-      findUnique: ReturnType<typeof vi.fn>;
-      findMany: ReturnType<typeof vi.fn>;
-      update: ReturnType<typeof vi.fn>;
-    };
-    bulkJobItem: {
-      createMany: ReturnType<typeof vi.fn>;
-      updateMany: ReturnType<typeof vi.fn>;
-    };
-    $transaction: ReturnType<typeof vi.fn>;
-  };
+  let prisma: any;
   let realtime: { publish: ReturnType<typeof vi.fn> };
 
   const baseJob = {
@@ -44,6 +31,7 @@ describe("BulkOperationService", () => {
 
   beforeEach(() => {
     prisma = {
+      // partial fixture; typed loosely
       bulkJob: {
         create: vi.fn().mockResolvedValue(baseJob),
         findFirst: vi.fn().mockResolvedValue(baseJob),
@@ -56,6 +44,7 @@ describe("BulkOperationService", () => {
         updateMany: vi.fn().mockResolvedValue({ count: 2 }),
       },
       $transaction: vi.fn().mockResolvedValue([]),
+      course: { update: vi.fn().mockResolvedValue({}) },
     };
     realtime = { publish: vi.fn().mockResolvedValue(undefined) };
 

@@ -9,20 +9,25 @@ import {
   useCreateHelpArticle,
   useCreateHelpCategory,
   useDeleteHelpArticle,
+  useDeleteHelpCategory,
   useHelpArticles,
   useHelpCategories,
   useUpdateHelpArticle,
+  useUpdateHelpCategory,
 } from "../../../lib/api-hooks";
 import { HelpArticleList } from "../../../components/help/HelpArticleList";
 
 export default function AdminHelpPage() {
   const categories = useHelpCategories();
   const createCategory = useCreateHelpCategory();
+  const updateCategory = useUpdateHelpCategory();
+  const deleteCategory = useDeleteHelpCategory();
   const createArticle = useCreateHelpArticle();
   const updateArticle = useUpdateHelpArticle();
   const deleteArticle = useDeleteHelpArticle();
 
   const [articleId, setArticleId] = useState<string | null>(null);
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [newArticle, setNewArticle] = useState({
     categoryId: "",
     slug: "",
@@ -75,6 +80,29 @@ export default function AdminHelpPage() {
     }
   };
 
+  const handleUpdateCategory = async (id: string) => {
+    setStatus(null);
+    try {
+      await updateCategory(id, newCategory);
+      setNewCategory({ key: "", title: "" });
+      setEditingCategoryId(null);
+      setStatus("Category updated.");
+    } catch (error) {
+      setStatus((error as Error).message);
+    }
+  };
+
+  const handleDeleteCategory = async (id: string) => {
+    if (!confirm("Delete this category and its articles?")) return;
+    setStatus(null);
+    try {
+      await deleteCategory(id);
+      setStatus("Category deleted.");
+    } catch (error) {
+      setStatus((error as Error).message);
+    }
+  };
+
   const handlePublish = async (id: string) => {
     try {
       await updateArticle(id, { status: "PUBLISHED" });
@@ -111,8 +139,25 @@ export default function AdminHelpPage() {
         <h2 className="text-sm font-semibold">Categories</h2>
         <ul className="mt-2 flex flex-wrap gap-2 text-xs">
           {categories.data?.map((cat) => (
-            <li key={cat.id} className="rounded bg-muted px-2 py-1">
-              {cat.title} <span className="text-muted-foreground">({cat._count?.articles ?? 0})</span>
+            <li key={cat.id} className="flex items-center gap-2 rounded bg-muted px-2 py-1">
+              <span>{cat.title} <span className="text-muted-foreground">({cat._count?.articles ?? 0})</span></span>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingCategoryId(cat.id);
+                  setNewCategory({ key: cat.key, title: cat.title });
+                }}
+                className="text-primary"
+              >
+                edit
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDeleteCategory(cat.id)}
+                className="text-destructive"
+              >
+                delete
+              </button>
             </li>
           ))}
         </ul>
@@ -129,13 +174,35 @@ export default function AdminHelpPage() {
             placeholder="title"
             className="rounded-md border border-border bg-card px-2 py-1 text-sm"
           />
-          <button
-            type="button"
-            onClick={handleCreateCategory}
-            className="rounded-md bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground"
-          >
-            Add category
-          </button>
+          {editingCategoryId ? (
+            <>
+              <button
+                type="button"
+                onClick={() => void handleUpdateCategory(editingCategoryId)}
+                className="rounded-md bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingCategoryId(null);
+                  setNewCategory({ key: "", title: "" });
+                }}
+                className="rounded-md border border-border px-3 py-1 text-xs"
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={handleCreateCategory}
+              className="rounded-md bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground"
+            >
+              Add category
+            </button>
+          )}
         </div>
       </section>
       <section className="rounded-md border border-border bg-card p-4">

@@ -13,7 +13,7 @@ const organization = {
 };
 
 function createService(overrides: Partial<Record<string, unknown>> = {}) {
-  const prisma = {
+  const prisma: any = {
     file: {
       create: vi.fn().mockResolvedValue({ id: "file_1" }),
       findFirst: vi.fn(),
@@ -190,7 +190,7 @@ describe("FilesService", () => {
     prisma.file.findMany.mockResolvedValue([{ id: "f1" }]);
     prisma.file.count.mockResolvedValue(1);
     const page = await service.list("org_1", { page: 1, limit: 20 } as any);
-    expect(page.meta.total).toBe(1);
+    expect((page as any).meta.total).toBe(1);
     expect(redis.set).toHaveBeenCalled();
 
     redis.get.mockResolvedValueOnce({
