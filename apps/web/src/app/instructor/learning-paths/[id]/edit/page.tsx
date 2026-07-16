@@ -2,17 +2,18 @@
 
 import type { FormEvent } from "react";
 import { use, useState } from "react";
-import { Save } from "lucide-react";
+import { Save, Trash2 } from "lucide-react";
 import { PERMISSIONS } from "@lms/shared";
 import { AuthGate, PermissionGate } from "../../../../../components/auth/auth-gate";
 import { AppShell } from "../../../../../components/layout/shells";
 import { ButtonLink, PageHeader } from "../../../../../components/ui/core";
-import { LoadingState, ApiErrorState } from "../../../../../components/ui/states";
+import { ErrorState, LoadingState, ApiErrorState } from "../../../../../components/ui/states";
 import {
   useLearningPath,
   useUpdateLearningPath,
   useAddCourseToPath,
   useRemoveCourseFromPath,
+  useDeleteLearningPath,
   useInstructorCourses,
 } from "../../../../../lib/api-hooks";
 
@@ -24,9 +25,11 @@ export default function EditLearningPathPage({ params }: { params: Promise<{ id:
   const path = useLearningPath(id);
   const courses = useInstructorCourses();
   const update = useUpdateLearningPath();
+  const remove = useDeleteLearningPath();
   const addCourse = useAddCourseToPath();
   const removeCourse = useRemoveCourseFromPath();
   const [status, setStatus] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [addCourseId, setAddCourseId] = useState("");
 
@@ -76,6 +79,17 @@ export default function EditLearningPathPage({ params }: { params: Promise<{ id:
     }
   }
 
+  async function handleDelete() {
+    if (!confirm("Delete this learning path?")) return;
+    setDeleteError(null);
+    try {
+      await remove(id);
+      window.location.href = "/instructor";
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Failed to delete");
+    }
+  }
+
   const data = path.data;
   const pathCourseIds = new Set((data?.courses ?? []).map((c) => c.courseId));
 
@@ -91,11 +105,20 @@ export default function EditLearningPathPage({ params }: { params: Promise<{ id:
             eyebrow="Instructor"
             title={data?.title ?? "Edit Learning Path"}
             actions={
-              <ButtonLink href="/instructor" variant="secondary">
-                Back
-              </ButtonLink>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => void handleDelete()}
+                  className="inline-flex items-center gap-2 rounded-md bg-destructive px-3 py-1.5 text-sm font-semibold text-destructive-foreground"
+                >
+                  <Trash2 className="h-4 w-4" /> Delete
+                </button>
+                <ButtonLink href="/instructor" variant="secondary">
+                  Back
+                </ButtonLink>
+              </div>
             }
           />
+          {deleteError ? <ErrorState title="Delete failed" description={deleteError} /> : null}
           {status ? (
             <p className="mb-4 rounded-md border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
               {status}
