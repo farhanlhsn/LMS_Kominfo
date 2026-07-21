@@ -1,0 +1,8 @@
+ALTER TYPE "FilePurpose" ADD VALUE IF NOT EXISTS 'CERTIFICATE';
+
+CREATE TYPE "CertificatePdfStatus" AS ENUM ('PENDING', 'GENERATING', 'GENERATED', 'FAILED');
+
+ALTER TABLE "Certificate"
+ADD COLUMN "pdfStatus" "CertificatePdfStatus" NOT NULL DEFAULT 'PENDING',
+ADD COLUMN "pdfGeneratedAt" TIMESTAMP(3),
+ADD COLUMN "pdfError" TEXT;

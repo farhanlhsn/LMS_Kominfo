@@ -1,0 +1,31 @@
+﻿# ─────────────────────────────────────────────────────────────────────────────
+# CodeQL — kept for main-branch schedule; full PR matrix lives in security.yml
+# ─────────────────────────────────────────────────────────────────────────────
+name: "CodeQL"
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1"
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-24.04
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-and-quality
+
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:javascript-typescript"

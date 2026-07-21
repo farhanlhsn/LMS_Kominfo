@@ -1,0 +1,15 @@
+title = "LMS gitleaks"
+
+[extend]
+useDefault = true
+
+# L11: path-specific only — no blanket docs/ or entire e2e/
+[allowlist]
+description = "Demo seed passwords and unit-test fixtures (not real secrets)"
+paths = [
+  '''e2e/helpers/''',
+  '''\.env\.example$''',
+  '''.*\.spec\.ts$''',
+  '''.*\.spec\.tsx$''',
+  '''packages/db/prisma/seed\.ts$''',
+]

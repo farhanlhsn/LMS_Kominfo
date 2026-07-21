@@ -1,0 +1,7 @@
+-- Compatibility shim for environments whose `_prisma_migrations` table
+-- records `20260706010000_phase_16_organization_branding`.
+--
+-- Organization branding columns were already introduced in
+-- `20260705230000_phase_13_enterprise_sso_webhook`.
+-- Keeping this migration intentionally empty avoids duplicate ALTER TABLE
+-- failures during fresh replays.

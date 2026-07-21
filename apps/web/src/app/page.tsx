@@ -1,106 +1,198 @@
-import Link from 'next/link';
-import { BookOpen, Brain, Trophy, Users } from 'lucide-react';
+"use client";
 
-export default function HomePage(): React.ReactElement {
+import { ArrowRight, BookOpen, CheckCircle2, Clock, GraduationCap } from "lucide-react";
+import { AuthGate } from "../components/auth/auth-gate";
+import { AppShell } from "../components/layout/shells";
+import {
+  CourseCard,
+  CourseProgressCard,
+  Meter,
+} from "../components/lms/courses";
+import { ButtonLink, PageHeader, StatCard } from "../components/ui/core";
+import { ApiErrorState, EmptyState, LoadingState } from "../components/ui/states";
+import { useCourses, useMyEnrollments } from "../lib/api-hooks";
+
+export default function Home() {
+  const coursesQuery = useCourses();
+  const enrollmentsQuery = useMyEnrollments();
+  const courses = coursesQuery.data?.data ?? [];
+  const enrollments = enrollmentsQuery.data ?? [];
+  const publishedCourses = courses.filter((course) => course.status === "PUBLISHED");
+  const averageProgress =
+    enrollments.length > 0
+      ? Math.round(
+          enrollments.reduce(
+            (sum, enrollment) => sum + enrollment.progressPercent,
+            0,
+          ) / enrollments.length,
+        )
+      : 0;
+  const continueEnrollment = enrollments[0] ?? null;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white">
-      <header className="container mx-auto px-4 py-6 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Brain className="h-8 w-8 text-primary" />
-          <span className="text-xl font-bold text-foreground">Kominfo AI-LMS</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <Link
-            href="/login"
-            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Masuk
-          </Link>
-          <Link
-            href="/register"
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
-            Daftar
-          </Link>
-        </div>
-      </header>
+    <AuthGate>
+      <AppShell currentPath="/">
+        <PageHeader
+          eyebrow="Dashboard"
+          title="Learning dashboard"
+          description="Real course, enrollment, and progress data from the active organization."
+          actions={
+            <ButtonLink href="/courses">
+              Browse catalog
+              <ArrowRight aria-hidden="true" className="h-4 w-4" />
+            </ButtonLink>
+          }
+        />
 
-      <main>
-        {/* Hero */}
-        <section className="container mx-auto px-4 pt-20 pb-32 text-center">
-          <h1 className="text-5xl font-bold tracking-tight text-foreground sm:text-6xl">
-            Belajar Lebih Cerdas
-            <br />
-            <span className="text-primary">dengan AI</span>
-          </h1>
-          <p className="mt-6 text-lg text-muted-foreground max-w-2xl mx-auto">
-            Platform pembelajaran digital dengan asisten AI yang membantu Anda memahami materi lebih
-            cepat, kapan saja, di mana saja.
-          </p>
-          <div className="mt-10 flex items-center justify-center gap-4">
-            <Link
-              href="/register"
-              className="inline-flex items-center justify-center rounded-md bg-primary px-8 py-3 text-base font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-            >
-              Mulai Belajar
-            </Link>
-            <Link
-              href="/login"
-              className="inline-flex items-center justify-center rounded-md border border-input bg-background px-8 py-3 text-base font-medium hover:bg-accent transition-colors"
-            >
-              Masuk
-            </Link>
-          </div>
-        </section>
+        {coursesQuery.loading || enrollmentsQuery.loading ? (
+          <LoadingState title="Loading dashboard" />
+        ) : coursesQuery.error || enrollmentsQuery.error ? (
+          <ApiErrorState
+            error={coursesQuery.error ?? enrollmentsQuery.error}
+            fallbackTitle="Could not load dashboard"
+            fallbackDescription="The dashboard request failed."
+          />
+        ) : (
+          <>
+            <section className="grid gap-4 xl:grid-cols-4">
+              <StatCard
+                icon={BookOpen}
+                label="Published courses"
+                value={String(publishedCourses.length)}
+              />
+              <StatCard
+                icon={GraduationCap}
+                label="Active enrollments"
+                value={String(enrollments.length)}
+              />
+              <StatCard
+                icon={CheckCircle2}
+                label="Average progress"
+                value={`${averageProgress}%`}
+              />
+              <StatCard
+                icon={Clock}
+                label="Catalog minutes"
+                value={`${courses.reduce(
+                  (sum, course) => sum + (course.durationMinutes || 0),
+                  0,
+                )}m`}
+              />
+            </section>
 
-        {/* Features */}
-        <section className="container mx-auto px-4 pb-32">
-          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-            <FeatureCard
-              icon={BookOpen}
-              title="Materi Lengkap"
-              description="Video, PDF, kuis, dan tugas tersusun rapi per modul pembelajaran."
-            />
-            <FeatureCard
-              icon={Brain}
-              title="AI Assistant"
-              description="Tanya AI untuk penjelasan, ringkasan, atau latihan soal dari materi."
-            />
-            <FeatureCard
-              icon={Trophy}
-              title="Leaderboard"
-              description="Bersaing sehat antar peserta dan region. Raih XP dan badge."
-            />
-            <FeatureCard
-              icon={Users}
-              title="Multi Region"
-              description="Mendukung program pembelajaran di Aceh, Medan, Lampung, Bengkulu."
-            />
-          </div>
-        </section>
-      </main>
+            <section className="mt-5 grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+              {continueEnrollment ? (
+                <article className="rounded-lg border border-border bg-card p-5 text-card-foreground shadow-subtle">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">
+                        Continue learning
+                      </p>
+                      <h2 className="mt-1 text-lg font-semibold">
+                        {continueEnrollment.course.title}
+                      </h2>
+                      <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                        {continueEnrollment.course.description ||
+                          continueEnrollment.course.subtitle ||
+                          "Resume your course from the learning workspace."}
+                      </p>
+                    </div>
+                    <GraduationCap
+                      aria-hidden="true"
+                      className="h-5 w-5 text-primary"
+                    />
+                  </div>
+                  <div className="mt-5">
+                    <Meter value={continueEnrollment.progressPercent} />
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      {Math.round(continueEnrollment.progressPercent)}% complete
+                    </p>
+                  </div>
+                  <ButtonLink
+                    className="mt-5"
+                    href={`/learn/courses/${continueEnrollment.course.id}`}
+                  >
+                    Resume
+                    <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                  </ButtonLink>
+                </article>
+              ) : (
+                <EmptyState
+                  title="No active enrollments"
+                  description="Enroll in a published course to start learning."
+                  action={
+                    <ButtonLink href="/courses" variant="secondary">
+                      Browse courses
+                    </ButtonLink>
+                  }
+                />
+              )}
 
-      <footer className="container mx-auto px-4 py-8 text-center text-sm text-muted-foreground">
-        &copy; {new Date().getFullYear()} Kominfo AI Learning Management System
-      </footer>
-    </div>
-  );
-}
+              <article className="rounded-lg border border-border bg-card p-5 shadow-subtle">
+                <p className="text-sm font-medium text-muted-foreground">
+                  Organization context
+                </p>
+                <h2 className="mt-1 text-lg font-semibold">
+                  Tenant-scoped data
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  Requests use the active organization header and backend RBAC
+                  checks from the saved session.
+                </p>
+              </article>
+            </section>
 
-function FeatureCard({
-  icon: Icon,
-  title,
-  description,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  description: string;
-}): React.ReactElement {
-  return (
-    <div className="rounded-lg border bg-card p-6 text-left">
-      <Icon className="h-10 w-10 text-primary mb-4" />
-      <h3 className="text-lg font-semibold">{title}</h3>
-      <p className="mt-2 text-sm text-muted-foreground">{description}</p>
-    </div>
+            <section className="mt-5 grid gap-4 xl:grid-cols-3">
+              {enrollments.length > 0 ? (
+                enrollments
+                  .slice(0, 3)
+                  .map((enrollment) => (
+                    <CourseProgressCard
+                      key={enrollment.id}
+                      enrollment={enrollment}
+                    />
+                  ))
+              ) : (
+                <EmptyState
+                  className="xl:col-span-3"
+                  title="No enrolled courses"
+                  description="Your enrolled courses will appear here after enrollment."
+                />
+              )}
+            </section>
+
+            <section className="mt-5 rounded-lg border border-border bg-card p-5 shadow-subtle">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Course catalog
+                  </p>
+                  <h2 className="mt-1 text-lg font-semibold">
+                    Published courses
+                  </h2>
+                </div>
+                <ButtonLink href="/courses" variant="secondary">
+                  View all
+                  <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                </ButtonLink>
+              </div>
+              <div className="mt-5 grid gap-4 lg:grid-cols-3">
+                {publishedCourses.length > 0 ? (
+                  publishedCourses
+                    .slice(0, 3)
+                    .map((course) => <CourseCard key={course.id} course={course} />)
+                ) : (
+                  <EmptyState
+                    className="lg:col-span-3"
+                    title="No published courses"
+                    description="Published courses will appear here after instructors publish them."
+                  />
+                )}
+              </div>
+            </section>
+          </>
+        )}
+      </AppShell>
+    </AuthGate>
   );
 }
