@@ -155,7 +155,7 @@ jobs:
 
       # Hard gate: CRITICAL only
       - name: Run Trivy FS CRITICAL
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -168,7 +168,7 @@ jobs:
       - name: Run Trivy FS HIGH (soft)
         if: always()
         continue-on-error: true
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -239,7 +239,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Run Trivy image CRITICAL
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: image
           image-ref: lms-api:security-scan
