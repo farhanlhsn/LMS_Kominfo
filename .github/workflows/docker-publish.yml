@@ -1,4 +1,4 @@
-﻿# ─────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 # Docker — Build and push images to a container registry
 # ─────────────────────────────────────────────────────────────────────────────
 name: Docker
@@ -25,13 +25,13 @@ jobs:
       packages: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -40,7 +40,7 @@ jobs:
       # ── Extract tags ─────────────────────────────────────────────────────
       - name: Docker meta (API)
         id: meta-api
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.API_IMAGE }}
           tags: |
@@ -53,7 +53,7 @@ jobs:
 
       - name: Docker meta (Web)
         id: meta-web
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.WEB_IMAGE }}
           tags: |
@@ -66,7 +66,7 @@ jobs:
 
       # ── Build API ────────────────────────────────────────────────────────
       - name: Build & push API image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: docker/api.Dockerfile
@@ -78,7 +78,7 @@ jobs:
 
       # ── Build Web ────────────────────────────────────────────────────────
       - name: Build & push Web image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: docker/web.Dockerfile
