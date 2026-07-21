@@ -39,7 +39,7 @@ jobs:
     container:
       image: semgrep/semgrep:latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Run Semgrep
         run: |
@@ -67,7 +67,7 @@ jobs:
           exit $code
 
       - name: Upload Semgrep SARIF
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         continue-on-error: true
         with:
@@ -76,7 +76,7 @@ jobs:
 
       - name: Upload Semgrep artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: semgrep-report
           path: semgrep.sarif
@@ -88,14 +88,14 @@ jobs:
     runs-on: ubuntu-24.04
     if: github.event_name == 'pull_request' || github.ref != 'refs/heads/main'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: github/codeql-action/init@v3
+      - uses: github/codeql-action/init@v4
         with:
           languages: javascript-typescript
           queries: security-and-quality
 
-      - uses: github/codeql-action/analyze@v3
+      - uses: github/codeql-action/analyze@v4
         with:
           category: "/language:javascript-typescript"
 
@@ -103,7 +103,7 @@ jobs:
     name: Bearer (informational)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Run Bearer
         id: bearer
@@ -116,7 +116,7 @@ jobs:
           skip-path: node_modules,dist,.next,coverage,playwright-report,test-results,packages/db/prisma/migrations
 
       - name: Upload Bearer SARIF
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always() && hashFiles('bearer.sarif') != ''
         continue-on-error: true
         with:
@@ -125,7 +125,7 @@ jobs:
 
       - name: Upload Bearer artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: bearer-report
           path: bearer.sarif
@@ -136,12 +136,12 @@ jobs:
     name: Gitleaks
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "true"
@@ -151,7 +151,7 @@ jobs:
     name: Trivy filesystem (CRITICAL hard)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Hard gate: CRITICAL only
       - name: Run Trivy FS CRITICAL
@@ -194,7 +194,7 @@ jobs:
           PY
 
       - name: Upload Trivy FS SARIF
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always() && hashFiles('trivy-fs.sarif') != ''
         continue-on-error: true
         with:
@@ -203,7 +203,7 @@ jobs:
 
       - name: Upload Trivy FS artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: trivy-fs-report
           path: |
@@ -222,13 +222,13 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'push' && github.ref == 'refs/heads/main')
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Build API image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: docker/api.Dockerfile
@@ -249,7 +249,7 @@ jobs:
           exit-code: "1"
 
       - name: Upload Trivy image SARIF
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always() && hashFiles('trivy-image.sarif') != ''
         continue-on-error: true
         with:
@@ -258,7 +258,7 @@ jobs:
 
       - name: Upload Trivy image artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: trivy-image-report
           path: trivy-image.sarif
@@ -269,7 +269,7 @@ jobs:
     name: Checkov IaC (informational)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Run Checkov
         uses: bridgecrewio/checkov-action@v12
@@ -294,7 +294,7 @@ jobs:
           fi
 
       - name: Upload Checkov SARIF
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always() && hashFiles('checkov.sarif') != ''
         continue-on-error: true
         with:
@@ -303,7 +303,7 @@ jobs:
 
       - name: Upload Checkov artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: checkov-report
           path: |
@@ -340,7 +340,7 @@ jobs:
     if: always() && github.event_name == 'pull_request'
     steps:
       - name: Comment PR
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const needs = {
@@ -405,7 +405,7 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.target_url != '' }}
     steps:
       - name: ZAP baseline scan
-        uses: zaproxy/action-baseline@v0.14.0
+        uses: zaproxy/action-baseline@v0.15.0
         with:
           target: ${{ inputs.target_url }}
           fail_action: false
@@ -413,7 +413,7 @@ jobs:
 
       - name: Upload ZAP artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: zap-baseline-report
           path: report_html.html
