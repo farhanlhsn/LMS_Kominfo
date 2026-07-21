@@ -1,9 +1,9 @@
-﻿# ─────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 # docker/api.Dockerfile — NestJS API multi-stage build
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ── Base ──────────────────────────────────────────────────────────────────
-FROM node:24-alpine AS base
+FROM node:26-alpine AS base
 WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@11.7.0 --activate
 COPY package.json pnpm-workspace.yaml turbo.json tsconfig.base.json ./
@@ -26,7 +26,7 @@ RUN pnpm --filter @lms/api build
 RUN pnpm deploy --legacy --filter @lms/api /app/dist/api
 
 # ── Production ────────────────────────────────────────────────────────────
-FROM node:24-alpine AS production
+FROM node:26-alpine AS production
 WORKDIR /app
 
 RUN addgroup -S lms && adduser -S lms -G lms
