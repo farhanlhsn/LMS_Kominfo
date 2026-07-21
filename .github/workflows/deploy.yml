@@ -1,4 +1,4 @@
-﻿# ─────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 # Deploy — Deploy to production/staging via SSH + Docker Compose
 # ─────────────────────────────────────────────────────────────────────────────
 name: Deploy
@@ -64,7 +64,7 @@ jobs:
           echo "Deploying API_IMAGE=$API_IMAGE WEB_IMAGE=$WEB_IMAGE rollback=${{ steps.vars.outputs.rollback }}"
 
       - name: Copy files to server
-        uses: appleboy/scp-action@v0.1.7
+        uses: appleboy/scp-action@v1.0.0
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           port: ${{ secrets.DEPLOY_PORT || '22' }}
