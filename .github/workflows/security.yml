@@ -67,7 +67,7 @@ jobs:
           exit $code
 
       - name: Upload Semgrep SARIF
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         continue-on-error: true
         with:
@@ -89,12 +89,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: github/codeql-action/init@v3
+      - uses: github/codeql-action/init@v4
         with:
           languages: javascript-typescript
           queries: security-and-quality
 
-      - uses: github/codeql-action/analyze@v3
+      - uses: github/codeql-action/analyze@v4
         with:
           category: "/language:javascript-typescript"
 
@@ -115,7 +115,7 @@ jobs:
           skip-path: node_modules,dist,.next,coverage,playwright-report,test-results,packages/db/prisma/migrations
 
       - name: Upload Bearer SARIF
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always() && hashFiles('bearer.sarif') != ''
         continue-on-error: true
         with:
@@ -193,7 +193,7 @@ jobs:
           PY
 
       - name: Upload Trivy FS SARIF
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always() && hashFiles('trivy-fs.sarif') != ''
         continue-on-error: true
         with:
@@ -248,7 +248,7 @@ jobs:
           exit-code: "1"
 
       - name: Upload Trivy image SARIF
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always() && hashFiles('trivy-image.sarif') != ''
         continue-on-error: true
         with:
@@ -293,7 +293,7 @@ jobs:
           fi
 
       - name: Upload Checkov SARIF
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always() && hashFiles('checkov.sarif') != ''
         continue-on-error: true
         with:
