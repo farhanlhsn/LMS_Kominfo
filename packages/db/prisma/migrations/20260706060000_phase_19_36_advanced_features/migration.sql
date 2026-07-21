@@ -1,0 +1,13 @@
+-- Compatibility shim for environments whose `_prisma_migrations` table
+-- records `20260706060000_phase_19_36_advanced_features`.
+--
+-- The actual Phase 19-36 DDL remains split across:
+-- - `20260706061000_phase_19_20_35`
+-- - `20260706070000_phase_21_22_26`
+-- - `20260706080000_phase_24_25_27`
+-- - `20260706090100_phase_23_28_29_30`
+-- - `20260706100100_phase_31_33_34_36`
+--
+-- This migration is intentionally empty so fresh databases replay the canonical
+-- split history exactly once without duplicate CREATE TABLE / CREATE INDEX
+-- collisions.

@@ -1,25 +1,61 @@
-import type { Metadata } from 'next';
-import { Plus_Jakarta_Sans, JetBrains_Mono } from 'next/font/google';
-import { Toaster } from 'sonner';
-import './globals.css';
+import type { Metadata, Viewport } from "next";
+import "./globals.css";
+import { PwaOverlay } from "../components/pwa/pwa-overlay";
+import { ThemeModeProvider, themeModeBootstrapScript } from "../components/theme/theme-mode";
+import { CookieBanner } from "../components/governance/CookieBanner";
 
-const sans = Plus_Jakarta_Sans({
-  subsets: ['latin'],
-  variable: '--font-sans',
-});
-
-const mono = JetBrains_Mono({
-  subsets: ['latin'],
-  variable: '--font-mono',
-});
+const serviceWorkerScript =
+  process.env.NODE_ENV === "production"
+    ? `
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+        });
+      }
+    `
+    : `
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.getRegistrations()
+          .then((registrations) => {
+            registrations.forEach((registration) => registration.unregister());
+          })
+          .catch(() => undefined);
+      }
+      if ("caches" in window) {
+        caches.keys()
+          .then((keys) => {
+            keys
+              .filter((key) => key.startsWith("lms-"))
+              .forEach((key) => caches.delete(key));
+          })
+          .catch(() => undefined);
+      }
+    `;
 
 export const metadata: Metadata = {
-  title: 'Kominfo AI-LMS',
-  description: 'AI-Powered Learning Management System',
+  title: "LMS Platform",
+  description: "AI-powered, multi-tenant LMS foundation",
+  manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/icons/icon-192.svg", sizes: "192x192", type: "image/svg+xml" },
+      { url: "/icons/icon-512.svg", sizes: "512x512", type: "image/svg+xml" },
+    ],
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "LMS",
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+  },
 };
 
-import { QueryProvider } from '@/providers/query-provider';
-import { AuthProvider } from '@/lib/auth';
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
 
 export default function RootLayout({
   children,
@@ -27,14 +63,28 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="id" suppressHydrationWarning>
-      <body className={`${sans.variable} ${mono.variable} font-sans antialiased`}>
-        <QueryProvider>
-          <AuthProvider>
-            {children}
-            <Toaster position="top-right" richColors closeButton duration={4000} />
-          </AuthProvider>
-        </QueryProvider>
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#0f766e" />
+        <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: themeModeBootstrapScript,
+          }}
+        />
+      </head>
+      <body>
+        <ThemeModeProvider>
+          {children}
+          <CookieBanner />
+          <PwaOverlay />
+        </ThemeModeProvider>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: serviceWorkerScript,
+          }}
+        />
       </body>
     </html>
   );

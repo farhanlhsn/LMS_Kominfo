@@ -1,0 +1,134 @@
+﻿# ─────────────────────────────────────────────────────────────────────────────
+# Deploy — Deploy to production/staging via SSH + Docker Compose
+# ─────────────────────────────────────────────────────────────────────────────
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Deployment target"
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+      image_tag:
+        description: "Image tag (sha short or 'latest'). Empty = this commit SHA."
+        required: false
+        default: ""
+      rollback:
+        description: "Rollback mode (skip migrations; redeploy previous tag)"
+        required: false
+        type: boolean
+        default: false
+
+  push:
+    branches: [main]
+    # Only deploy when Docker publish completes successfully
+    # Use workflow_run in practice; here we rely on manual trigger or post-Docker
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_OWNER: ${{ github.repository_owner }}
+
+jobs:
+  deploy:
+    name: Deploy to ${{ inputs.environment || 'staging' }}
+    runs-on: ubuntu-24.04
+    environment: ${{ inputs.environment || 'staging' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set env variables
+        id: vars
+        run: |
+          BRANCH="${GITHUB_REF#refs/heads/}"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          SHORT_SHA="${GITHUB_SHA::7}"
+          echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
+          TAG="${{ inputs.image_tag }}"
+          if [ -z "$TAG" ]; then TAG="$SHORT_SHA"; fi
+          echo "image_tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "rollback=${{ inputs.rollback || false }}" >> "$GITHUB_OUTPUT"
+
+      - name: Render Docker Compose for deployment
+        env:
+          API_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/lms-api:${{ steps.vars.outputs.image_tag }}
+          WEB_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/lms-web:${{ steps.vars.outputs.image_tag }}
+          DEPLOY_ENV: ${{ inputs.environment || 'staging' }}
+        run: |
+          envsubst < docker/docker-compose.deploy.yml > docker-compose.deploy.yml
+          echo "Deploying API_IMAGE=$API_IMAGE WEB_IMAGE=$WEB_IMAGE rollback=${{ steps.vars.outputs.rollback }}"
+
+      - name: Copy files to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          port: ${{ secrets.DEPLOY_PORT || '22' }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          source: "docker-compose.deploy.yml,.env.${{ inputs.environment || 'staging' }}"
+          target: /opt/lms/
+          strip_components: 0
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          port: ${{ secrets.DEPLOY_PORT || '22' }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/lms
+
+            # Keep previous compose for rollback reference
+            if [ -f docker-compose.deploy.yml ]; then
+              cp -f docker-compose.deploy.yml docker-compose.deploy.prev.yml || true
+            fi
+
+            # Pull new images
+            docker compose -f docker-compose.deploy.yml pull
+
+            # Migrations only on forward deploy (skip on rollback)
+            if [ "${{ steps.vars.outputs.rollback }}" != "true" ]; then
+              docker compose -f docker-compose.deploy.yml run --rm api sh -c "pnpm db:deploy"
+            else
+              echo "Rollback mode: skipping migrations"
+            fi
+
+            # Restart services
+            docker compose -f docker-compose.deploy.yml up -d --remove-orphans
+
+            # Health gate
+            for i in $(seq 1 30); do
+              if docker compose -f docker-compose.deploy.yml exec -T api \
+                node -e "fetch('http://127.0.0.1:4000/api/v1/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))" \
+                2>/dev/null; then
+                echo "Health check passed"
+                break
+              fi
+              if [ "$i" -eq 30 ]; then
+                echo "Health check failed after deploy"
+                docker compose -f docker-compose.deploy.yml ps
+                if [ -f docker-compose.deploy.prev.yml ]; then
+                  echo "Attempting auto-restore previous compose..."
+                  mv -f docker-compose.deploy.prev.yml docker-compose.deploy.yml
+                  docker compose -f docker-compose.deploy.yml up -d --remove-orphans || true
+                fi
+                exit 1
+              fi
+              sleep 2
+            done
+
+            # Record successful tag for operators
+            echo "${{ steps.vars.outputs.image_tag }}" > .last_deploy_tag
+            date -u +%Y-%m-%dT%H:%M:%SZ > .last_deploy_at
+
+            # Clean up old images
+            docker image prune -af --filter "until=24h"
+
+            echo "Deploy complete: tag=${{ steps.vars.outputs.image_tag }} $(date)"
