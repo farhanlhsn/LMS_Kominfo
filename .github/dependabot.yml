@@ -1,4 +1,4 @@
-﻿# ─────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────
 # Dependabot — Automated dependency updates
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -41,9 +41,14 @@ updates:
       day: "monday"
       time: "07:00"
       timezone: "Asia/Jakarta"
+    open-pull-requests-limit: 3
     labels:
       - "dependencies"
       - "docker"
+    groups:
+      docker-images:
+        patterns:
+          - "*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -52,6 +57,11 @@ updates:
       day: "monday"
       time: "07:00"
       timezone: "Asia/Jakarta"
+    open-pull-requests-limit: 3
     labels:
       - "dependencies"
       - "github-actions"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
