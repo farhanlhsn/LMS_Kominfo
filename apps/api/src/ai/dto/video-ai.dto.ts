@@ -21,6 +21,17 @@ export const AI_QUESTION_SCOPES = [
 
 export type AiQuestionScope = (typeof AI_QUESTION_SCOPES)[number];
 
+export const AI_QUESTION_TYPES = [
+  "MULTIPLE_CHOICE",
+  "MULTIPLE_ANSWER",
+  "TRUE_FALSE",
+  "SHORT_ANSWER",
+  "ESSAY",
+  "NUMERIC",
+] as const;
+
+export type AiQuestionType = (typeof AI_QUESTION_TYPES)[number];
+
 export class GenerateVideoSummaryDto {
   @IsOptional()
   @IsString()
@@ -82,6 +93,13 @@ export class GenerateCourseQuestionsDto {
   questionCount?: number;
 
   @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(6)
+  @IsIn(AI_QUESTION_TYPES, { each: true })
+  questionTypes?: AiQuestionType[];
+
+  @IsOptional()
   @IsIn(["easy", "medium", "hard"])
   difficulty?: "easy" | "medium" | "hard";
 
@@ -92,7 +110,16 @@ export class GenerateCourseQuestionsDto {
 
 export class ListAiGeneratedItemsQueryDto {
   @IsOptional()
-  @IsIn(["SUMMARY", "QUIZ", "QUESTION", "FLASHCARD", "ASSIGNMENT", "RUBRIC", "COURSE_OUTLINE", "LESSON_CONTENT"])
+  @IsIn([
+    "SUMMARY",
+    "QUIZ",
+    "QUESTION",
+    "FLASHCARD",
+    "ASSIGNMENT",
+    "RUBRIC",
+    "COURSE_OUTLINE",
+    "LESSON_CONTENT",
+  ])
   type?: string;
 
   @IsOptional()

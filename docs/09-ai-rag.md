@@ -218,6 +218,16 @@ Activity rich text, supported attached files (plain text, Markdown, PDF, DOCX), 
 transcripts are extracted into `AiDocument` records. Text is chunked with overlap,
 embedded through the selected embedding provider, and stored with full model metadata.
 Activity content and transcript changes trigger reindexing automatically.
+Course Builder polls course indexing status, shows an indexing indicator, and blocks
+question generation until every eligible source is ready. Reindex requests are
+deduplicated per activity. Removed, unpublished, and assessment activities invalidate
+their retained AI documents so stale chunks cannot be used.
+
+Course question generation requires a working organization chat provider. Provider
+output is repaired once when JSON or question structure is invalid, then rejected
+instead of falling back to generic questions. Generated questions must be specific,
+source-grounded, non-duplicative, and structurally valid for their selected question
+types.
 
 Learners ask questions through `POST /api/v1/learn/ai/tutor`. Retrieval always starts
 with active organization, enrollment, published course, published lesson, and published

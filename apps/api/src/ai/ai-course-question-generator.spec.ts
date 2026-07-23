@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { AiGeneratedItemService } from "./ai-generated-item.service";
 
 describe("AI course question generation", () => {
-  it("creates organization-scoped review draft from indexed chunks", async () => {
+  it("creates mixed-type organization-scoped review draft from indexed chunks", async () => {
     const prisma = {
       course: {
         findFirst: vi.fn().mockResolvedValue({
@@ -44,11 +44,28 @@ describe("AI course question generation", () => {
               instructions: "Answer briefly.",
               questions: [
                 {
-                  prompt: "Why does TCP preserve order?",
-                  type: "SHORT_ANSWER",
+                  prompt: "Which TCP feature preserves delivery order?",
+                  type: "MULTIPLE_CHOICE",
                   suggestedAnswer: "It sequences and acknowledges segments.",
+                  acceptedAnswers: ["It sequences and acknowledges segments."],
                   explanation: "Sequence numbers restore ordering.",
-                  sourceTimestamp: 0,
+                  options: [
+                    {
+                      text: "It sequences and acknowledges segments.",
+                      isCorrect: true,
+                    },
+                    { text: "It removes all headers.", isCorrect: false },
+                    { text: "It disables retransmission.", isCorrect: false },
+                    { text: "It uses no connection state.", isCorrect: false },
+                  ],
+                },
+                {
+                  prompt: "Explain why reliable delivery matters.",
+                  type: "ESSAY",
+                  suggestedAnswer:
+                    "Reliable delivery prevents missing or unordered application data.",
+                  explanation:
+                    "Learners should connect reliability to applications.",
                 },
               ],
             }),
@@ -70,7 +87,11 @@ describe("AI course question generation", () => {
       },
       "instructor-1",
       "course-1",
-      { questionCount: 5, difficulty: "medium" },
+      {
+        questionCount: 2,
+        questionTypes: ["MULTIPLE_CHOICE", "ESSAY"],
+        difficulty: "medium",
+      },
     );
 
     expect(result).toEqual(
@@ -89,6 +110,30 @@ describe("AI course question generation", () => {
         }),
       }),
     );
+    expect(result.metadata).toEqual(
+      expect.objectContaining({
+        questionTypes: ["MULTIPLE_CHOICE", "ESSAY"],
+      }),
+    );
+    expect(
+      (result.output as { questions: Array<Record<string, unknown>> })
+        .questions,
+    ).toEqual([
+      expect.objectContaining({
+        type: "MULTIPLE_CHOICE",
+        options: expect.arrayContaining([
+          expect.objectContaining({
+            text: "It sequences and acknowledges segments.",
+            isCorrect: true,
+          }),
+        ]),
+      }),
+      expect.objectContaining({
+        type: "ESSAY",
+        acceptedAnswers: [],
+        options: [],
+      }),
+    ]);
   });
 
   it("hard-filters module, lesson, activity, and selected material scopes", async () => {
@@ -119,9 +164,9 @@ describe("AI course question generation", () => {
         }),
       },
       aiDocument: {
-        findMany: vi.fn().mockResolvedValue([
-          { id: "document-1", title: "TCP notes" },
-        ]),
+        findMany: vi
+          .fn()
+          .mockResolvedValue([{ id: "document-1", title: "TCP notes" }]),
       },
       courseInstructor: { findFirst: vi.fn() },
       aiDocumentChunk: {
@@ -186,25 +231,33 @@ describe("AI course question generation", () => {
       organization,
       "instructor-1",
       "course-1",
-      { scope: "MODULE", moduleId: "module-1" },
+      { scope: "MODULE", moduleId: "module-1", questionCount: 1 },
     );
     await service.generateCourseQuestions(
       organization,
       "instructor-1",
       "course-1",
-      { scope: "LESSON", lessonId: "lesson-1" },
+      { scope: "LESSON", lessonId: "lesson-1", questionCount: 1 },
     );
     await service.generateCourseQuestions(
       organization,
       "instructor-1",
       "course-1",
-      { scope: "ACTIVITY", activityId: "activity-1" },
+      {
+        scope: "ACTIVITY",
+        activityId: "activity-1",
+        questionCount: 1,
+      },
     );
     const documentResult = await service.generateCourseQuestions(
       organization,
       "instructor-1",
       "course-1",
-      { scope: "DOCUMENTS", sourceDocumentIds: ["document-1"] },
+      {
+        scope: "DOCUMENTS",
+        sourceDocumentIds: ["document-1"],
+        questionCount: 1,
+      },
     );
 
     expect(prisma.aiDocumentChunk.findMany.mock.calls[0]?.[0].where).toEqual(
@@ -233,7 +286,7 @@ describe("AI course question generation", () => {
     );
   });
 
-  it("does not invent video timestamps for material fallback", async () => {
+  it("rejects invalid provider output instead of publishing generic fallback", async () => {
     const prisma = {
       course: {
         findFirst: vi.fn().mockResolvedValue({
@@ -285,26 +338,27 @@ describe("AI course question generation", () => {
       { assertReady: vi.fn().mockResolvedValue(config) } as any,
     );
 
-    const result = await service.generateCourseQuestions(
-      {
-        id: "org-a",
-        name: "Org A",
-        slug: "org-a",
-        memberId: "member-1",
-        roleKeys: ["instructor"],
-        permissionKeys: ["courses:update"],
-        isPlatformAdmin: false,
-      },
-      "instructor-1",
-      "course-1",
-      { scope: "ACTIVITY", activityId: "activity-1" },
-    );
-    const questions = (
-      result.output as { questions: Array<Record<string, unknown>> }
-    ).questions;
-
-    expect(questions[0]?.prompt).toContain("TCP establishes a connection");
-    expect(questions[0]?.prompt).not.toContain("00:");
-    expect(questions[0]).not.toHaveProperty("sourceTimestamp");
+    await expect(
+      service.generateCourseQuestions(
+        {
+          id: "org-a",
+          name: "Org A",
+          slug: "org-a",
+          memberId: "member-1",
+          roleKeys: ["instructor"],
+          permissionKeys: ["courses:update"],
+          isPlatformAdmin: false,
+        },
+        "instructor-1",
+        "course-1",
+        {
+          scope: "ACTIVITY",
+          activityId: "activity-1",
+          questionTypes: ["TRUE_FALSE"],
+          questionCount: 1,
+        },
+      ),
+    ).rejects.toThrow("invalid or low-quality questions");
+    expect(prisma.aiGeneratedItem.create).not.toHaveBeenCalled();
   });
 });

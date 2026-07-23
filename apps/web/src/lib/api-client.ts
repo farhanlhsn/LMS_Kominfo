@@ -11,6 +11,7 @@ import type {
   AiGeneratedItem,
   AiGradingSuggestion,
   AiIndexedSource,
+  AiCourseIndexStatus,
   AiStatus,
   AiTutorResponse,
   AnonymizationRequest,
@@ -1050,7 +1051,7 @@ export const api = {
       { method: "PATCH" },
     ),
   rejectInstructorAiItem: (itemId: string, reason?: string) =>
-    apiRequest<AiGeneratedItem>(
+    apiRequest<{ id: string; deleted: true }>(
       `/instructor/ai/items/${encodeURIComponent(itemId)}/reject`,
       {
         method: "PATCH",
@@ -1063,17 +1064,17 @@ export const api = {
       { method: "POST" },
     ),
   instructorAiIndexCourse: (courseId: string) =>
-    apiRequest<{ message: string }>(
-      `/instructor/courses/${encodeURIComponent(courseId)}/ai/index`,
-      { method: "POST" },
-    ),
-  instructorAiIndexStatus: (courseId: string) =>
     apiRequest<{
-      status: string;
-      documentCount: number;
-      chunkCount: number;
-      needsReindex: boolean;
-    }>(`/instructor/courses/${encodeURIComponent(courseId)}/ai/index/status`),
+      queued: boolean;
+      courseId: string;
+      deduplicated: boolean;
+    }>(`/instructor/courses/${encodeURIComponent(courseId)}/ai/index`, {
+      method: "POST",
+    }),
+  instructorAiIndexStatus: (courseId: string) =>
+    apiRequest<AiCourseIndexStatus>(
+      `/instructor/courses/${encodeURIComponent(courseId)}/ai/index/status`,
+    ),
   instructorAiSources: (courseId: string) =>
     apiRequest<AiIndexedSource[]>(
       `/instructor/courses/${encodeURIComponent(courseId)}/ai/index/sources`,
@@ -1549,11 +1550,7 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ config }),
     }),
-  updatePluginSecret: (
-    pluginKey: string,
-    secretKey: string,
-    value: string,
-  ) =>
+  updatePluginSecret: (pluginKey: string, secretKey: string, value: string) =>
     apiRequest(
       `/admin/plugins/${encodeURIComponent(pluginKey)}/secrets/${encodeURIComponent(secretKey)}`,
       {

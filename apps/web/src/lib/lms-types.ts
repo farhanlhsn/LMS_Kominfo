@@ -289,11 +289,7 @@ export type AccessContextType =
   | "ACTIVITY"
   | "PLUGIN";
 
-export type CapabilityEffect =
-  | "INHERIT"
-  | "ALLOW"
-  | "PREVENT"
-  | "PROHIBIT";
+export type CapabilityEffect = "INHERIT" | "ALLOW" | "PREVENT" | "PROHIBIT";
 
 export interface AccessContextOption {
   type: AccessContextType;
@@ -809,11 +805,7 @@ export interface AiStatus {
 }
 
 export type AiQuestionScope =
-  | "COURSE"
-  | "MODULE"
-  | "LESSON"
-  | "ACTIVITY"
-  | "DOCUMENTS";
+  "COURSE" | "MODULE" | "LESSON" | "ACTIVITY" | "DOCUMENTS";
 
 export interface AiIndexedSource {
   id: string;
@@ -826,6 +818,22 @@ export interface AiIndexedSource {
   chunkCount: number;
 }
 
+export interface AiCourseIndexStatus {
+  courseId: string;
+  state: "EMPTY" | "INDEXING" | "READY" | "FAILED";
+  ready: boolean;
+  isIndexing: boolean;
+  needsReindex: boolean;
+  documents: number;
+  chunks: number;
+  statuses: Partial<
+    Record<
+      "PENDING" | "INDEXING" | "READY" | "NEEDS_REINDEX" | "FAILED",
+      number
+    >
+  >;
+}
+
 export interface GenerateCourseAiQuestionsInput {
   scope: AiQuestionScope;
   moduleId?: string;
@@ -833,6 +841,7 @@ export interface GenerateCourseAiQuestionsInput {
   activityId?: string;
   sourceDocumentIds?: string[];
   questionCount?: number;
+  questionTypes?: QuestionType[];
   difficulty?: "easy" | "medium" | "hard";
   prompt?: string;
 }

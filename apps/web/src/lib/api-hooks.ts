@@ -12,6 +12,7 @@ import type {
   ActivityContentResponse,
   AdminOverview,
   Achievement,
+  AiCourseIndexStatus,
   AiGeneratedItem,
   AiStatus,
   AiTutorResponse,
@@ -186,7 +187,10 @@ function useApiQuery<T>(
   loaderRef.current = loader;
   const dependenciesChanged =
     deps.length !== previousDepsRef.current.length ||
-    deps.some((dependency, index) => !Object.is(dependency, previousDepsRef.current[index]));
+    deps.some(
+      (dependency, index) =>
+        !Object.is(dependency, previousDepsRef.current[index]),
+    );
   if (dependenciesChanged) {
     previousDepsRef.current = deps.slice();
     dependencyVersionRef.current += 1;
@@ -325,8 +329,7 @@ export function useAssignContextRole() {
 
 export function useRemoveContextRoleAssignment() {
   return useCallback(
-    (assignmentId: string) =>
-      api.removeContextRoleAssignment(assignmentId),
+    (assignmentId: string) => api.removeContextRoleAssignment(assignmentId),
     [],
   );
 }
@@ -801,12 +804,7 @@ export function useInstructorAiIndexCourse() {
 }
 
 export function useInstructorAiIndexStatus(courseId: string | null) {
-  return useApiQuery<{
-    status: string;
-    documentCount: number;
-    chunkCount: number;
-    needsReindex: boolean;
-  }>(async () => {
+  return useApiQuery<AiCourseIndexStatus>(async () => {
     if (!courseId) throw new Error("Course id is required");
     return api.instructorAiIndexStatus(courseId);
   }, [courseId]);

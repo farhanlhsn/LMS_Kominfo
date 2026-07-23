@@ -42,6 +42,7 @@ function createPrismaMock() {
         moduleId: "mod-1",
         organizationId: "org-1",
       }),
+      findMany: vi.fn().mockResolvedValue([]),
       findUnique: vi.fn().mockResolvedValue(null),
       update: vi.fn().mockResolvedValue({ id: "les-1" }),
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
@@ -84,9 +85,22 @@ function createPrismaMock() {
 
 function createService() {
   const prisma = createPrismaMock();
+  const aiIndexing = {
+    requestActivityReindex: vi.fn().mockResolvedValue({ queued: true }),
+    removeActivityIndex: vi.fn().mockResolvedValue(undefined),
+    removeLessonIndexes: vi.fn().mockResolvedValue(undefined),
+  };
   return {
     prisma,
-    service: new CoreLmsService(prisma as never),
+    aiIndexing,
+    service: new CoreLmsService(
+      prisma as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      aiIndexing as never,
+    ),
   };
 }
 
@@ -206,7 +220,7 @@ describe("CoreLmsService", () => {
   });
 
   it("creates updates and deletes modules lessons activities", async () => {
-    const { prisma, service } = createService();
+    const { prisma, service, aiIndexing } = createService();
     const manager = orgContext({
       isPlatformAdmin: true,
       permissionKeys: ["courses:update"],
@@ -281,6 +295,10 @@ describe("CoreLmsService", () => {
     expect(prisma.courseModule.create).toHaveBeenCalled();
     expect(prisma.lesson.create).toHaveBeenCalled();
     expect(prisma.activity.create).toHaveBeenCalled();
+    expect(aiIndexing.requestActivityReindex).toHaveBeenCalledWith(
+      "org-1",
+      "act-1",
+    );
     expect(prisma.enrollment.upsert).toHaveBeenCalled();
   });
 
@@ -587,7 +605,9 @@ describe("CoreLmsService", () => {
     expect(prisma.activity.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          activityContent: expect.objectContaining({ upsert: expect.any(Object) }),
+          activityContent: expect.objectContaining({
+            upsert: expect.any(Object),
+          }),
         }),
       }),
     );

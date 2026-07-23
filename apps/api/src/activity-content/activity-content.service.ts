@@ -114,9 +114,7 @@ export class ActivityContentService {
         fileId: dto.fileId,
       });
     }
-    await this.aiIndexing
-      .indexActivity(organization.id, activityId)
-      .catch(() => undefined);
+    await this.aiIndexing.requestActivityReindex(organization.id, activityId);
 
     return activityContent;
   }

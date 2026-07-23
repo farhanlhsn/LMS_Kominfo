@@ -19,6 +19,7 @@ import { RedisService } from "../redis/redis.service";
 import { NotificationService } from "../engagement/notification.service";
 import { PluginRegistry } from "../plugins/plugin-registry.service";
 import type { InternalPluginManifest } from "@lms/shared";
+import { AiIndexingService } from "../ai/ai-indexing.service";
 import type { OrganizationContext } from "../auth/types/authenticated-request";
 import type {
   CreateActivityDto,
@@ -51,6 +52,9 @@ export class CoreLmsService {
     @Optional()
     @Inject(PluginRegistry)
     private readonly pluginRegistry?: PluginRegistry,
+    @Optional()
+    @Inject(AiIndexingService)
+    private readonly aiIndexing?: AiIndexingService,
   ) {}
 
   private courseKey(courseId: string) {
@@ -574,9 +578,20 @@ export class CoreLmsService {
   ): Promise<unknown> {
     const module = await this.getModuleOrThrow(organization.id, moduleId);
     await this.ensureCanManageCourse(organization, userId, module.courseId);
+    const lessonIds = (
+      await this.prisma.lesson.findMany({
+        where: { organizationId: organization.id, moduleId },
+        select: { id: true },
+      })
+    ).map((lesson) => lesson.id);
     const result = await this.prisma.courseModule.delete({
       where: { id: moduleId },
     });
+    await this.aiIndexing?.removeLessonIndexes(
+      organization.id,
+      module.courseId,
+      lessonIds,
+    );
     await this.invalidateCourse(module.courseId);
     return result;
   }
@@ -654,6 +669,11 @@ export class CoreLmsService {
     const lesson = await this.getLessonOrThrow(organization.id, lessonId);
     await this.ensureCanManageCourse(organization, userId, lesson.courseId);
     const result = await this.prisma.lesson.delete({ where: { id: lessonId } });
+    await this.aiIndexing?.removeLessonIndexes(
+      organization.id,
+      lesson.courseId,
+      [lessonId],
+    );
     await this.invalidateCourse(lesson.courseId);
     return result;
   }
@@ -724,6 +744,7 @@ export class CoreLmsService {
       },
     });
     await this.invalidateCourse(lesson.courseId);
+    await this.aiIndexing?.requestActivityReindex(organization.id, result.id);
     return result;
   }
 
@@ -780,6 +801,7 @@ export class CoreLmsService {
       },
     });
     await this.invalidateCourse(activity.courseId);
+    await this.aiIndexing?.requestActivityReindex(organization.id, activityId);
     return result;
   }
 
@@ -793,6 +815,11 @@ export class CoreLmsService {
     const result = await this.prisma.activity.delete({
       where: { id: activityId },
     });
+    await this.aiIndexing?.removeActivityIndex(
+      organization.id,
+      activity.courseId,
+      activityId,
+    );
     await this.invalidateCourse(activity.courseId);
     return result;
   }

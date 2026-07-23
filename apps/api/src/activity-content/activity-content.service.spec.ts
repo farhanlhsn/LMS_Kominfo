@@ -64,7 +64,9 @@ function createService() {
     }),
     isEnabledForOrganization: vi.fn().mockResolvedValue(true),
   };
-  const aiIndexing = { indexActivity: vi.fn().mockResolvedValue({}) };
+  const aiIndexing = {
+    requestActivityReindex: vi.fn().mockResolvedValue({ queued: true }),
+  };
 
   return {
     service: new ActivityContentService(
@@ -77,6 +79,7 @@ function createService() {
     ),
     prisma,
     pluginRegistry,
+    aiIndexing,
   };
 }
 
@@ -178,7 +181,7 @@ describe("ActivityContentService", () => {
   });
 
   it("updates content attaches file and reprocesses", async () => {
-    const { service, prisma } = createService();
+    const { service, prisma, aiIndexing } = createService();
     const instructorOrg = {
       ...organization,
       isPlatformAdmin: true,
@@ -197,11 +200,20 @@ describe("ActivityContentService", () => {
       activityId: "activity_1",
     });
     prisma.activity.update.mockResolvedValue({ id: "activity_1" });
-    await service.updateActivityContent(instructorOrg as any, "u1", "activity_1", {
-      textContent: "Hello",
-      body: { html: "<p>Hello</p>" },
-    } as any);
+    await service.updateActivityContent(
+      instructorOrg as any,
+      "u1",
+      "activity_1",
+      {
+        textContent: "Hello",
+        body: { html: "<p>Hello</p>" },
+      } as any,
+    );
     expect(prisma.activityContent.upsert).toHaveBeenCalled();
+    expect(aiIndexing.requestActivityReindex).toHaveBeenCalledWith(
+      "org_1",
+      "activity_1",
+    );
 
     prisma.activity.findFirst.mockResolvedValue({
       id: "activity_1",
@@ -302,16 +314,26 @@ describe("ActivityContentService", () => {
       activityContent: { id: "ac_1", body: null },
     });
     prisma.activityContent.upsert.mockResolvedValue({ id: "ac_1" });
-    await service.updateActivityContent(instructorOrg as any, "u1", "activity_1", {
-      body: { html: "<script>alert(1)</script><p>Safe</p>" },
-      textContent: "Safe",
-    } as any);
-    await service.updateActivityContent(instructorOrg as any, "u1", "activity_1", {
-      content: {
-        format: "rich_text_html",
-        body: "<p>From body field</p>",
-      },
-    } as any);
+    await service.updateActivityContent(
+      instructorOrg as any,
+      "u1",
+      "activity_1",
+      {
+        body: { html: "<script>alert(1)</script><p>Safe</p>" },
+        textContent: "Safe",
+      } as any,
+    );
+    await service.updateActivityContent(
+      instructorOrg as any,
+      "u1",
+      "activity_1",
+      {
+        content: {
+          format: "rich_text_html",
+          body: "<p>From body field</p>",
+        },
+      } as any,
+    );
     expect(prisma.activityContent.upsert).toHaveBeenCalled();
   });
 
@@ -396,4 +418,3 @@ describe("ActivityContentService", () => {
     ).resolves.toMatchObject({ status: "COMPLETED" });
   });
 });
-

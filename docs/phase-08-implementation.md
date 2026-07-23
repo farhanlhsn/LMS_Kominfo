@@ -15,6 +15,9 @@ Implemented:
 - clickable follow-up suggestions without extra provider calls
 - assessment AI policy enforcement, usage logs, and per-user/per-org rate limits
 - disabled, empty, loading, error, blocked, and answer states in Learning Workspace
+- automatic deduplicated reindex after activity content or transcript changes
+- Course Builder index readiness polling and generation lock while indexing
+- strict course-question quality validation with one provider repair attempt
 
 Instructor indexing endpoints are permission protected. Learner tutor requests require an
 active organization membership and enrollment. Reindex after changing embedding models.

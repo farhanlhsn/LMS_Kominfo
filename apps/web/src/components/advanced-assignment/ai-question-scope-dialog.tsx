@@ -22,6 +22,7 @@ import type {
   AiQuestionScope,
   Course,
   GenerateCourseAiQuestionsInput,
+  QuestionType,
 } from "../../lib/lms-types";
 import {
   buildAiQuestionGenerationInput,
@@ -41,6 +42,43 @@ const SCOPE_OPTIONS: Array<{
   { value: "LESSON", label: "Lesson", icon: ListTree },
   { value: "ACTIVITY", label: "Activity", icon: FileCheck2 },
   { value: "DOCUMENTS", label: "Materials", icon: Library },
+];
+
+const QUESTION_TYPE_OPTIONS: Array<{
+  value: QuestionType;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "MULTIPLE_CHOICE",
+    label: "Multiple choice",
+    description: "One correct option",
+  },
+  {
+    value: "MULTIPLE_ANSWER",
+    label: "Multiple answer",
+    description: "Several correct options",
+  },
+  {
+    value: "TRUE_FALSE",
+    label: "True / false",
+    description: "Binary statement",
+  },
+  {
+    value: "SHORT_ANSWER",
+    label: "Short answer",
+    description: "Brief typed response",
+  },
+  {
+    value: "ESSAY",
+    label: "Essay",
+    description: "Long-form response",
+  },
+  {
+    value: "NUMERIC",
+    label: "Numeric",
+    description: "Number with tolerance",
+  },
 ];
 
 export function AiQuestionScopeDialog({
@@ -66,6 +104,10 @@ export function AiQuestionScopeDialog({
   const [activityId, setActivityId] = useState("");
   const [sourceDocumentIds, setSourceDocumentIds] = useState<string[]>([]);
   const [questionCount, setQuestionCount] = useState(5);
+  const [questionTypes, setQuestionTypes] = useState<QuestionType[]>([
+    "MULTIPLE_CHOICE",
+    "SHORT_ANSWER",
+  ]);
   const [difficulty, setDifficulty] =
     useState<GenerateCourseAiQuestionsInput["difficulty"]>("medium");
   const [prompt, setPrompt] = useState("");
@@ -78,6 +120,7 @@ export function AiQuestionScopeDialog({
     setActivityId("");
     setSourceDocumentIds([]);
     setQuestionCount(5);
+    setQuestionTypes(["MULTIPLE_CHOICE", "SHORT_ANSWER"]);
     setDifficulty("medium");
     setPrompt("");
   }, [open]);
@@ -107,8 +150,7 @@ export function AiQuestionScopeDialog({
     [lessons],
   );
   const activityNames = useMemo(
-    () =>
-      new Map(activities.map((activity) => [activity.id, activity.title])),
+    () => new Map(activities.map((activity) => [activity.id, activity.title])),
     [activities],
   );
 
@@ -119,6 +161,7 @@ export function AiQuestionScopeDialog({
     activityId,
     sourceDocumentIds,
     questionCount,
+    questionTypes,
     difficulty,
     prompt,
   };
@@ -129,6 +172,14 @@ export function AiQuestionScopeDialog({
       current.includes(id)
         ? current.filter((sourceId) => sourceId !== id)
         : [...current, id],
+    );
+  }
+
+  function toggleQuestionType(type: QuestionType) {
+    setQuestionTypes((current) =>
+      current.includes(type)
+        ? current.filter((currentType) => currentType !== type)
+        : [...current, type],
     );
   }
 
@@ -150,7 +201,9 @@ export function AiQuestionScopeDialog({
 
         <div className="space-y-5">
           <fieldset>
-            <legend className="mb-2 text-sm font-medium">Knowledge scope</legend>
+            <legend className="mb-2 text-sm font-medium">
+              Knowledge scope
+            </legend>
             <div
               aria-label="Question knowledge scope"
               className="grid grid-cols-2 gap-1 rounded-md border border-border p-1 sm:grid-cols-5"
@@ -263,9 +316,7 @@ export function AiQuestionScopeDialog({
                         <input
                           checked={checked}
                           className="mt-0.5 h-4 w-4"
-                          disabled={
-                            !checked && sourceDocumentIds.length >= 20
-                          }
+                          disabled={!checked && sourceDocumentIds.length >= 20}
                           onChange={() => toggleSource(source.id)}
                           type="checkbox"
                         />
@@ -289,6 +340,49 @@ export function AiQuestionScopeDialog({
               </div>
             </fieldset>
           ) : null}
+
+          <fieldset>
+            <legend className="text-sm font-medium">Question types</legend>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Select one or more types. Mixed drafts rotate through selected
+              types.
+            </p>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              {QUESTION_TYPE_OPTIONS.map((option) => {
+                const checked = questionTypes.includes(option.value);
+                return (
+                  <label
+                    className={`flex cursor-pointer items-start gap-2 rounded-md border px-3 py-2.5 ${
+                      checked
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:bg-muted/50"
+                    }`}
+                    key={option.value}
+                  >
+                    <input
+                      checked={checked}
+                      className="mt-0.5 h-4 w-4"
+                      onChange={() => toggleQuestionType(option.value)}
+                      type="checkbox"
+                    />
+                    <span>
+                      <span className="block text-sm font-medium">
+                        {option.label}
+                      </span>
+                      <span className="block text-xs text-muted-foreground">
+                        {option.description}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+            {!questionTypes.length ? (
+              <p className="mt-2 text-xs text-destructive" role="alert">
+                Select at least one question type.
+              </p>
+            ) : null}
+          </fieldset>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="text-sm font-medium">

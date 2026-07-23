@@ -57,6 +57,9 @@ function setup(overrides: Record<string, string> = {}) {
         id: "item-1",
         ...data,
       })),
+      delete: vi.fn().mockImplementation(({ where }) => ({
+        id: where.id,
+      })),
     },
     questionBank: {
       create: vi.fn().mockImplementation(({ data }) => ({
@@ -171,7 +174,11 @@ describe("AiGeneratedItemService", () => {
   it("lists items and walks approve/reject/publish lifecycle", async () => {
     const { service, prisma, organization } = setup();
     expect(
-      await service.listForActivity(organization as never, "user-1", "activity-1"),
+      await service.listForActivity(
+        organization as never,
+        "user-1",
+        "activity-1",
+      ),
     ).toEqual([{ id: "item-1" }]);
     expect(
       await service.listForOrganization(organization as never, "user-1", {
@@ -230,7 +237,17 @@ describe("AiGeneratedItemService", () => {
     ).resolves.toMatchObject({ status: "APPROVED" });
     await expect(
       service.rejectItem(organization as never, "user-1", "item-1", "nope"),
-    ).resolves.toMatchObject({ status: "REJECTED" });
+    ).resolves.toEqual({ id: "item-1", deleted: true });
+    expect(prisma.aiGeneratedItem.delete).toHaveBeenCalledWith({
+      where: { id: "item-1" },
+    });
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: "ai_generated_item.rejected",
+        entityId: "item-1",
+        metadata: { deleted: true, reason: "nope" },
+      }),
+    });
 
     prisma.aiGeneratedItem.findFirst.mockResolvedValue({
       id: "item-1",
@@ -288,9 +305,17 @@ describe("AiGeneratedItemService", () => {
         questions: [
           {
             prompt: "What is the topic?",
+            type: "MULTIPLE_CHOICE",
             suggestedAnswer: "Learning",
+            acceptedAnswers: ["Learning"],
             explanation: "From transcript",
             sourceTimestamp: 1,
+            options: [
+              { text: "Learning", isCorrect: true },
+              { text: "Billing", isCorrect: false },
+              { text: "Storage", isCorrect: false },
+              { text: "Branding", isCorrect: false },
+            ],
           },
         ],
       },
@@ -306,7 +331,40 @@ describe("AiGeneratedItemService", () => {
         }),
       }),
     );
-    expect(prisma.question.create).toHaveBeenCalled();
+    expect(prisma.question.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        type: "MULTIPLE_CHOICE",
+        acceptedAnswers: ["Learning"],
+        options: {
+          create: [
+            {
+              text: "Learning",
+              isCorrect: true,
+              orderIndex: 0,
+              feedback: undefined,
+            },
+            {
+              text: "Billing",
+              isCorrect: false,
+              orderIndex: 1,
+              feedback: undefined,
+            },
+            {
+              text: "Storage",
+              isCorrect: false,
+              orderIndex: 2,
+              feedback: undefined,
+            },
+            {
+              text: "Branding",
+              isCorrect: false,
+              orderIndex: 3,
+              feedback: undefined,
+            },
+          ],
+        },
+      }),
+    });
   });
 
   it("returns already approved/published items without re-update", async () => {
@@ -333,6 +391,16 @@ describe("AiGeneratedItemService", () => {
     await expect(
       service.rejectItem(organization as never, "user-1", "item-1"),
     ).rejects.toBeInstanceOf(BadRequestException);
+
+    prisma.aiGeneratedItem.findFirst.mockResolvedValue({
+      id: "item-1",
+      organizationId: "org-1",
+      status: "REJECTED",
+      metadata: {},
+    });
+    await expect(
+      service.approveItem(organization as never, "user-1", "item-1"),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it("rejects non-video activities and falls back on provider failure", async () => {
@@ -345,7 +413,12 @@ describe("AiGeneratedItemService", () => {
       activityTypeKey: "core.text",
     });
     await expect(
-      service.generateVideoSummary(organization as never, "user-1", "activity-1", {}),
+      service.generateVideoSummary(
+        organization as never,
+        "user-1",
+        "activity-1",
+        {},
+      ),
     ).rejects.toBeInstanceOf(BadRequestException);
 
     chatFactory.create.mockReturnValue({
@@ -365,7 +438,12 @@ describe("AiGeneratedItemService", () => {
     const { service, prisma, organization } = setup();
     prisma.transcriptSegment.findMany.mockResolvedValueOnce([]);
     await expect(
-      service.generateVideoSummary(organization as never, "user-1", "activity-1", {}),
+      service.generateVideoSummary(
+        organization as never,
+        "user-1",
+        "activity-1",
+        {},
+      ),
     ).rejects.toBeInstanceOf(BadRequestException);
 
     const limited = {

@@ -17,6 +17,7 @@ describe("AI question scope", () => {
       isAiQuestionScopeComplete({
         scope,
         questionCount: 5,
+        questionTypes: ["MULTIPLE_CHOICE"],
         difficulty: "medium",
         ...values,
       }),
@@ -32,6 +33,7 @@ describe("AI question scope", () => {
         activityId: "activity-1",
         sourceDocumentIds: ["ignored-document"],
         questionCount: 7,
+        questionTypes: ["MULTIPLE_CHOICE", "ESSAY"],
         difficulty: "hard",
         prompt: "  Focus on practice.  ",
       }),
@@ -39,8 +41,20 @@ describe("AI question scope", () => {
       scope: "ACTIVITY",
       activityId: "activity-1",
       questionCount: 7,
+      questionTypes: ["MULTIPLE_CHOICE", "ESSAY"],
       difficulty: "hard",
       prompt: "Focus on practice.",
     });
+  });
+
+  it("requires a question type when the field is supplied", () => {
+    expect(
+      isAiQuestionScopeComplete({
+        scope: "COURSE",
+        questionCount: 5,
+        questionTypes: [],
+        difficulty: "medium",
+      }),
+    ).toBe(false);
   });
 });

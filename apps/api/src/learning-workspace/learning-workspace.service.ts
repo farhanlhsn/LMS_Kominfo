@@ -235,13 +235,21 @@ export class LearningWorkspaceService {
     query: ListWorkspaceItemsDto,
   ) {
     const hasScope = query.courseId || query.lessonId || query.activityId;
-    const scope = hasScope ? await this.resolveScope(organizationId, userId, query) : null;
+    const scope = hasScope
+      ? await this.resolveScope(organizationId, userId, query)
+      : null;
     return this.prisma.learnerBookmark.findMany({
       where: {
         organizationId,
         userId,
         deletedAt: null,
-        ...(scope ? { courseId: scope.courseId, lessonId: scope.lessonId, activityId: scope.activityId } : {}),
+        ...(scope
+          ? {
+              courseId: scope.courseId,
+              lessonId: scope.lessonId,
+              activityId: scope.activityId,
+            }
+          : {}),
       },
       include: {
         course: { select: { id: true, title: true, slug: true } },
@@ -442,12 +450,19 @@ export class LearningWorkspaceService {
     const activity = await this.getActivity(organizationId, activityId);
     await this.ensureEnrollment(organizationId, userId, activity.courseId);
     const items = await this.prisma.aiGeneratedItem.findMany({
-      where: { organizationId, activityId, type: "FLASHCARD", status: "PUBLISHED" },
+      where: {
+        organizationId,
+        activityId,
+        type: "FLASHCARD",
+        status: "PUBLISHED",
+      },
       orderBy: { createdAt: "desc" },
     });
     return items.map((item) => {
       const output = item.output as Record<string, unknown>;
-      const cards = Array.isArray(output.cards) ? output.cards : [{ front: output.front ?? "?", back: output.back ?? "" }];
+      const cards = Array.isArray(output.cards)
+        ? output.cards
+        : [{ front: output.front ?? "?", back: output.back ?? "" }];
       return { id: item.id, title: item.title, cards };
     });
   }
@@ -528,11 +543,14 @@ export class LearningWorkspaceService {
       }
       return created;
     });
-    await this.audit(organization.id, userId, "caption_track.created", result.id);
+    await this.audit(
+      organization.id,
+      userId,
+      "caption_track.created",
+      result.id,
+    );
     if (dto.syncTranscript) {
-      await this.aiIndexing
-        .indexActivity(organization.id, activityId)
-        .catch(() => undefined);
+      await this.aiIndexing.requestActivityReindex(organization.id, activityId);
     }
     return result;
   }
@@ -554,7 +572,10 @@ export class LearningWorkspaceService {
     const result = await this.prisma.$transaction(async (tx) => {
       if (payload.isDefault) {
         await tx.videoCaptionTrack.updateMany({
-          where: { organizationId: organization.id, activityId: track.activityId },
+          where: {
+            organizationId: organization.id,
+            activityId: track.activityId,
+          },
           data: { isDefault: false },
         });
       }
@@ -584,9 +605,10 @@ export class LearningWorkspaceService {
     });
     await this.audit(organization.id, userId, "caption_track.updated", trackId);
     if (dto.syncTranscript) {
-      await this.aiIndexing
-        .indexActivity(organization.id, track.activityId)
-        .catch(() => undefined);
+      await this.aiIndexing.requestActivityReindex(
+        organization.id,
+        track.activityId,
+      );
     }
     return result;
   }
@@ -803,9 +825,7 @@ export class LearningWorkspaceService {
       "transcript.upserted",
       activityId,
     );
-    await this.aiIndexing
-      .indexActivity(organization.id, activityId)
-      .catch(() => undefined);
+    await this.aiIndexing.requestActivityReindex(organization.id, activityId);
     return this.instructorTranscript(organization, userId, activityId);
   }
 
@@ -833,9 +853,10 @@ export class LearningWorkspaceService {
         metadata: dto.metadata as Prisma.InputJsonObject | undefined,
       },
     });
-    await this.aiIndexing
-      .indexActivity(organization.id, segment.activityId)
-      .catch(() => undefined);
+    await this.aiIndexing.requestActivityReindex(
+      organization.id,
+      segment.activityId,
+    );
     return updated;
   }
 
@@ -853,9 +874,10 @@ export class LearningWorkspaceService {
     const deleted = await this.prisma.transcriptSegment.delete({
       where: { id: segmentId },
     });
-    await this.aiIndexing
-      .indexActivity(organization.id, segment.activityId)
-      .catch(() => undefined);
+    await this.aiIndexing.requestActivityReindex(
+      organization.id,
+      segment.activityId,
+    );
     return deleted;
   }
 
@@ -1015,7 +1037,9 @@ export class LearningWorkspaceService {
     },
   ) {
     const rawContent =
-      dto.rawContent !== undefined ? dto.rawContent : existing?.rawContent ?? null;
+      dto.rawContent !== undefined
+        ? dto.rawContent
+        : (existing?.rawContent ?? null);
     const cues =
       dto.rawContent && dto.rawContent.trim().length > 0
         ? parseCaptionContent(dto.rawContent)
@@ -1037,8 +1061,10 @@ export class LearningWorkspaceService {
       isDefault: dto.isDefault ?? existing?.isDefault ?? false,
       cues,
       rawContent,
-      metadata:
-        (dto.metadata ?? existing?.metadata ?? {}) as Record<string, unknown>,
+      metadata: (dto.metadata ?? existing?.metadata ?? {}) as Record<
+        string,
+        unknown
+      >,
     };
   }
 

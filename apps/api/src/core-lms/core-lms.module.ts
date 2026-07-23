@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { AiModule } from "../ai/ai.module";
 import { CertificatesModule } from "../certificates/certificates.module";
 import { EngagementModule } from "../engagement/engagement.module";
 import { RbacModule } from "../rbac/rbac.module";
@@ -11,6 +12,7 @@ import { LearningController } from "./learning.controller";
 
 @Module({
   imports: [
+    AiModule,
     RbacModule,
     CertificatesModule,
     RedisModule,

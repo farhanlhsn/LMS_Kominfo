@@ -67,8 +67,12 @@ function createService() {
     videoCaptionTrack: {
       findMany: vi.fn(),
       findFirst: vi.fn(),
-      create: vi.fn().mockImplementation(({ data }) => ({ id: "track_1", ...data })),
-      update: vi.fn().mockImplementation(({ data }) => ({ id: "track_1", ...data })),
+      create: vi
+        .fn()
+        .mockImplementation(({ data }) => ({ id: "track_1", ...data })),
+      update: vi
+        .fn()
+        .mockImplementation(({ data }) => ({ id: "track_1", ...data })),
       updateMany: vi.fn(),
       delete: vi.fn().mockResolvedValue({ id: "track_1" }),
     },
@@ -88,7 +92,9 @@ function createService() {
   return {
     service: new LearningWorkspaceService(
       prisma as never,
-      { indexActivity: vi.fn().mockResolvedValue({}) } as never,
+      {
+        requestActivityReindex: vi.fn().mockResolvedValue({ queued: true }),
+      } as never,
     ),
     prisma,
   };
@@ -207,7 +213,10 @@ describe("LearningWorkspaceService", () => {
     expect(prisma.videoCaptionTrack.create).toHaveBeenCalled();
     expect(prisma.transcriptSegment.deleteMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ activityId: "activity_1", language: "en" }),
+        where: expect.objectContaining({
+          activityId: "activity_1",
+          language: "en",
+        }),
       }),
     );
     expect(prisma.transcriptSegment.create).toHaveBeenCalled();
@@ -248,8 +257,7 @@ describe("LearningWorkspaceService", () => {
       label: "EN2",
       isDefault: true,
       syncTranscript: true,
-      rawContent:
-        "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nHello",
+      rawContent: "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nHello",
     } as any);
     expect(prisma.transcriptSegment.deleteMany).toHaveBeenCalled();
   });
@@ -470,9 +478,9 @@ describe("LearningWorkspaceService", () => {
         language: "en",
       } as any),
     ).toEqual([{ id: "seg_1" }]);
-    expect(await service.getCaptionTracks("org_1", "user_1", "activity_1")).toEqual([
-      { id: "track_1" },
-    ]);
+    expect(
+      await service.getCaptionTracks("org_1", "user_1", "activity_1"),
+    ).toEqual([{ id: "track_1" }]);
   });
 
   it("covers instructor caption/transcript management helpers", async () => {
@@ -509,15 +517,15 @@ describe("LearningWorkspaceService", () => {
       metadata: {},
     });
 
-    expect(await service.instructorTranscript(org as any, "user_1", "activity_1")).toEqual([
-      { id: "seg_1" },
-    ]);
+    expect(
+      await service.instructorTranscript(org as any, "user_1", "activity_1"),
+    ).toEqual([{ id: "seg_1" }]);
     expect(
       await service.instructorCaptionTracks(org as any, "user_1", "activity_1"),
     ).toEqual([{ id: "track_1" }]);
-    expect(await service.listCaptionCues(org as any, "user_1", "track_1")).toEqual([
-      { startSeconds: 0, endSeconds: 1, text: "A" },
-    ]);
+    expect(
+      await service.listCaptionCues(org as any, "user_1", "track_1"),
+    ).toEqual([{ startSeconds: 0, endSeconds: 1, text: "A" }]);
     await service.createCaptionCue(org as any, "user_1", "track_1", {
       startSeconds: 1,
       endSeconds: 2,
@@ -538,12 +546,21 @@ describe("LearningWorkspaceService", () => {
     prisma.transcriptSegment.update = vi
       .fn()
       .mockResolvedValue({ id: "seg_1", text: "edited" });
-    prisma.transcriptSegment.delete = vi.fn().mockResolvedValue({ id: "seg_1" });
-    prisma.transcriptSegment.createMany = vi.fn().mockResolvedValue({ count: 1 });
-    await service.upsertInstructorTranscript(org as any, "user_1", "activity_1", {
-      language: "en",
-      segments: [{ startSeconds: 0, endSeconds: 1, text: "Hi" }],
-    } as any);
+    prisma.transcriptSegment.delete = vi
+      .fn()
+      .mockResolvedValue({ id: "seg_1" });
+    prisma.transcriptSegment.createMany = vi
+      .fn()
+      .mockResolvedValue({ count: 1 });
+    await service.upsertInstructorTranscript(
+      org as any,
+      "user_1",
+      "activity_1",
+      {
+        language: "en",
+        segments: [{ startSeconds: 0, endSeconds: 1, text: "Hi" }],
+      } as any,
+    );
     await service.updateTranscriptSegment(org as any, "user_1", "seg_1", {
       text: "edited",
     } as any);
