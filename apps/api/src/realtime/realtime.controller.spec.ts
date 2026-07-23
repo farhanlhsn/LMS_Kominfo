@@ -1,10 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { PermissionsGuard } from "../rbac/guards/permissions.guard";
+import { beforeEach,describe,expect,it,vi } from "vitest";
 import { JwtAuthGuard } from "../rbac/guards/jwt-auth.guard";
 import { OrganizationContextGuard } from "../rbac/guards/organization-context.guard";
+import { PermissionsGuard } from "../rbac/guards/permissions.guard";
 import { RealtimeController } from "./realtime.controller";
-import { RealtimeService } from "./realtime.service";
-import { RealtimeGateway } from "./realtime.gateway";
 
 describe("RealtimeController", () => {
   let controller: RealtimeController;
@@ -16,11 +14,6 @@ describe("RealtimeController", () => {
     unsubscribe: ReturnType<typeof vi.fn>;
     ack: ReturnType<typeof vi.fn>;
     getTransports: ReturnType<typeof vi.fn>;
-  };
-  let gateway: {
-    attach: ReturnType<typeof vi.fn>;
-    emit: ReturnType<typeof vi.fn>;
-    subscriberCount: ReturnType<typeof vi.fn>;
   };
 
   const org = {
@@ -49,11 +42,6 @@ describe("RealtimeController", () => {
       unsubscribe: vi.fn().mockResolvedValue(undefined),
       ack: vi.fn().mockResolvedValue({ acked: true }),
       getTransports: vi.fn().mockReturnValue({ preferred: "polling", available: ["polling"] }),
-    };
-    gateway = {
-      attach: vi.fn().mockReturnValue(vi.fn()),
-      emit: vi.fn().mockResolvedValue({ id: "evt_1" }),
-      subscriberCount: vi.fn().mockReturnValue(0),
     };
 
     controller = new RealtimeController(

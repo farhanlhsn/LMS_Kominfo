@@ -18,14 +18,27 @@ import {
   useRejectAiItem,
   useUpdateAiItem,
 } from "../../lib/api-hooks";
-import type { AiGeneratedItem } from "../../lib/lms-types";
+import type { AiGeneratedItem, QuestionType } from "../../lib/lms-types";
+
+const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
+  MULTIPLE_CHOICE: "Pilihan ganda",
+  MULTIPLE_ANSWER: "Multi jawaban",
+  TRUE_FALSE: "Benar / salah",
+  SHORT_ANSWER: "Isian singkat",
+  ESSAY: "Esai",
+  NUMERIC: "Numerik",
+};
 
 export interface AiApprovalQueueProps {
-  activityId: string;
+  activityId?: string;
+  courseId?: string;
 }
 
-export function AiApprovalQueue({ activityId }: AiApprovalQueueProps) {
-  const allItems = useListInstructorAiItems({ activityId });
+export function AiApprovalQueue({
+  activityId,
+  courseId,
+}: AiApprovalQueueProps) {
+  const allItems = useListInstructorAiItems({ activityId, courseId });
   const approve = useApproveAiItem();
   const reject = useRejectAiItem();
   const publish = usePublishAiItem();
@@ -33,10 +46,9 @@ export function AiApprovalQueue({ activityId }: AiApprovalQueueProps) {
   const [editing, setEditing] = useState<string | null>(null);
   const [editPrompt, setEditPrompt] = useState("");
 
-  const items: AiGeneratedItem[] = ((allItems.data as unknown as AiGeneratedItem[]) ?? []);
-  const pending = items.filter(
-    (item) => item.status === "DRAFT" || item.status === "REJECTED",
-  );
+  const items: AiGeneratedItem[] =
+    (allItems.data as unknown as AiGeneratedItem[]) ?? [];
+  const pending = items.filter((item) => item.status === "DRAFT");
   const approved = items.filter((item) => item.status === "APPROVED");
   const published = items.filter((item) => item.status === "PUBLISHED");
 
@@ -45,13 +57,17 @@ export function AiApprovalQueue({ activityId }: AiApprovalQueueProps) {
       <Card>
         <CardHeader>
           <CardTitle>Pending drafts</CardTitle>
-          <CardDescription>Review, edit, and approve generated items.</CardDescription>
+          <CardDescription>
+            Review, edit, and approve generated items.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {allItems.loading ? (
             <p className="text-sm text-muted-foreground">Loading…</p>
           ) : pending.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No drafts need review.</p>
+            <p className="text-sm text-muted-foreground">
+              No drafts need review.
+            </p>
           ) : (
             pending.map((item) => (
               <DraftItem
@@ -62,7 +78,9 @@ export function AiApprovalQueue({ activityId }: AiApprovalQueueProps) {
                 onEditPromptChange={setEditPrompt}
                 onStartEdit={() => {
                   setEditing(item.id);
-                  setEditPrompt(String((item as { prompt?: string }).prompt ?? ""));
+                  setEditPrompt(
+                    String((item as { prompt?: string }).prompt ?? ""),
+                  );
                 }}
                 onCancelEdit={() => setEditing(null)}
                 onApprove={async () => {
@@ -91,7 +109,9 @@ export function AiApprovalQueue({ activityId }: AiApprovalQueueProps) {
         </CardHeader>
         <CardContent className="space-y-3">
           {approved.length === 0 && published.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nothing approved yet.</p>
+            <p className="text-sm text-muted-foreground">
+              Nothing approved yet.
+            </p>
           ) : null}
           {approved.map((item) => (
             <div
@@ -102,7 +122,9 @@ export function AiApprovalQueue({ activityId }: AiApprovalQueueProps) {
                 <p className="font-medium">{item.title}</p>
                 <p className="text-xs text-muted-foreground">
                   {item.status}
-                  {item.type === "QUIZ" ? " · Publish sends questions to a new question bank" : ""}
+                  {item.type === "QUIZ"
+                    ? " · Publish sends questions to a new question bank"
+                    : ""}
                 </p>
                 {item.type === "QUIZ" ? <QuizDraftPreview item={item} /> : null}
               </div>
@@ -119,11 +141,17 @@ export function AiApprovalQueue({ activityId }: AiApprovalQueueProps) {
           {published.map((item) => {
             const bankId =
               item.metadata && typeof item.metadata === "object"
-                ? String((item.metadata as { questionBankId?: string }).questionBankId ?? "")
+                ? String(
+                    (item.metadata as { questionBankId?: string })
+                      .questionBankId ?? "",
+                  )
                 : "";
             const count =
               item.metadata && typeof item.metadata === "object"
-                ? Number((item.metadata as { questionsCreated?: number }).questionsCreated ?? 0)
+                ? Number(
+                    (item.metadata as { questionsCreated?: number })
+                      .questionsCreated ?? 0,
+                  )
                 : 0;
             return (
               <div
@@ -140,11 +168,16 @@ export function AiApprovalQueue({ activityId }: AiApprovalQueueProps) {
                   </p>
                 </div>
                 {item.type === "QUIZ" && bankId ? (
-                  <a className="text-sm font-semibold text-primary" href="/instructor/question-banks">
+                  <a
+                    className="text-sm font-semibold text-primary"
+                    href="/instructor/question-banks"
+                  >
                     Open question banks
                   </a>
                 ) : (
-                  <span className="text-xs text-muted-foreground">Published</span>
+                  <span className="text-xs text-muted-foreground">
+                    Published
+                  </span>
                 )}
               </div>
             );
@@ -220,7 +253,12 @@ function DraftItem({
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
               />
-              <Button size="sm" variant="ghost" onClick={() => setRejecting(false)} disabled={reject.loading}>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setRejecting(false)}
+                disabled={reject.loading}
+              >
                 Cancel
               </Button>
               <Button
@@ -271,16 +309,79 @@ function QuizDraftPreview({ item }: { item: AiGeneratedItem }) {
   const output = item.output ?? {};
   const questions = Array.isArray(output.questions) ? output.questions : [];
   if (!questions.length) return null;
+
   return (
-    <ul className="mt-2 max-h-40 list-decimal space-y-1 overflow-y-auto pl-5 text-xs text-muted-foreground">
+    <ul className="mt-3 max-h-72 divide-y overflow-y-auto rounded-md border">
       {questions.slice(0, 8).map((q, i) => {
+        const record =
+          q && typeof q === "object" && !Array.isArray(q)
+            ? (q as Record<string, unknown>)
+            : {};
         const prompt =
-          q && typeof q === "object" && !Array.isArray(q) && typeof (q as { prompt?: unknown }).prompt === "string"
-            ? String((q as { prompt: string }).prompt)
-            : "Question";
-        return <li key={i}>{prompt.slice(0, 120)}</li>;
+          typeof record.prompt === "string" ? record.prompt : "Question";
+        const type =
+          typeof record.type === "string" && record.type in QUESTION_TYPE_LABELS
+            ? (record.type as QuestionType)
+            : "SHORT_ANSWER";
+        const options = Array.isArray(record.options)
+          ? record.options.filter(
+              (option): option is Record<string, unknown> =>
+                Boolean(option) &&
+                typeof option === "object" &&
+                !Array.isArray(option) &&
+                typeof (option as Record<string, unknown>).text === "string",
+            )
+          : [];
+        const suggestedAnswer =
+          typeof record.suggestedAnswer === "string"
+            ? record.suggestedAnswer
+            : "";
+
+        return (
+          <li key={i} className="space-y-2 p-3 text-xs">
+            <div className="flex items-start gap-2">
+              <span className="pt-0.5 font-medium text-muted-foreground">
+                {i + 1}.
+              </span>
+              <div className="min-w-0 flex-1 space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded border bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
+                    {QUESTION_TYPE_LABELS[type]}
+                  </span>
+                  <p className="text-sm text-foreground">{prompt}</p>
+                </div>
+                {options.length ? (
+                  <ul className="grid gap-1 sm:grid-cols-2">
+                    {options.map((option, optionIndex) => (
+                      <li
+                        key={`${i}-${optionIndex}`}
+                        className={
+                          option.isCorrect === true
+                            ? "font-medium text-emerald-600 dark:text-emerald-400"
+                            : "text-muted-foreground"
+                        }
+                      >
+                        {String.fromCharCode(65 + optionIndex)}.{" "}
+                        {String(option.text)}
+                        {option.isCorrect === true ? " (benar)" : ""}
+                      </li>
+                    ))}
+                  </ul>
+                ) : suggestedAnswer ? (
+                  <p className="text-muted-foreground">
+                    Jawaban acuan: {suggestedAnswer}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          </li>
+        );
       })}
-      {questions.length > 8 ? <li>…and {questions.length - 8} more</li> : null}
+      {questions.length > 8 ? (
+        <li className="p-3 text-xs text-muted-foreground">
+          ...dan {questions.length - 8} soal lain
+        </li>
+      ) : null}
     </ul>
   );
 }

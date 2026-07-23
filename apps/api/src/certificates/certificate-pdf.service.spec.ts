@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { writeFile } from "node:fs/promises";
 import { CertificatePdfService } from "./certificate-pdf.service";
 
 function certificate(overrides: Record<string, unknown> = {}) {
@@ -53,9 +52,6 @@ describe("CertificatePdfService", () => {
     const body = files.createManagedFile.mock.calls[0]![0].body as Buffer;
     expect(body.subarray(0, 4).toString()).toBe("%PDF");
     expect(body.length).toBeGreaterThan(5_000);
-    if (process.env.CERTIFICATE_PDF_SAMPLE_PATH) {
-      await writeFile(process.env.CERTIFICATE_PDF_SAMPLE_PATH, body);
-    }
     expect(prisma.certificate.update).toHaveBeenLastCalledWith(expect.objectContaining({
       data: expect.objectContaining({ pdfFileId: "file_1", pdfStatus: "GENERATED", pdfGeneratedAt: expect.any(Date) }),
     }));

@@ -1,34 +1,67 @@
 "use client";
 
-import type { FormEvent } from "react";
-import { useCallback, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
-import {
-  BookOpen, ChevronDown, ChevronRight,
-  FilePlus, FolderPlus, Save, Send, Sparkles,
-  Trash2, Video,
-} from "lucide-react";
 import { PERMISSIONS } from "@lms/shared";
+import {
+  BookOpen,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  FilePlus,
+  FolderPlus,
+  Save,
+  Send,
+  Sparkles,
+  LoaderCircle,
+  RefreshCw,
+  Trash2,
+  TriangleAlert,
+  Video,
+} from "lucide-react";
+import { useParams } from "next/navigation";
+import type { FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AiApprovalQueue } from "../../../../../components/advanced-assignment/ai-approval-queue";
+import { AiQuestionScopeDialog } from "../../../../../components/advanced-assignment/ai-question-scope-dialog";
+import { CaptionCueEditor } from "../../../../../components/advanced-assignment/caption-cue-editor";
 import { AuthGate } from "../../../../../components/auth/auth-gate";
 import { RichTextEditor } from "../../../../../components/content/content";
+import { CoursePhaseNavigation } from "../../../../../components/engagement/engagement";
 import { AppShell } from "../../../../../components/layout/shells";
 import { PluginActivityEditor } from "../../../../../components/plugins/plugin-activity";
-import { AiApprovalQueue } from "../../../../../components/advanced-assignment/ai-approval-queue";
-import { CaptionCueEditor } from "../../../../../components/advanced-assignment/caption-cue-editor";
 import { ButtonLink, StatusBadge } from "../../../../../components/ui/core";
-import { ApiErrorState, EmptyState, LoadingState } from "../../../../../components/ui/states";
-import { CoursePhaseNavigation } from "../../../../../components/engagement/engagement";
+import {
+  ApiErrorState,
+  EmptyState,
+  LoadingState,
+} from "../../../../../components/ui/states";
 import { api } from "../../../../../lib/api-client";
 import {
-  useContentLibrary, useCreateInstructorCaptionTrack,
-  useDeleteInstructorCaptionTrack, useFiles,
-  useGenerateInstructorVideoQuiz, useGenerateInstructorVideoSummary,
-  useInstructorAiGeneratedItems, useInstructorCaptionTracks,
-  useInstructorCourse, useInstructorQuizzes, usePluginActivityTypes,
-  useSession, useUpdateInstructorCaptionTrack,
+  useAiStatus,
+  useContentLibrary,
+  useCreateInstructorCaptionTrack,
+  useDeleteInstructorCaptionTrack,
+  useFiles,
+  useGenerateInstructorVideoQuiz,
+  useGenerateInstructorVideoSummary,
+  useInstructorAiGeneratedItems,
+  useInstructorCaptionTracks,
+  useInstructorCourse,
+  useInstructorQuizzes,
+  usePluginActivityTypes,
+  useSession,
+  useUpdateInstructorCaptionTrack,
 } from "../../../../../lib/api-hooks";
 import { hasPermission } from "../../../../../lib/authz";
-import type { Activity, Course, CourseModule, Lesson, VideoCaptionTrack } from "../../../../../lib/lms-types";
+import type {
+  Activity,
+  AiCourseIndexStatus,
+  AiIndexedSource,
+  Course,
+  CourseModule,
+  GenerateCourseAiQuestionsInput,
+  Lesson,
+  VideoCaptionTrack,
+} from "../../../../../lib/lms-types";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -41,9 +74,16 @@ type Selection =
 // ─── Curriculum tree ─────────────────────────────────────────────────────────
 
 function ModuleTreeItem({
-  mod, idx, selection, onSelect, onAddLesson, onAddActivity,
+  mod,
+  idx,
+  selection,
+  onSelect,
+  onAddLesson,
+  onAddActivity,
 }: {
-  mod: CourseModule; idx: number; selection: Selection;
+  mod: CourseModule;
+  idx: number;
+  selection: Selection;
   onSelect: (s: Selection) => void;
   onAddLesson: (moduleId: string) => void;
   onAddActivity: (lessonId: string) => void;
@@ -52,32 +92,68 @@ function ModuleTreeItem({
   const isSelected = selection?.type === "module" && selection.id === mod.id;
   return (
     <div>
-      <div className={`group flex items-center gap-1 px-3 py-1.5 cursor-pointer hover:bg-muted/50 ${isSelected ? "bg-primary/10" : ""}`}
-        onClick={() => onSelect({ type: "module", id: mod.id })}>
-        <button type="button" className="shrink-0 p-0.5 text-muted-foreground hover:text-foreground"
-          onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}>
-          {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+      <div
+        className={`group flex items-center gap-1 px-3 py-1.5 cursor-pointer hover:bg-muted/50 ${isSelected ? "bg-primary/10" : ""}`}
+        onClick={() => onSelect({ type: "module", id: mod.id })}
+      >
+        <button
+          type="button"
+          className="shrink-0 p-0.5 text-muted-foreground hover:text-foreground"
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen((v) => !v);
+          }}
+        >
+          {open ? (
+            <ChevronDown className="h-3.5 w-3.5" />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5" />
+          )}
         </button>
         <BookOpen className="h-3.5 w-3.5 shrink-0 text-primary" />
-        <span className="flex-1 truncate text-sm font-medium">{idx + 1}. {mod.title}</span>
-        <button type="button" title="Add lesson"
-          onClick={(e) => { e.stopPropagation(); onAddLesson(mod.id); }}
-          className="hidden shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground group-hover:block">
+        <span className="flex-1 truncate text-sm font-medium">
+          {idx + 1}. {mod.title}
+        </span>
+        <button
+          type="button"
+          title="Add lesson"
+          onClick={(e) => {
+            e.stopPropagation();
+            onAddLesson(mod.id);
+          }}
+          className="hidden shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground group-hover:block"
+        >
           <FilePlus className="h-3.5 w-3.5" />
         </button>
       </div>
-      {open && mod.lessons.map((lesson, li) => (
-        <LessonTreeItem key={lesson.id} lesson={lesson} lessonIdx={li} moduleId={mod.id}
-          selection={selection} onSelect={onSelect} onAddActivity={onAddActivity} />
-      ))}
+      {open &&
+        mod.lessons.map((lesson, li) => (
+          <LessonTreeItem
+            key={lesson.id}
+            lesson={lesson}
+            lessonIdx={li}
+            moduleId={mod.id}
+            selection={selection}
+            onSelect={onSelect}
+            onAddActivity={onAddActivity}
+          />
+        ))}
     </div>
   );
 }
 
 function LessonTreeItem({
-  lesson, lessonIdx, moduleId, selection, onSelect, onAddActivity,
+  lesson,
+  lessonIdx,
+  moduleId,
+  selection,
+  onSelect,
+  onAddActivity,
 }: {
-  lesson: Lesson; lessonIdx: number; moduleId: string; selection: Selection;
+  lesson: Lesson;
+  lessonIdx: number;
+  moduleId: string;
+  selection: Selection;
   onSelect: (s: Selection) => void;
   onAddActivity: (lessonId: string) => void;
 }) {
@@ -85,52 +161,102 @@ function LessonTreeItem({
   const isSelected = selection?.type === "lesson" && selection.id === lesson.id;
   return (
     <div>
-      <div className={`group flex items-center gap-1 py-1.5 pl-7 pr-3 cursor-pointer hover:bg-muted/50 ${isSelected ? "bg-primary/10" : ""}`}
-        onClick={() => onSelect({ type: "lesson", id: lesson.id, moduleId })}>
-        <button type="button" className="shrink-0 p-0.5 text-muted-foreground hover:text-foreground"
-          onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}>
-          {lesson.activities.length > 0
-            ? (open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />)
-            : <span className="h-3 w-3" />}
+      <div
+        className={`group flex items-center gap-1 py-1.5 pl-7 pr-3 cursor-pointer hover:bg-muted/50 ${isSelected ? "bg-primary/10" : ""}`}
+        onClick={() => onSelect({ type: "lesson", id: lesson.id, moduleId })}
+      >
+        <button
+          type="button"
+          className="shrink-0 p-0.5 text-muted-foreground hover:text-foreground"
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen((v) => !v);
+          }}
+        >
+          {lesson.activities.length > 0 ? (
+            open ? (
+              <ChevronDown className="h-3 w-3" />
+            ) : (
+              <ChevronRight className="h-3 w-3" />
+            )
+          ) : (
+            <span className="h-3 w-3" />
+          )}
         </button>
         <Video className="h-3 w-3 shrink-0 text-muted-foreground" />
-        <span className="flex-1 truncate text-xs">{lessonIdx + 1}. {lesson.title}</span>
-        <button type="button" title="Add activity"
-          onClick={(e) => { e.stopPropagation(); onAddActivity(lesson.id); }}
-          className="hidden shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground group-hover:block">
+        <span className="flex-1 truncate text-xs">
+          {lessonIdx + 1}. {lesson.title}
+        </span>
+        <button
+          type="button"
+          title="Add activity"
+          onClick={(e) => {
+            e.stopPropagation();
+            onAddActivity(lesson.id);
+          }}
+          className="hidden shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground group-hover:block"
+        >
           <FilePlus className="h-3 w-3" />
         </button>
       </div>
-      {open && lesson.activities.map((act, ai) => {
-        const isActSelected = selection?.type === "activity" && selection.id === act.id;
-        return (
-          <div key={act.id}
-            className={`flex items-center gap-2 py-1 pl-14 pr-3 cursor-pointer hover:bg-muted/50 text-xs ${isActSelected ? "bg-primary/10 font-medium" : "text-muted-foreground"}`}
-            onClick={() => onSelect({ type: "activity", id: act.id, lessonId: lesson.id })}>
-            <span className="truncate">{ai + 1}. {act.title}</span>
-            <StatusBadge value={act.activityTypeKey.replace("core.", "").replace("plugin.", "")} />
-          </div>
-        );
-      })}
+      {open &&
+        lesson.activities.map((act, ai) => {
+          const isActSelected =
+            selection?.type === "activity" && selection.id === act.id;
+          return (
+            <div
+              key={act.id}
+              className={`flex items-center gap-2 py-1 pl-14 pr-3 cursor-pointer hover:bg-muted/50 text-xs ${isActSelected ? "bg-primary/10 font-medium" : "text-muted-foreground"}`}
+              onClick={() =>
+                onSelect({ type: "activity", id: act.id, lessonId: lesson.id })
+              }
+            >
+              <span className="truncate">
+                {ai + 1}. {act.title}
+              </span>
+              <StatusBadge
+                value={act.activityTypeKey
+                  .replace("core.", "")
+                  .replace("plugin.", "")}
+              />
+            </div>
+          );
+        })}
     </div>
   );
 }
 
 // ─── Selection helpers ────────────────────────────────────────────────────────
 
-function PanelHeader({ title, subtitle, badge }: { title: string; subtitle?: string; badge?: string }) {
+function PanelHeader({
+  title,
+  subtitle,
+  badge,
+}: {
+  title: string;
+  subtitle?: string;
+  badge?: string;
+}) {
   return (
     <div className="mb-5 flex flex-wrap items-start justify-between gap-2 border-b border-border pb-4">
       <div>
         <h2 className="text-lg font-semibold">{title}</h2>
-        {subtitle && <p className="mt-0.5 text-sm text-muted-foreground">{subtitle}</p>}
+        {subtitle && (
+          <p className="mt-0.5 text-sm text-muted-foreground">{subtitle}</p>
+        )}
       </div>
       {badge && <StatusBadge value={badge} />}
     </div>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <label className="flex flex-col gap-1.5 text-sm font-medium">
       {label}
@@ -139,27 +265,43 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-const INPUT = "h-9 w-full rounded-md border border-input bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
-const TEXTAREA = "w-full rounded-md border border-input bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
+const INPUT =
+  "h-9 w-full rounded-md border border-input bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
+const TEXTAREA =
+  "w-full rounded-md border border-input bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
 
 // ─── Course overview panel ────────────────────────────────────────────────────
 
-function CourseOverviewPanel({ course, canUpdate, canPublish, onAction }: {
-  course: Course; canUpdate: boolean; canPublish: boolean;
+function CourseOverviewPanel({
+  course,
+  canPublish,
+  onAction,
+}: {
+  course: Course;
+  canPublish: boolean;
   onAction: (action: () => Promise<unknown>, msg: string) => void;
 }) {
-  const totalActivities = course.modules?.flatMap((m) => m.lessons.flatMap((l) => l.activities)).length ?? 0;
+  const totalActivities =
+    course.modules?.flatMap((m) => m.lessons.flatMap((l) => l.activities))
+      .length ?? 0;
   const totalLessons = course.modules?.flatMap((m) => m.lessons).length ?? 0;
   return (
     <div className="flex flex-col gap-5 max-w-2xl">
-      <PanelHeader title="Course overview" subtitle="Select an item in the curriculum tree to edit it." badge={course.status} />
+      <PanelHeader
+        title="Course overview"
+        subtitle="Select an item in the curriculum tree to edit it."
+        badge={course.status}
+      />
       <div className="grid grid-cols-3 gap-3">
         {[
           { label: "Modules", value: course.modules?.length ?? 0 },
           { label: "Lessons", value: totalLessons },
           { label: "Activities", value: totalActivities },
         ].map(({ label, value }) => (
-          <div key={label} className="rounded-lg border border-border bg-card p-4 text-center">
+          <div
+            key={label}
+            className="rounded-lg border border-border bg-card p-4 text-center"
+          >
             <p className="text-2xl font-bold">{value}</p>
             <p className="text-xs text-muted-foreground">{label}</p>
           </div>
@@ -167,20 +309,39 @@ function CourseOverviewPanel({ course, canUpdate, canPublish, onAction }: {
       </div>
       <div className="flex flex-wrap gap-2">
         {canPublish && course.status !== "PUBLISHED" && (
-          <button type="button"
-            onClick={() => void onAction(() => api.publishCourse(course.id), "Course published.")}
-            className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
+          <button
+            type="button"
+            onClick={() =>
+              void onAction(
+                () => api.publishCourse(course.id),
+                "Course published.",
+              )
+            }
+            className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+          >
             <Send className="h-4 w-4" /> Publish course
           </button>
         )}
         {canPublish && (
-          <button type="button"
-            onClick={() => void onAction(() => api.archiveCourse(course.id), "Course archived.")}
-            className="rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-muted">
+          <button
+            type="button"
+            onClick={() =>
+              void onAction(
+                () => api.archiveCourse(course.id),
+                "Course archived.",
+              )
+            }
+            className="rounded-md border border-border px-4 py-2 text-sm font-medium hover:bg-muted"
+          >
             Archive
           </button>
         )}
-        <ButtonLink href={`/instructor/courses/${course.id}/edit`} variant="secondary">Edit profile</ButtonLink>
+        <ButtonLink
+          href={`/instructor/courses/${course.id}/edit`}
+          variant="secondary"
+        >
+          Edit profile
+        </ButtonLink>
       </div>
     </div>
   );
@@ -188,8 +349,14 @@ function CourseOverviewPanel({ course, canUpdate, canPublish, onAction }: {
 
 // ─── Module edit panel ────────────────────────────────────────────────────────
 
-function ModuleEditPanel({ course, moduleId, onSave, onDelete }: {
-  course: Course; moduleId: string;
+function ModuleEditPanel({
+  course,
+  moduleId,
+  onSave,
+  onDelete,
+}: {
+  course: Course;
+  moduleId: string;
   onSave: (id: string, data: Record<string, unknown>) => void;
   onDelete: (id: string) => void;
 }) {
@@ -208,25 +375,52 @@ function ModuleEditPanel({ course, moduleId, onSave, onDelete }: {
 
   return (
     <div className="max-w-xl">
-      <PanelHeader title={`Module: ${mod.title}`} subtitle={`${mod.lessons.length} lesson${mod.lessons.length !== 1 ? "s" : ""}`} badge={mod.isPublished ? "published" : "draft"} />
+      <PanelHeader
+        title={`Module: ${mod.title}`}
+        subtitle={`${mod.lessons.length} lesson${mod.lessons.length !== 1 ? "s" : ""}`}
+        badge={mod.isPublished ? "published" : "draft"}
+      />
       <form onSubmit={submit} className="flex flex-col gap-4">
         <Field label="Title">
-          <input name="title" defaultValue={mod.title} required minLength={2} className={INPUT} />
+          <input
+            name="title"
+            defaultValue={mod.title}
+            required
+            minLength={2}
+            className={INPUT}
+          />
         </Field>
         <Field label="Description">
-          <input name="description" defaultValue={mod.description ?? ""} className={INPUT} />
+          <input
+            name="description"
+            defaultValue={mod.description ?? ""}
+            className={INPUT}
+          />
         </Field>
         <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" name="isPublished" defaultChecked={mod.isPublished} className="h-4 w-4" />
+          <input
+            type="checkbox"
+            name="isPublished"
+            defaultChecked={mod.isPublished}
+            className="h-4 w-4"
+          />
           Published
         </label>
         <div className="flex gap-2 pt-1">
-          <button type="submit" className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
+          <button
+            type="submit"
+            className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+          >
             <Save className="h-4 w-4" /> Save module
           </button>
-          <button type="button"
-            onClick={() => { if (window.confirm("Delete this module and all its lessons?")) onDelete(mod.id); }}
-            className="rounded-md border border-destructive/40 px-4 py-2 text-sm font-semibold text-destructive hover:bg-destructive/10">
+          <button
+            type="button"
+            onClick={() => {
+              if (window.confirm("Delete this module and all its lessons?"))
+                onDelete(mod.id);
+            }}
+            className="rounded-md border border-destructive/40 px-4 py-2 text-sm font-semibold text-destructive hover:bg-destructive/10"
+          >
             <Trash2 className="mr-1.5 inline h-4 w-4" /> Delete
           </button>
         </div>
@@ -237,12 +431,20 @@ function ModuleEditPanel({ course, moduleId, onSave, onDelete }: {
 
 // ─── Lesson edit panel ───────────────────────────────────────────────────────
 
-function LessonEditPanel({ course, lessonId, onSave, onDelete }: {
-  course: Course; lessonId: string;
+function LessonEditPanel({
+  course,
+  lessonId,
+  onSave,
+  onDelete,
+}: {
+  course: Course;
+  lessonId: string;
   onSave: (id: string, data: Record<string, unknown>) => void;
   onDelete: (id: string) => void;
 }) {
-  const lesson = course.modules?.flatMap((m) => m.lessons).find((l) => l.id === lessonId);
+  const lesson = course.modules
+    ?.flatMap((m) => m.lessons)
+    .find((l) => l.id === lessonId);
   if (!lesson) return <EmptyState title="Lesson not found" />;
 
   async function submit(e: FormEvent<HTMLFormElement>) {
@@ -266,34 +468,67 @@ function LessonEditPanel({ course, lessonId, onSave, onDelete }: {
       />
       <form onSubmit={submit} className="flex flex-col gap-4">
         <Field label="Title">
-          <input name="title" defaultValue={lesson.title} required minLength={2} className={INPUT} />
+          <input
+            name="title"
+            defaultValue={lesson.title}
+            required
+            minLength={2}
+            className={INPUT}
+          />
         </Field>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Summary">
-            <input name="summary" defaultValue={lesson.summary ?? ""} className={INPUT} />
+            <input
+              name="summary"
+              defaultValue={lesson.summary ?? ""}
+              className={INPUT}
+            />
           </Field>
           <Field label="Estimated minutes">
-            <input name="estimatedMinutes" type="number" min={0}
-              defaultValue={lesson.estimatedMinutes ?? 0} className={INPUT} />
+            <input
+              name="estimatedMinutes"
+              type="number"
+              min={0}
+              defaultValue={lesson.estimatedMinutes ?? 0}
+              className={INPUT}
+            />
           </Field>
         </div>
         <div className="flex gap-5">
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="isPublished" defaultChecked={lesson.isPublished} className="h-4 w-4" />
+            <input
+              type="checkbox"
+              name="isPublished"
+              defaultChecked={lesson.isPublished}
+              className="h-4 w-4"
+            />
             Published
           </label>
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="isPreview" defaultChecked={Boolean(lesson.isPreview)} className="h-4 w-4" />
+            <input
+              type="checkbox"
+              name="isPreview"
+              defaultChecked={Boolean(lesson.isPreview)}
+              className="h-4 w-4"
+            />
             Free preview
           </label>
         </div>
         <div className="flex gap-2 pt-1">
-          <button type="submit" className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
+          <button
+            type="submit"
+            className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+          >
             <Save className="h-4 w-4" /> Save lesson
           </button>
-          <button type="button"
-            onClick={() => { if (window.confirm("Delete this lesson and all its activities?")) onDelete(lesson.id); }}
-            className="rounded-md border border-destructive/40 px-4 py-2 text-sm font-semibold text-destructive hover:bg-destructive/10">
+          <button
+            type="button"
+            onClick={() => {
+              if (window.confirm("Delete this lesson and all its activities?"))
+                onDelete(lesson.id);
+            }}
+            className="rounded-md border border-destructive/40 px-4 py-2 text-sm font-semibold text-destructive hover:bg-destructive/10"
+          >
             <Trash2 className="mr-1.5 inline h-4 w-4" /> Delete
           </button>
         </div>
@@ -305,8 +540,17 @@ function LessonEditPanel({ course, lessonId, onSave, onDelete }: {
 // ─── Activity edit panel ──────────────────────────────────────────────────────
 
 function ActivityEditPanel({
-  activity, fileOptions, libraryOptions, quizOptions, activityTypes,
-  onSave, onDelete, onSaveContent, onAttachFile, onAttachLibrary, onAttachQuiz,
+  activity,
+  fileOptions,
+  libraryOptions,
+  quizOptions,
+  activityTypes,
+  onSave,
+  onDelete,
+  onSaveContent,
+  onAttachFile,
+  onAttachLibrary,
+  onAttachQuiz,
 }: {
   activity: Activity;
   fileOptions: Array<{ id: string; originalFilename: string }>;
@@ -346,8 +590,12 @@ function ActivityEditPanel({
       {/* Tabs */}
       <div className="mb-5 flex gap-1 rounded-lg border border-border bg-card p-1">
         {(["content", "settings"] as const).map((t) => (
-          <button key={t} type="button" onClick={() => setTab(t)}
-            className={`flex-1 rounded-md py-1.5 text-sm font-medium capitalize transition-colors ${tab === t ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+          <button
+            key={t}
+            type="button"
+            onClick={() => setTab(t)}
+            className={`flex-1 rounded-md py-1.5 text-sm font-medium capitalize transition-colors ${tab === t ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          >
             {t}
           </button>
         ))}
@@ -356,48 +604,89 @@ function ActivityEditPanel({
       {tab === "settings" && (
         <form onSubmit={submitSettings} className="flex flex-col gap-4">
           <Field label="Title">
-            <input name="title" defaultValue={activity.title} required minLength={2} className={INPUT} />
+            <input
+              name="title"
+              defaultValue={activity.title}
+              required
+              minLength={2}
+              className={INPUT}
+            />
           </Field>
           <Field label="Description">
-            <input name="description" defaultValue={activity.description ?? ""} className={INPUT} />
+            <input
+              name="description"
+              defaultValue={activity.description ?? ""}
+              className={INPUT}
+            />
           </Field>
           <Field label="Activity type">
-            <p className="text-xs text-muted-foreground">Pilih tipe lalu klik Save settings.</p>
+            <p className="text-xs text-muted-foreground">
+              Pilih tipe lalu klik Save settings.
+            </p>
             <div className="flex flex-wrap gap-2 pt-1">
-              {(activityTypes.length ? activityTypes.filter((t) => t.implemented !== false) : [
-                { key: "core.text", name: "Text" }, { key: "core.video", name: "Video" },
-                { key: "core.file", name: "File" }, { key: "core.link", name: "Link" },
-              ]).map((at) => (
-                <button key={at.key} type="button"
+              {(activityTypes.length
+                ? activityTypes.filter((t) => t.implemented !== false)
+                : [
+                    { key: "core.text", name: "Text" },
+                    { key: "core.video", name: "Video" },
+                    { key: "core.file", name: "File" },
+                    { key: "core.link", name: "Link" },
+                  ]
+              ).map((at) => (
+                <button
+                  key={at.key}
+                  type="button"
                   onClick={() => setSelectedType(at.key)}
                   className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
                     at.key === selectedType
                       ? "border-primary bg-primary text-primary-foreground"
                       : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
-                  }`}>
+                  }`}
+                >
                   {at.name}
-                  {at.key === activity.activityTypeKey && at.key !== selectedType ? " (current)" : ""}
+                  {at.key === activity.activityTypeKey &&
+                  at.key !== selectedType
+                    ? " (current)"
+                    : ""}
                 </button>
               ))}
             </div>
           </Field>
           <div className="flex gap-5">
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" name="isRequired" defaultChecked={activity.isRequired} className="h-4 w-4" />
+              <input
+                type="checkbox"
+                name="isRequired"
+                defaultChecked={activity.isRequired}
+                className="h-4 w-4"
+              />
               Required
             </label>
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" name="isPublished" defaultChecked={activity.isPublished} className="h-4 w-4" />
+              <input
+                type="checkbox"
+                name="isPublished"
+                defaultChecked={activity.isPublished}
+                className="h-4 w-4"
+              />
               Published
             </label>
           </div>
           <div className="flex gap-2 pt-1">
-            <button type="submit" className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
+            <button
+              type="submit"
+              className="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+            >
               <Save className="h-4 w-4" /> Save settings
             </button>
-            <button type="button"
-              onClick={() => { if (window.confirm("Delete this activity?")) onDelete(activity.id); }}
-              className="rounded-md border border-destructive/40 px-4 py-2 text-sm font-semibold text-destructive hover:bg-destructive/10">
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm("Delete this activity?"))
+                  onDelete(activity.id);
+              }}
+              className="rounded-md border border-destructive/40 px-4 py-2 text-sm font-semibold text-destructive hover:bg-destructive/10"
+            >
               <Trash2 className="mr-1.5 inline h-4 w-4" /> Delete
             </button>
           </div>
@@ -423,6 +712,7 @@ function ActivityEditPanel({
 // ─── Video enhancements panel ─────────────────────────────────────────────────
 
 function VideoEnhancementsPanel({ activity }: { activity: Activity }) {
+  const aiStatus = useAiStatus();
   const captionTracks = useInstructorCaptionTracks(activity.id);
   const generatedItems = useInstructorAiGeneratedItems(activity.id);
   const createCaption = useCreateInstructorCaptionTrack();
@@ -439,24 +729,50 @@ function VideoEnhancementsPanel({ activity }: { activity: Activity }) {
   const [syncTranscript, setSyncTranscript] = useState(true);
   const [editingTrackId, setEditingTrackId] = useState<string | null>(null);
 
-  async function doRun(key: string, action: () => Promise<unknown>, success: string) {
-    setBusy(key); setMsg(null);
-    try { await action(); setMsg(success); await Promise.all([captionTracks.reload(), generatedItems.reload()]); }
-    catch (err) { setMsg(err instanceof Error ? err.message : "Error"); }
-    finally { setBusy(null); }
+  async function doRun(
+    key: string,
+    action: () => Promise<unknown>,
+    success: string,
+  ) {
+    setBusy(key);
+    setMsg(null);
+    try {
+      await action();
+      setMsg(success);
+      await Promise.all([captionTracks.reload(), generatedItems.reload()]);
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : "Error");
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function submitCaption(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    await doRun("caption", () => createCaption(activity.id, {
-      label: captionLabel, language: captionLang, rawContent: captionContent,
-      source: "UPLOAD", isDefault: captionDefault, syncTranscript,
-    }), "Caption track saved.");
+    await doRun(
+      "caption",
+      () =>
+        createCaption(activity.id, {
+          label: captionLabel,
+          language: captionLang,
+          rawContent: captionContent,
+          source: "UPLOAD",
+          isDefault: captionDefault,
+          syncTranscript,
+        }),
+      "Caption track saved.",
+    );
     setCaptionContent("");
   }
 
-  const defaultLang = captionTracks.data?.find((t) => t.isDefault)?.language
-    ?? captionTracks.data?.[0]?.language ?? captionLang;
+  const defaultLang =
+    captionTracks.data?.find((t) => t.isDefault)?.language ??
+    captionTracks.data?.[0]?.language ??
+    captionLang;
+  const contentStudioEnabled =
+    aiStatus.data?.features["plugin.ai_content_studio"] ?? false;
+  const questionGeneratorEnabled =
+    aiStatus.data?.features["plugin.ai_question_generator"] ?? false;
 
   return (
     <div className="flex flex-col gap-4 rounded-xl border border-border bg-muted/20 p-5">
@@ -464,37 +780,82 @@ function VideoEnhancementsPanel({ activity }: { activity: Activity }) {
         <h3 className="flex items-center gap-2 text-sm font-semibold">
           <Video className="h-4 w-4 text-primary" /> Advanced video
         </h3>
-        <p className="mt-0.5 text-xs text-muted-foreground">Upload captions and generate AI draft summaries or quizzes.</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Upload captions and generate AI draft summaries or quizzes.
+        </p>
       </div>
 
       {/* Caption upload form */}
-      <form onSubmit={submitCaption} className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Add caption track</p>
+      <form
+        onSubmit={submitCaption}
+        className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4"
+      >
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Add caption track
+        </p>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Label">
-            <input className={INPUT} value={captionLabel} onChange={(e) => setCaptionLabel(e.target.value)} />
+            <input
+              className={INPUT}
+              value={captionLabel}
+              onChange={(e) => setCaptionLabel(e.target.value)}
+            />
           </Field>
           <Field label="Language code">
-            <input className={INPUT} value={captionLang} onChange={(e) => setCaptionLang(e.target.value)} placeholder="en" />
+            <input
+              className={INPUT}
+              value={captionLang}
+              onChange={(e) => setCaptionLang(e.target.value)}
+              placeholder="en"
+            />
           </Field>
         </div>
         <Field label="VTT / SRT content">
-          <textarea className={`min-h-32 font-mono text-xs ${TEXTAREA}`} value={captionContent}
+          <textarea
+            className={`min-h-32 font-mono text-xs ${TEXTAREA}`}
+            value={captionContent}
             onChange={(e) => setCaptionContent(e.target.value)}
-            placeholder={"WEBVTT\n\n00:00:01.000 --> 00:00:04.000\nWelcome."} />
+            placeholder={"WEBVTT\n\n00:00:01.000 --> 00:00:04.000\nWelcome."}
+          />
         </Field>
         <div className="flex flex-wrap gap-4 text-sm">
-          <label className="flex items-center gap-2"><input type="checkbox" className="h-4 w-4" checked={captionDefault} onChange={(e) => setCaptionDefault(e.target.checked)} /> Default</label>
-          <label className="flex items-center gap-2"><input type="checkbox" className="h-4 w-4" checked={syncTranscript} onChange={(e) => setSyncTranscript(e.target.checked)} /> Sync transcript</label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              className="h-4 w-4"
+              checked={captionDefault}
+              onChange={(e) => setCaptionDefault(e.target.checked)}
+            />{" "}
+            Default
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              className="h-4 w-4"
+              checked={syncTranscript}
+              onChange={(e) => setSyncTranscript(e.target.checked)}
+            />{" "}
+            Sync transcript
+          </label>
           <label className="flex items-center gap-2 text-xs text-muted-foreground">
-            <input type="file" accept=".vtt,.srt" className="max-w-44 text-xs"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) void f.text().then(setCaptionContent); }} />
+            <input
+              type="file"
+              accept=".vtt,.srt"
+              className="max-w-44 text-xs"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void f.text().then(setCaptionContent);
+              }}
+            />
             Load file
           </label>
         </div>
         {msg && <p className="rounded bg-muted px-3 py-1.5 text-xs">{msg}</p>}
-        <button type="submit" disabled={!captionContent.trim() || busy !== null}
-          className="flex w-fit items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50">
+        <button
+          type="submit"
+          disabled={!captionContent.trim() || busy !== null}
+          className="flex w-fit items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+        >
           <Save className="h-4 w-4" /> Save caption track
         </button>
       </form>
@@ -502,31 +863,90 @@ function VideoEnhancementsPanel({ activity }: { activity: Activity }) {
       {/* Tracks + AI drafts */}
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="flex flex-col gap-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Caption tracks</p>
-          {captionTracks.loading ? <LoadingState title="Loading…" /> :
-            captionTracks.data?.length ? captionTracks.data.map((track) => (
-              <CaptionTrackCard key={track.id} track={track}
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Caption tracks
+          </p>
+          {captionTracks.loading ? (
+            <LoadingState title="Loading…" />
+          ) : captionTracks.data?.length ? (
+            captionTracks.data.map((track) => (
+              <CaptionTrackCard
+                key={track.id}
+                track={track}
                 isEditing={editingTrackId === track.id}
-                onEditCues={() => setEditingTrackId(editingTrackId === track.id ? null : track.id)}
-                onMakeDefault={() => doRun("caption", () => updateCaption(track.id, { isDefault: true }), "Default updated.")}
-                onDelete={() => doRun("caption", () => deleteCaption(track.id), "Track deleted.")} />
-            )) : <p className="text-xs text-muted-foreground">No tracks yet.</p>}
+                onEditCues={() =>
+                  setEditingTrackId(
+                    editingTrackId === track.id ? null : track.id,
+                  )
+                }
+                onMakeDefault={() =>
+                  doRun(
+                    "caption",
+                    () => updateCaption(track.id, { isDefault: true }),
+                    "Default updated.",
+                  )
+                }
+                onDelete={() =>
+                  doRun(
+                    "caption",
+                    () => deleteCaption(track.id),
+                    "Track deleted.",
+                  )
+                }
+              />
+            ))
+          ) : (
+            <p className="text-xs text-muted-foreground">No tracks yet.</p>
+          )}
         </div>
         <div className="flex flex-col gap-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">AI drafts</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            AI drafts
+          </p>
           <div className="flex gap-2">
-            <button type="button" disabled={busy !== null}
-              onClick={() => void doRun("summary", () => generateSummary(activity.id, { language: defaultLang }), "Summary drafted.")}
-              className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-semibold disabled:opacity-50">
-              <Sparkles className="h-3.5 w-3.5" /> Summary
-            </button>
-            <button type="button" disabled={busy !== null}
-              onClick={() => void doRun("quiz", () => generateQuiz(activity.id, { language: defaultLang, questionCount: 5 }), "Quiz drafted.")}
-              className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-semibold disabled:opacity-50">
-              <Sparkles className="h-3.5 w-3.5" /> Quiz
-            </button>
+            {contentStudioEnabled ? (
+              <button
+                type="button"
+                disabled={busy !== null}
+                onClick={() =>
+                  void doRun(
+                    "summary",
+                    () =>
+                      generateSummary(activity.id, { language: defaultLang }),
+                    "Summary drafted.",
+                  )
+                }
+                className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
+              >
+                <Sparkles className="h-3.5 w-3.5" /> Summary
+              </button>
+            ) : null}
+            {questionGeneratorEnabled ? (
+              <button
+                type="button"
+                disabled={busy !== null}
+                onClick={() =>
+                  void doRun(
+                    "quiz",
+                    () =>
+                      generateQuiz(activity.id, {
+                        language: defaultLang,
+                        questionCount: 5,
+                      }),
+                    "Quiz drafted.",
+                  )
+                }
+                className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
+              >
+                <Sparkles className="h-3.5 w-3.5" /> Quiz
+              </button>
+            ) : null}
           </div>
-          {generatedItems.data?.length ? <AiApprovalQueue activityId={activity.id} /> : <p className="text-xs text-muted-foreground">No drafts yet.</p>}
+          {generatedItems.data?.length ? (
+            <AiApprovalQueue activityId={activity.id} />
+          ) : (
+            <p className="text-xs text-muted-foreground">No drafts yet.</p>
+          )}
         </div>
       </div>
 
@@ -535,29 +955,53 @@ function VideoEnhancementsPanel({ activity }: { activity: Activity }) {
   );
 }
 
-function CaptionTrackCard({ track, isEditing, onEditCues, onMakeDefault, onDelete }: {
-  track: VideoCaptionTrack; isEditing: boolean;
-  onEditCues: () => void; onMakeDefault: () => void; onDelete: () => void;
+function CaptionTrackCard({
+  track,
+  isEditing,
+  onEditCues,
+  onMakeDefault,
+  onDelete,
+}: {
+  track: VideoCaptionTrack;
+  isEditing: boolean;
+  onEditCues: () => void;
+  onMakeDefault: () => void;
+  onDelete: () => void;
 }) {
   return (
     <div className="rounded-lg border border-border bg-card p-3">
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="text-sm font-medium">{track.label}</p>
-          <p className="text-xs text-muted-foreground">{track.language.toUpperCase()} · {track.kind} · {track.cues.length} cues</p>
+          <p className="text-xs text-muted-foreground">
+            {track.language.toUpperCase()} · {track.kind} · {track.cues.length}{" "}
+            cues
+          </p>
         </div>
         {track.isDefault && <StatusBadge value="default" tone="success" />}
       </div>
       <div className="mt-2 flex flex-wrap gap-1.5">
-        <button type="button" onClick={onEditCues} className="rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:bg-muted">
+        <button
+          type="button"
+          onClick={onEditCues}
+          className="rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:bg-muted"
+        >
           {isEditing ? "Close editor" : "Edit cues"}
         </button>
         {!track.isDefault && (
-          <button type="button" onClick={() => void onMakeDefault()} className="rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:bg-muted">
+          <button
+            type="button"
+            onClick={() => void onMakeDefault()}
+            className="rounded-md border border-border px-2.5 py-1 text-xs font-medium hover:bg-muted"
+          >
             Set default
           </button>
         )}
-        <button type="button" onClick={() => void onDelete()} className="flex items-center gap-1 rounded-md border border-destructive/30 px-2.5 py-1 text-xs font-semibold text-destructive hover:bg-destructive/10">
+        <button
+          type="button"
+          onClick={() => void onDelete()}
+          className="flex items-center gap-1 rounded-md border border-destructive/30 px-2.5 py-1 text-xs font-semibold text-destructive hover:bg-destructive/10"
+        >
           <Trash2 className="h-3 w-3" /> Delete
         </button>
       </div>
@@ -566,8 +1010,14 @@ function CaptionTrackCard({ track, isEditing, onEditCues, onMakeDefault, onDelet
 }
 
 function ActivityContentPanel({
-  activity, fileOptions, libraryOptions, quizOptions,
-  onSaveContent, onAttachFile, onAttachLibrary, onAttachQuiz,
+  activity,
+  fileOptions,
+  libraryOptions,
+  quizOptions,
+  onSaveContent,
+  onAttachFile,
+  onAttachLibrary,
+  onAttachQuiz,
 }: {
   activity: Activity;
   fileOptions: Array<{ id: string; originalFilename: string }>;
@@ -583,9 +1033,11 @@ function ActivityContentPanel({
   const isVideo = activity.activityTypeKey === "core.video";
   const content = activity.activityContent?.content ?? {};
   const htmlDefault =
-    typeof content.html === "string" ? content.html :
-    typeof content.body === "string" && content.format === "rich_text_html" ? content.body :
-    activity.activityContent?.textContent ?? "";
+    typeof content.html === "string"
+      ? content.html
+      : typeof content.body === "string" && content.format === "rich_text_html"
+        ? content.body
+        : (activity.activityContent?.textContent ?? "");
 
   async function submitGeneric(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -593,19 +1045,29 @@ function ActivityContentPanel({
     onSaveContent(activity.id, {
       textContent: String(d.get("textContent") ?? ""),
       externalUrl: String(d.get("externalUrl") ?? "") || undefined,
-      content: { body: String(d.get("textContent") ?? ""), url: String(d.get("externalUrl") ?? "") || undefined },
+      content: {
+        body: String(d.get("textContent") ?? ""),
+        url: String(d.get("externalUrl") ?? "") || undefined,
+      },
     });
   }
 
   return (
-    <PluginActivityEditor activity={activity} onSaveContent={(data) => onSaveContent(activity.id, data)}>
+    <PluginActivityEditor
+      activity={activity}
+      onSaveContent={(data) => onSaveContent(activity.id, data)}
+    >
       <div className="flex flex-col gap-5">
         {isQuiz ? (
           <div className="grid gap-2">
             <AttachSelect
               label="Attach quiz"
               options={[...quizOptions]
-                .sort((a, b) => Number(b.status === "PUBLISHED") - Number(a.status === "PUBLISHED"))
+                .sort(
+                  (a, b) =>
+                    Number(b.status === "PUBLISHED") -
+                    Number(a.status === "PUBLISHED"),
+                )
                 .map((q) => ({
                   id: q.id,
                   label: `${q.title} (${q.status})`,
@@ -614,11 +1076,17 @@ function ActivityContentPanel({
             />
             <p className="text-xs text-muted-foreground">
               Need a new quiz?{" "}
-              <a className="font-semibold text-primary" href="/instructor/quizzes">
+              <a
+                className="font-semibold text-primary"
+                href="/instructor/quizzes"
+              >
                 Open quizzes
               </a>
               {" · "}
-              <a className="font-semibold text-primary" href="/instructor/question-banks">
+              <a
+                className="font-semibold text-primary"
+                href="/instructor/question-banks"
+              >
                 Question banks
               </a>
             </p>
@@ -626,26 +1094,43 @@ function ActivityContentPanel({
         ) : isText ? (
           <div>
             <p className="mb-2 text-sm font-medium">Rich text content</p>
-            <RichTextEditor defaultValue={htmlDefault}
+            <RichTextEditor
+              defaultValue={htmlDefault}
               onSubmit={(_val, payload) => {
                 onSaveContent(activity.id, {
                   textContent: payload.text,
-                  content: { format: "rich_text_html", html: payload.html, body: payload.html },
+                  content: {
+                    format: "rich_text_html",
+                    html: payload.html,
+                    body: payload.html,
+                  },
                 });
                 return Promise.resolve();
-              }} />
+              }}
+            />
           </div>
         ) : (
           <form onSubmit={submitGeneric} className="flex flex-col gap-4">
             <Field label="Text content">
-              <textarea name="textContent" rows={5} className={TEXTAREA}
-                defaultValue={activity.activityContent?.textContent ?? ""} />
+              <textarea
+                name="textContent"
+                rows={5}
+                className={TEXTAREA}
+                defaultValue={activity.activityContent?.textContent ?? ""}
+              />
             </Field>
             <Field label="External URL">
-              <input name="externalUrl" type="url" className={INPUT}
-                defaultValue={activity.activityContent?.externalUrl ?? ""} />
+              <input
+                name="externalUrl"
+                type="url"
+                className={INPUT}
+                defaultValue={activity.activityContent?.externalUrl ?? ""}
+              />
             </Field>
-            <button type="submit" className="flex w-fit items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
+            <button
+              type="submit"
+              className="flex w-fit items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+            >
               <Save className="h-4 w-4" /> Save content
             </button>
           </form>
@@ -653,13 +1138,25 @@ function ActivityContentPanel({
 
         {!isQuiz && (
           <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/20 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Attachments</p>
-            <AttachSelect label="File"
-              options={fileOptions.map((f) => ({ id: f.id, label: f.originalFilename }))}
-              onAttach={(id) => onAttachFile(activity.id, id)} />
-            <AttachSelect label="Library item"
-              options={libraryOptions.map((l) => ({ id: l.id, label: l.title }))}
-              onAttach={(id) => onAttachLibrary(activity.id, id)} />
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Attachments
+            </p>
+            <AttachSelect
+              label="File"
+              options={fileOptions.map((f) => ({
+                id: f.id,
+                label: f.originalFilename,
+              }))}
+              onAttach={(id) => onAttachFile(activity.id, id)}
+            />
+            <AttachSelect
+              label="Library item"
+              options={libraryOptions.map((l) => ({
+                id: l.id,
+                label: l.title,
+              }))}
+              onAttach={(id) => onAttachLibrary(activity.id, id)}
+            />
           </div>
         )}
 
@@ -669,7 +1166,11 @@ function ActivityContentPanel({
   );
 }
 
-function AttachSelect({ label, options, onAttach }: {
+function AttachSelect({
+  label,
+  options,
+  onAttach,
+}: {
   label: string;
   options: Array<{ id: string; label: string }>;
   onAttach: (id: string) => void;
@@ -679,15 +1180,30 @@ function AttachSelect({ label, options, onAttach }: {
     <div className="flex flex-wrap items-end gap-2">
       <label className="min-w-52 flex-1 text-sm font-medium">
         {label}
-        <select className={`mt-1 ${INPUT}`} value={selectedId}
-          onChange={(e) => setSelectedId(e.target.value)}>
+        <select
+          className={`mt-1 ${INPUT}`}
+          value={selectedId}
+          onChange={(e) => setSelectedId(e.target.value)}
+        >
           <option value="">Select…</option>
-          {options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+          {options.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.label}
+            </option>
+          ))}
         </select>
       </label>
-      <button type="button" disabled={!selectedId}
-        onClick={() => { if (selectedId) { onAttach(selectedId); setSelectedId(""); } }}
-        className="h-9 rounded-md border border-border px-3 text-sm font-semibold disabled:opacity-40 hover:bg-muted">
+      <button
+        type="button"
+        disabled={!selectedId}
+        onClick={() => {
+          if (selectedId) {
+            onAttach(selectedId);
+            setSelectedId("");
+          }
+        }}
+        className="h-9 rounded-md border border-border px-3 text-sm font-semibold disabled:opacity-40 hover:bg-muted"
+      >
         Attach
       </button>
     </div>
@@ -703,36 +1219,140 @@ export default function BuilderPage() {
   const libraryQuery = useContentLibrary();
   const activityTypesQuery = usePluginActivityTypes();
   const quizzesQuery = useInstructorQuizzes();
+  const aiStatus = useAiStatus();
   const session = useSession();
   const course = courseQuery.data;
+  const aiReady = aiStatus.data?.enabled ?? false;
+  const courseIndexerEnabled =
+    aiStatus.data?.features["plugin.ai_course_indexer"] ?? false;
+  const questionGeneratorEnabled =
+    aiStatus.data?.features["plugin.ai_question_generator"] ?? false;
   const canUpdate = hasPermission(session, PERMISSIONS.coursesUpdate);
   const canPublish = hasPermission(session, PERMISSIONS.coursesPublish);
   const canCreate = hasPermission(session, PERMISSIONS.coursesCreate);
   const [selection, setSelection] = useState<Selection>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [showAiDrafts, setShowAiDrafts] = useState(false);
+  const [showAiQuestionScope, setShowAiQuestionScope] = useState(false);
+  const [aiSources, setAiSources] = useState<AiIndexedSource[]>([]);
+  const [aiSourcesLoading, setAiSourcesLoading] = useState(false);
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiIndexStatus, setAiIndexStatus] =
+    useState<AiCourseIndexStatus | null>(null);
+  const [aiIndexStatusLoading, setAiIndexStatusLoading] = useState(false);
 
   const showToast = useCallback((msg: string, ok = true) => {
     setToast({ msg, ok });
     setTimeout(() => setToast(null), 3000);
   }, []);
 
+  const refreshAiIndexStatus = useCallback(async () => {
+    if (!course?.id || !courseIndexerEnabled) return;
+    try {
+      const status = await api.instructorAiIndexStatus(course.id);
+      setAiIndexStatus(status);
+    } catch {
+      // Plugin and page error states already expose configuration failures.
+    } finally {
+      setAiIndexStatusLoading(false);
+    }
+  }, [course?.id, courseIndexerEnabled]);
+
+  useEffect(() => {
+    if (!course?.id || !courseIndexerEnabled) {
+      setAiIndexStatus(null);
+      return;
+    }
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    setAiIndexStatusLoading(true);
+    const poll = async () => {
+      await refreshAiIndexStatus();
+      if (!cancelled) {
+        timer = setTimeout(poll, 2_500);
+      }
+    };
+    void poll();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [course?.id, courseIndexerEnabled, refreshAiIndexStatus]);
+
   async function run(action: () => Promise<unknown>, success: string) {
     try {
       await action();
       await courseQuery.refresh();
+      await refreshAiIndexStatus();
       showToast(success);
     } catch (err) {
       showToast(err instanceof Error ? err.message : String(err), false);
     }
   }
 
+  async function openAiQuestionScope() {
+    if (!course || !aiIndexStatus?.ready) return;
+    setShowAiQuestionScope(true);
+    setAiSourcesLoading(true);
+    try {
+      setAiSources(await api.instructorAiSources(course.id));
+    } catch (err) {
+      setAiSources([]);
+      showToast(err instanceof Error ? err.message : String(err), false);
+    } finally {
+      setAiSourcesLoading(false);
+    }
+  }
+
+  async function retryAiIndex() {
+    if (!course) return;
+    setAiIndexStatus((current) => ({
+      courseId: course.id,
+      state: "INDEXING",
+      ready: false,
+      isIndexing: true,
+      needsReindex: true,
+      documents: current?.documents ?? 0,
+      chunks: current?.chunks ?? 0,
+      statuses: current?.statuses ?? {},
+    }));
+    try {
+      await api.instructorAiIndexCourse(course.id);
+      showToast("Material indexing started.");
+      await refreshAiIndexStatus();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : String(err), false);
+      await refreshAiIndexStatus();
+    }
+  }
+
+  async function generateAiQuestions(input: GenerateCourseAiQuestionsInput) {
+    if (!course) return false;
+    setAiGenerating(true);
+    try {
+      await api.generateCourseAiQuestions(course.id, input);
+      showToast("Question draft generated. Review before publishing.");
+      setShowAiDrafts(true);
+      return true;
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : String(err), false);
+      return false;
+    } finally {
+      setAiGenerating(false);
+    }
+  }
+
   const activities = useMemo(
-    () => course?.modules?.flatMap((m) => m.lessons.flatMap((l) => l.activities)) ?? [],
+    () =>
+      course?.modules?.flatMap((m) => m.lessons.flatMap((l) => l.activities)) ??
+      [],
     [course],
   );
-  const selectedActivity = selection?.type === "activity"
-    ? (activities.find((a) => a.id === selection.id) ?? null)
-    : null;
+  const selectedActivity =
+    selection?.type === "activity"
+      ? (activities.find((a) => a.id === selection.id) ?? null)
+      : null;
+  const aiQuestionsReady = aiReady && aiIndexStatus?.ready === true;
 
   return (
     <AuthGate>
@@ -740,7 +1360,10 @@ export default function BuilderPage() {
         {courseQuery.loading ? (
           <LoadingState title="Loading builder" />
         ) : courseQuery.error || !course ? (
-          <ApiErrorState error={courseQuery.error} fallbackTitle="Could not load course" />
+          <ApiErrorState
+            error={courseQuery.error}
+            fallbackTitle="Could not load course"
+          />
         ) : (
           <div className="flex flex-col gap-0">
             {/* Top bar */}
@@ -751,32 +1374,101 @@ export default function BuilderPage() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 {toast && (
-                  <span className={`rounded-md px-3 py-1 text-xs font-medium ${toast.ok ? "bg-emerald-100 text-emerald-700" : "bg-destructive/10 text-destructive"}`}>
+                  <span
+                    className={`rounded-md px-3 py-1 text-xs font-medium ${toast.ok ? "bg-emerald-100 text-emerald-700" : "bg-destructive/10 text-destructive"}`}
+                  >
                     {toast.msg}
                   </span>
                 )}
-                <ButtonLink href={`/instructor/courses/${course.id}/preview`} variant="secondary">
+                <ButtonLink
+                  href={`/instructor/courses/${course.id}/preview`}
+                  variant="secondary"
+                >
                   Preview
                 </ButtonLink>
                 {canCreate && (
-                  <button type="button"
-                    onClick={() => void run(() => api.duplicateCourse(course.id), "Course duplicated.")}
-                    className="rounded-md border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void run(
+                        () => api.duplicateCourse(course.id),
+                        "Course duplicated.",
+                      )
+                    }
+                    className="rounded-md border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted"
+                  >
                     Duplicate
                   </button>
                 )}
-                {canUpdate && (
-                  <button type="button"
-                    onClick={() => void run(() => api.instructorAiIndexCourse(course.id), "Course indexed for AI.")}
-                    className="rounded-md border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted">
-                    <Sparkles className="mr-1.5 inline h-3.5 w-3.5" /> Index AI
+                {canUpdate && courseIndexerEnabled ? (
+                  aiIndexStatusLoading && !aiIndexStatus ? (
+                    <span className="flex h-9 min-w-40 items-center gap-2 rounded-md border border-border px-3 text-sm text-muted-foreground">
+                      <LoaderCircle className="h-4 w-4 animate-spin" />
+                      Checking AI material
+                    </span>
+                  ) : aiIndexStatus?.isIndexing ? (
+                    <span className="flex h-9 min-w-40 items-center gap-2 rounded-md border border-info/40 bg-info/10 px-3 text-sm font-medium text-info">
+                      <LoaderCircle className="h-4 w-4 animate-spin" />
+                      Indexing material
+                    </span>
+                  ) : aiIndexStatus?.ready ? (
+                    <span className="flex h-9 min-w-40 items-center gap-2 rounded-md border border-success/40 bg-success/10 px-3 text-sm font-medium text-success">
+                      <CheckCircle2 className="h-4 w-4" />
+                      AI material ready
+                    </span>
+                  ) : (
+                    <button
+                      className="flex h-9 min-w-40 items-center justify-center gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 text-sm font-medium text-warning hover:bg-warning/20 disabled:opacity-50"
+                      disabled={!aiReady}
+                      onClick={() => void retryAiIndex()}
+                      title={
+                        aiIndexStatus?.state === "FAILED"
+                          ? "Automatic indexing failed. Retry indexing."
+                          : "No ready AI material. Index published course material."
+                      }
+                      type="button"
+                    >
+                      {aiIndexStatus?.state === "FAILED" ? (
+                        <TriangleAlert className="h-4 w-4" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                      {aiIndexStatus?.state === "FAILED"
+                        ? "Retry AI index"
+                        : "Index AI material"}
+                    </button>
+                  )
+                ) : null}
+                {canUpdate && questionGeneratorEnabled ? (
+                  <button
+                    className="rounded-md border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={!aiQuestionsReady || aiGenerating}
+                    onClick={() => void openAiQuestionScope()}
+                    title={
+                      aiIndexStatus?.isIndexing
+                        ? "Wait until material indexing completes"
+                        : !aiIndexStatus?.ready
+                          ? "Index course material before generating questions"
+                          : "Choose a knowledge scope and generate a reviewable question-bank draft"
+                    }
+                    type="button"
+                  >
+                    <Sparkles className="mr-1.5 inline h-3.5 w-3.5" />
+                    Generate questions
                   </button>
-                )}
+                ) : null}
                 {canPublish && (
-                  <button type="button"
+                  <button
+                    type="button"
                     disabled={course.status === "PUBLISHED"}
-                    onClick={() => void run(() => api.publishCourse(course.id), "Course published.")}
-                    className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">
+                    onClick={() =>
+                      void run(
+                        () => api.publishCourse(course.id),
+                        "Course published.",
+                      )
+                    }
+                    className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+                  >
                     <Send className="h-3.5 w-3.5" />
                     {course.status === "PUBLISHED" ? "Published" : "Publish"}
                   </button>
@@ -784,7 +1476,37 @@ export default function BuilderPage() {
               </div>
             </div>
 
-            <CoursePhaseNavigation courseId={params.courseId} active="overview" instructor />
+            <AiQuestionScopeDialog
+              course={course}
+              generating={aiGenerating}
+              onGenerate={generateAiQuestions}
+              onOpenChange={setShowAiQuestionScope}
+              open={showAiQuestionScope}
+              sources={aiSources}
+              sourcesLoading={aiSourcesLoading}
+            />
+
+            <CoursePhaseNavigation
+              courseId={params.courseId}
+              active="overview"
+              instructor
+            />
+
+            {showAiDrafts && questionGeneratorEnabled ? (
+              <section className="border-b border-border bg-background px-5 py-5">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <h2 className="text-sm font-semibold">Course AI drafts</h2>
+                  <button
+                    className="text-xs font-semibold text-muted-foreground"
+                    onClick={() => setShowAiDrafts(false)}
+                    type="button"
+                  >
+                    Close
+                  </button>
+                </div>
+                <AiApprovalQueue courseId={course.id} />
+              </section>
+            ) : null}
 
             {/* 2-column layout */}
             <div className="flex min-h-[calc(100vh-10rem)]">
@@ -794,9 +1516,17 @@ export default function BuilderPage() {
                   <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Curriculum
                   </span>
-                  <button type="button"
-                    onClick={() => void run(() => api.createModule(course.id, { title: "New Module" }), "Module added.")}
-                    className="flex items-center gap-1 rounded bg-primary px-2 py-1 text-xs font-semibold text-primary-foreground">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void run(
+                        () =>
+                          api.createModule(course.id, { title: "New Module" }),
+                        "Module added.",
+                      )
+                    }
+                    className="flex items-center gap-1 rounded bg-primary px-2 py-1 text-xs font-semibold text-primary-foreground"
+                  >
                     <FolderPlus className="h-3 w-3" /> Module
                   </button>
                 </div>
@@ -807,10 +1537,30 @@ export default function BuilderPage() {
                     </p>
                   ) : (
                     course.modules.map((mod, idx) => (
-                      <ModuleTreeItem key={mod.id} mod={mod} idx={idx}
-                        selection={selection} onSelect={setSelection}
-                        onAddLesson={(mid) => run(() => api.createLesson(mid, { title: "New Lesson" }), "Lesson added.")}
-                        onAddActivity={(lid) => run(() => api.createActivity(lid, { title: "New Activity", activityTypeKey: "core.text", isRequired: true }), "Activity added.")}
+                      <ModuleTreeItem
+                        key={mod.id}
+                        mod={mod}
+                        idx={idx}
+                        selection={selection}
+                        onSelect={setSelection}
+                        onAddLesson={(mid) =>
+                          run(
+                            () =>
+                              api.createLesson(mid, { title: "New Lesson" }),
+                            "Lesson added.",
+                          )
+                        }
+                        onAddActivity={(lid) =>
+                          run(
+                            () =>
+                              api.createActivity(lid, {
+                                title: "New Activity",
+                                activityTypeKey: "core.text",
+                                isRequired: true,
+                              }),
+                            "Activity added.",
+                          )
+                        }
                       />
                     ))
                   )}
@@ -819,16 +1569,36 @@ export default function BuilderPage() {
 
               {/* Right — edit panel */}
               <main className="flex-1 overflow-y-auto bg-background p-6">
-                {!selection && <CourseOverviewPanel course={course} canUpdate={canUpdate} canPublish={canPublish} onAction={run} />}
+                {!selection && (
+                  <CourseOverviewPanel
+                    course={course}
+                    canPublish={canPublish}
+                    onAction={run}
+                  />
+                )}
                 {selection?.type === "module" && (
-                  <ModuleEditPanel course={course} moduleId={selection.id}
-                    onSave={(id, d) => run(() => api.updateModule(id, d), "Module saved.")}
-                    onDelete={(id) => run(() => api.deleteModule(id), "Module deleted.")} />
+                  <ModuleEditPanel
+                    course={course}
+                    moduleId={selection.id}
+                    onSave={(id, d) =>
+                      run(() => api.updateModule(id, d), "Module saved.")
+                    }
+                    onDelete={(id) =>
+                      run(() => api.deleteModule(id), "Module deleted.")
+                    }
+                  />
                 )}
                 {selection?.type === "lesson" && (
-                  <LessonEditPanel course={course} lessonId={selection.id}
-                    onSave={(id, d) => run(() => api.updateLesson(id, d), "Lesson saved.")}
-                    onDelete={(id) => run(() => api.deleteLesson(id), "Lesson deleted.")} />
+                  <LessonEditPanel
+                    course={course}
+                    lessonId={selection.id}
+                    onSave={(id, d) =>
+                      run(() => api.updateLesson(id, d), "Lesson saved.")
+                    }
+                    onDelete={(id) =>
+                      run(() => api.deleteLesson(id), "Lesson deleted.")
+                    }
+                  />
                 )}
                 {selection?.type === "activity" && selectedActivity && (
                   <ActivityEditPanel
@@ -837,12 +1607,36 @@ export default function BuilderPage() {
                     libraryOptions={libraryQuery.data ?? []}
                     quizOptions={quizzesQuery.data ?? []}
                     activityTypes={activityTypesQuery.data?.activityTypes ?? []}
-                    onSave={(id, d) => run(() => api.updateActivity(id, d), "Activity saved.")}
-                    onDelete={(id) => run(() => api.deleteActivity(id), "Activity deleted.")}
-                    onSaveContent={(id, d) => run(() => api.updateActivityContent(id, d), "Content saved.")}
-                    onAttachFile={(id, fid) => run(() => api.attachFileToActivity(id, fid), "File attached.")}
-                    onAttachLibrary={(id, lid) => run(() => api.attachLibraryItemToActivity(id, lid), "Library item attached.")}
-                    onAttachQuiz={(id, qid) => run(() => api.attachQuizToActivity(id, qid), "Quiz attached.")}
+                    onSave={(id, d) =>
+                      run(() => api.updateActivity(id, d), "Activity saved.")
+                    }
+                    onDelete={(id) =>
+                      run(() => api.deleteActivity(id), "Activity deleted.")
+                    }
+                    onSaveContent={(id, d) =>
+                      run(
+                        () => api.updateActivityContent(id, d),
+                        "Content saved.",
+                      )
+                    }
+                    onAttachFile={(id, fid) =>
+                      run(
+                        () => api.attachFileToActivity(id, fid),
+                        "File attached.",
+                      )
+                    }
+                    onAttachLibrary={(id, lid) =>
+                      run(
+                        () => api.attachLibraryItemToActivity(id, lid),
+                        "Library item attached.",
+                      )
+                    }
+                    onAttachQuiz={(id, qid) =>
+                      run(
+                        () => api.attachQuizToActivity(id, qid),
+                        "Quiz attached.",
+                      )
+                    }
                   />
                 )}
               </main>

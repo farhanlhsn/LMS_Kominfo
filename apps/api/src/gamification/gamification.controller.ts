@@ -1,12 +1,12 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Inject, UseGuards, Req } from "@nestjs/common";
 import { PERMISSIONS } from "@lms/shared";
+import { Body,Controller,Delete,Get,Inject,Param,Patch,Post,Query,Req,UseGuards } from "@nestjs/common";
 import type { AuthenticatedRequest } from "../auth/types/authenticated-request";
+import { Permissions } from "../rbac/decorators/permissions.decorator";
 import { JwtAuthGuard } from "../rbac/guards/jwt-auth.guard";
 import { OrganizationContextGuard } from "../rbac/guards/organization-context.guard";
 import { PermissionsGuard } from "../rbac/guards/permissions.guard";
-import { Permissions } from "../rbac/decorators/permissions.decorator";
+import { CourseSkillDto,CreateAchievementDto,CreateSkillDto,LeaderboardQueryDto,UpdateSkillDto,XpQueryDto } from "./dto/gamification.dto";
 import { GamificationService } from "./gamification.service";
-import { CreateSkillDto, UpdateSkillDto, CourseSkillDto, XpQueryDto, LeaderboardQueryDto, CreateAchievementDto, UpdateAchievementDto } from "./dto/gamification.dto";
 
 @Controller()
 @UseGuards(JwtAuthGuard, OrganizationContextGuard)

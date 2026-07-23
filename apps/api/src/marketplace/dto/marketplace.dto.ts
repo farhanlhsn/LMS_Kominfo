@@ -1,5 +1,6 @@
 ﻿import { IsString, IsOptional, IsInt, IsBoolean, Min, Max } from "class-validator";
 import { Type } from "class-transformer";
+import { IsDateString } from "class-validator";
 
 export class SetCoursePricingDto {
   @IsOptional()
@@ -49,11 +50,11 @@ export class CreateCouponDto {
   courseId?: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   validFrom?: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   validUntil?: string;
 }
 

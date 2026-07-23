@@ -1,7 +1,7 @@
 "use client";
 
 import type { OrgDomain } from "../../lib/lms-types";
-import { ButtonLink, StatusBadge } from "../ui/core";
+import { StatusBadge } from "../ui/core";
 import { EmptyState } from "../ui/states";
 
 type DomainTone = "neutral" | "success" | "warning" | "danger" | "info";
@@ -90,7 +90,9 @@ export function DomainList({
                       onClick={() => onVerify(domain)}
                       type="button"
                     >
-                      {verifyingId === domain.id ? "Verifying" : "Verify"}
+                      {verifyingId === domain.id
+                        ? "Confirming"
+                        : "Confirm ownership"}
                     </button>
                   ) : null}
                   <button

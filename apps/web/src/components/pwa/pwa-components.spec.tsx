@@ -98,6 +98,19 @@ describe("PwaInstallPrompt", () => {
     const html = renderToStaticMarkup(createElement(PwaInstallPrompt, {}));
     expect(html).toBe("");
   });
+
+  it("remembers a recent install prompt dismissal", async () => {
+    const values = new Map<string, string>();
+    values.set("lms.pwa.install.dismissed.v1", String(1_000));
+    setWindow({
+      localStorage: {
+        getItem: (key: string) => values.get(key) ?? null,
+      },
+    } as unknown as Window);
+    const { isPwaInstallDismissed } = await import("./pwai-install-prompt");
+    expect(isPwaInstallDismissed(2_000)).toBe(true);
+    expect(isPwaInstallDismissed(31 * 24 * 60 * 60 * 1000)).toBe(false);
+  });
 });
 
 describe("ServiceWorkerUpdateToast", () => {

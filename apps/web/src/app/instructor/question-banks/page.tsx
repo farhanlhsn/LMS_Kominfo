@@ -247,7 +247,7 @@ export default function QuestionBanksPage() {
     try {
       const fd = new FormData();
       fd.append("file", file);
-      fd.append("purpose", "QUESTION_IMAGE");
+      fd.append("purpose", "CONTENT");
       const asset = await api.uploadFile(fd);
       setImageFileId(asset.id);
       flash(true, "Image attached");

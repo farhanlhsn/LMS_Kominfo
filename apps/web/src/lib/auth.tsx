@@ -2,14 +2,15 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { api } from './api-client';
+import { api, clearSession, getSession } from './api-client';
+import type { AuthSession } from './lms-types';
 
 interface User {
   id: string;
   name: string;
   email: string;
   role: string;
-  regionId: string;
+  regionId?: string;
   avatarUrl?: string;
 }
 
@@ -24,6 +25,22 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+function userFromSession(session: AuthSession | null): User | null {
+  if (!session) return null;
+  const role = session.activeOrganization.isPlatformAdmin
+    ? 'SUPER_ADMIN'
+    : session.activeOrganization.roleKeys?.includes('org_admin')
+      ? 'REGIONAL_ADMIN'
+      : (session.activeOrganization.roleKeys?.[0] ?? 'learner');
+  return {
+    id: session.user.id,
+    name: session.user.name ?? session.user.email,
+    email: session.user.email,
+    role,
+    regionId: session.activeOrganization.id,
+  };
+}
 
 // Helper for cookies on the client side
 const setCookie = (name: string, value: string, days = 7) => {
@@ -43,29 +60,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    const initAuth = async () => {
-      const token = localStorage.getItem('access_token');
-      if (token) {
-        try {
-          const profile = await api.get<User>('/auth/me');
-          if (profile) {
-            setUser(profile);
-          } else {
-            localStorage.removeItem('access_token');
-            deleteCookie('access_token');
-            setUser(null);
-          }
-        } catch (error) {
-          console.warn('Failed to fetch user profile:', error);
-          localStorage.removeItem('access_token');
-          deleteCookie('access_token');
-          setUser(null);
-        }
-      }
+    const syncSession = () => {
+      setUser(userFromSession(getSession()));
       setIsLoading(false);
     };
 
-    initAuth();
+    syncSession();
+    window.addEventListener('lms-session-changed', syncSession);
+    return () => window.removeEventListener('lms-session-changed', syncSession);
   }, []);
 
   const login = (token: string, userData: User) => {
@@ -80,6 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     deleteCookie('access_token');
     setUser(null);
     router.replace('/login');
+    void api.logout().catch(() => clearSession());
   };
 
   const updateUser = (userData: Partial<User>) => {
@@ -88,8 +91,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshUser = async () => {
     try {
-      const profile = await api.get<User>('/auth/me');
-      setUser(profile);
+      const session = await api.hydrateSession();
+      setUser(userFromSession(session));
     } catch (error) {
       console.warn('Failed to refresh user profile:', error);
     }

@@ -118,7 +118,7 @@ export class CreateCalendarEventDto {
   @IsOptional() @IsString() activityId?: string;
   @IsString() @MinLength(3) @MaxLength(160) title!: string;
   @IsOptional() @IsString() @MaxLength(5000) description?: string;
-  @IsIn(["COURSE_EVENT", "COURSE_START", "COURSE_END", "ANNOUNCEMENT"])
+  @IsIn(["COURSE_EVENT", "COURSE_START", "COURSE_END", "ANNOUNCEMENT", "PERSONAL_EVENT", "PERSONAL_REMINDER"])
   type!: string;
   @IsDateString() startsAt!: string;
   @IsOptional() @IsDateString() endsAt?: string;
@@ -131,7 +131,7 @@ export class CreateCalendarEventDto {
 export class UpdateCalendarEventDto {
   @IsOptional() @IsString() @MinLength(3) @MaxLength(160) title?: string;
   @IsOptional() @IsString() @MaxLength(5000) description?: string;
-  @IsOptional() @IsIn(["COURSE_EVENT", "COURSE_START", "COURSE_END", "ANNOUNCEMENT"]) type?: string;
+  @IsOptional() @IsIn(["COURSE_EVENT", "COURSE_START", "COURSE_END", "ANNOUNCEMENT", "PERSONAL_EVENT", "PERSONAL_REMINDER"]) type?: string;
   @IsOptional() @IsDateString() startsAt?: string;
   @IsOptional() @IsDateString() endsAt?: string;
   @IsOptional() @IsString() @MaxLength(100) timezone?: string;

@@ -1,7 +1,6 @@
-import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import type { RealtimeEvent } from "@lms/db";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { PrismaService } from "../prisma/prisma.service";
+import { ForbiddenException,NotFoundException } from "@nestjs/common";
+import { beforeEach,describe,expect,it,vi } from "vitest";
 import { RealtimeService } from "./realtime.service";
 
 describe("RealtimeService", () => {

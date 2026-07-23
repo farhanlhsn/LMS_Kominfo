@@ -41,23 +41,21 @@ export function CookieBanner() {
   const persist = useCallback(
     async (value: ConsentState) => {
       setSubmitting(true);
+      let sessionId = generateSessionId();
+      if (typeof window !== "undefined") {
+        sessionId =
+          window.sessionStorage.getItem("lms.session.id") ?? sessionId;
+        window.sessionStorage.setItem("lms.session.id", sessionId);
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
+      }
+      setVisible(false);
       try {
-        const sessionId =
-          (typeof window !== "undefined" &&
-            window.sessionStorage.getItem("lms.session.id")) ||
-          generateSessionId();
-        if (typeof window !== "undefined") {
-          window.sessionStorage.setItem("lms.session.id", sessionId);
-        }
         await recordConsent({
           ...value,
           sessionId,
         });
-        if (typeof window !== "undefined") {
-          window.localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
-        }
-        setVisible(false);
       } catch (error) {
+        // Local consent remains authoritative when audit sync is unavailable.
         console.error("Failed to record cookie consent", error);
       } finally {
         setSubmitting(false);

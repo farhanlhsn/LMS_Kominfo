@@ -1,9 +1,8 @@
 'use client';
 
-import React from 'react';
-import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { CheckCircle2, PlayCircle, FileText, HelpCircle, Link as LinkIcon, Lock } from 'lucide-react';
+import { CheckCircle2,FileText,HelpCircle,PlayCircle } from 'lucide-react';
+import Link from 'next/link';
 
 interface Lesson {
   id: string;
@@ -22,7 +21,6 @@ interface Module {
 
 interface LessonSidebarProps {
   courseTitle: string;
-  courseId: string;
   modules: Module[];
   currentLessonId: string;
   completedLessonIds: string[];
@@ -30,7 +28,6 @@ interface LessonSidebarProps {
 
 export function LessonSidebar({
   courseTitle,
-  courseId,
   modules,
   currentLessonId,
   completedLessonIds,

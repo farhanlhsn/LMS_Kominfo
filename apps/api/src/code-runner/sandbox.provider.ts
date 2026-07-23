@@ -125,6 +125,8 @@ export class MockSandboxProvider implements SandboxProvider {
     const stdinPayload = input.stdin ?? "";
 
     try {
+      // Path is generated inside a fresh OS temp directory above.
+      // eslint-disable-next-line security/detect-non-literal-fs-filename
       await writeFile(file, input.code, "utf8");
       const result = await this.spawnIsolated(spec, file, stdinPayload, timeoutMs);
       const durationMs = Date.now() - start;

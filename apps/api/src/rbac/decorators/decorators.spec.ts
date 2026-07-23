@@ -7,7 +7,7 @@ import { Reflector } from "@nestjs/core";
 
 function paramFactory(decorator: (...args: any[]) => ParameterDecorator) {
   class Host {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     method(@decorator() _value: unknown) {}
   }
   const metadata = Reflect.getMetadata(

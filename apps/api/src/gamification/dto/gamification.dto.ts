@@ -1,5 +1,5 @@
-﻿import { IsString, IsOptional, IsInt, IsEnum, Min, Max } from "class-validator";
-import { Type } from "class-transformer";
+﻿import { Type } from "class-transformer";
+import { IsIn,IsInt,IsOptional,IsString,Max,Min } from "class-validator";
 
 export class CreateSkillDto {
   @IsString()
@@ -60,7 +60,7 @@ export class LeaderboardQueryDto {
   courseId?: string;
 
   @IsOptional()
-  @IsString()
+  @IsIn(["DAILY", "WEEKLY", "MONTHLY", "ALL_TIME"])
   period?: string = "ALL_TIME";
 
   @IsOptional()

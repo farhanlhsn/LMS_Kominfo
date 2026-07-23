@@ -1,17 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "../ui/card";
-import { Button } from "../ui/button";
-import { Input } from "../ui/input";
-import { Textarea } from "../ui/input";
-import { Label } from "../ui/label";
+import { FormEvent,useState } from "react";
 import {
   useCreateSubmissionAnnotation,
   useDeleteSubmissionAnnotation,
@@ -19,6 +8,16 @@ import {
   useUpdateSubmissionAnnotation,
 } from "../../lib/api-hooks";
 import type { SubmissionAnnotation } from "../../lib/lms-types";
+import { Button } from "../ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../ui/card";
+import { Input,Textarea } from "../ui/input";
+import { Label } from "../ui/label";
 
 export interface SubmissionAnnotationsProps {
   submissionId: string;
@@ -31,7 +30,6 @@ export function SubmissionAnnotations({ submissionId }: SubmissionAnnotationsPro
   const remove = useDeleteSubmissionAnnotation();
   const [selectedText, setSelectedText] = useState("");
   const [comment, setComment] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const annotations = (annotationsQuery.data ?? []) as SubmissionAnnotation[];

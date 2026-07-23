@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   api,
   ApiClientError,
@@ -12,6 +12,7 @@ import type {
   ActivityContentResponse,
   AdminOverview,
   Achievement,
+  AiCourseIndexStatus,
   AiGeneratedItem,
   AiStatus,
   AiTutorResponse,
@@ -76,16 +77,13 @@ import type {
   WebhookEndpoint,
   WishlistItem,
   ScormPackage,
-  ScormAttempt,
   H5PContent,
-  H5PResult,
   XapiStatement,
   Survey,
   SurveyWithQuestions,
   Poll,
   PollResults,
   CourseFeedbackListResponse,
-  CourseFeedbackEntry,
   SurveyResponse as SurveyResponseEntry,
   RealtimeTransportInfo,
   BulkJob,
@@ -114,20 +112,17 @@ import type {
   LegalDocumentType,
   ConsentRecord,
   DataExportRequest,
-  AnonymizationRequest,
   RetentionPolicy,
   BackupJob,
   OAuthProvider,
   OAuthAccount,
   MfaFactor,
-  MfaEnrollmentChallenge,
   RefreshSessionEntry,
   Cohort,
   CohortMember,
   CohortSchedule,
   UserTimezonePreference,
   ProctoringSession,
-  ProctoringEvent,
   ProctoringFlag,
   ProctoringFlagStatus,
   ProctoringEventType,
@@ -136,33 +131,29 @@ import type {
   Payout,
   PayoutMethod,
   PayoutPeriod,
-  PayoutPeriodStatus,
-  PayoutStatus,
   PayoutBeneficiaryType,
   PayoutMethodType,
   RevenueShareScope,
   TaxRegion,
   TaxRule,
-  TaxCalculation,
   TaxRuleType,
   SupportedCurrency,
   PermissionRecord,
+  AccessContextType,
+  CapabilityEffect,
+  CapabilityDecisionRecord,
   ThreeDAssetRecord,
   ThreeDSceneRecord,
-  ThreeDInteractionRecord,
   CodeExecutionRecord,
   CodeSubmissionRecord,
-  CodeExecutionTestCaseRecord,
-  CodeJudgeResult,
   CodeLanguage,
-  CodeExecutionStatus,
   PluginListingRecord,
   PluginReviewRecord,
   PluginInstallationRecord,
+  PluginInstallationStatus,
   PluginPolicyRecord,
   PluginListingStatus,
   PluginReviewStatus,
-  PopoutSessionResponse,
   PopoutValidationResponse,
   PluginPanelDefinition,
   PanelEntry,
@@ -189,30 +180,46 @@ function useApiQuery<T>(
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ApiClientError | Error | null>(null);
+  const loaderRef = useRef(loader);
+  const previousDepsRef = useRef<unknown[]>([]);
+  const dependencyVersionRef = useRef(0);
+
+  loaderRef.current = loader;
+  const dependenciesChanged =
+    deps.length !== previousDepsRef.current.length ||
+    deps.some(
+      (dependency, index) =>
+        !Object.is(dependency, previousDepsRef.current[index]),
+    );
+  if (dependenciesChanged) {
+    previousDepsRef.current = deps.slice();
+    dependencyVersionRef.current += 1;
+  }
+  const dependencyVersion = dependencyVersionRef.current;
 
   const reload = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      setData(await loader());
+      setData(await loaderRef.current());
     } catch (caught) {
       setError(caught instanceof Error ? caught : new Error(String(caught)));
     } finally {
       setLoading(false);
     }
-  }, deps);
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
-      setData(await loader());
+      setData(await loaderRef.current());
     } catch (caught) {
       console.error("Background refresh failed", caught);
     }
-  }, deps);
+  }, []);
 
   useEffect(() => {
     void reload();
-  }, [reload]);
+  }, [dependencyVersion, reload]);
 
   return {
     data,
@@ -286,6 +293,115 @@ export function useOrganizationPermissions() {
   );
 }
 
+export function useAccessContexts() {
+  return useApiQuery(() => api.accessContexts(), []);
+}
+
+export function useContextRoleAssignments() {
+  return useApiQuery(() => api.contextRoleAssignments(), []);
+}
+
+export function useCapabilityOverrides() {
+  return useApiQuery(() => api.capabilityOverrides(), []);
+}
+
+export function useRoleDelegations() {
+  return useApiQuery(() => api.roleDelegations(), []);
+}
+
+export function useActiveRoleSwitches() {
+  return useApiQuery(() => api.activeRoleSwitches(), []);
+}
+
+export function useAssignContextRole() {
+  return useCallback(
+    (input: {
+      userId: string;
+      roleId: string;
+      contextType: AccessContextType;
+      contextInstanceId: string;
+      startsAt?: string;
+      expiresAt?: string;
+    }) => api.assignContextRole(input),
+    [],
+  );
+}
+
+export function useRemoveContextRoleAssignment() {
+  return useCallback(
+    (assignmentId: string) => api.removeContextRoleAssignment(assignmentId),
+    [],
+  );
+}
+
+export function useSetCapabilityOverride() {
+  return useCallback(
+    (input: {
+      roleId: string;
+      permissionKey: string;
+      effect: CapabilityEffect;
+      contextType: AccessContextType;
+      contextInstanceId: string;
+    }) => api.setCapabilityOverride(input),
+    [],
+  );
+}
+
+export function useSetRoleDelegation() {
+  return useCallback(
+    (input: {
+      actorRoleId: string;
+      targetRoleId: string;
+      canView: boolean;
+      canAssign: boolean;
+      canOverride: boolean;
+      canSwitch: boolean;
+    }) => api.setRoleDelegation(input),
+    [],
+  );
+}
+
+export function useSimulateAccess() {
+  return useCallback(
+    (input: {
+      userId: string;
+      permissionKeys: string[];
+      contextType: AccessContextType;
+      contextInstanceId: string;
+      ignoreAdminBypass?: boolean;
+    }): Promise<CapabilityDecisionRecord[]> => api.simulateAccess(input),
+    [],
+  );
+}
+
+export function useSwitchRole() {
+  return useCallback(
+    (input: {
+      roleId: string;
+      contextType: AccessContextType;
+      contextInstanceId: string;
+      expiresAt?: string;
+    }) => api.switchRole(input),
+    [],
+  );
+}
+
+export function useClearRoleSwitches() {
+  return useCallback(() => api.clearRoleSwitches(), []);
+}
+
+export function useRoleImpact() {
+  return useCallback((roleId: string) => api.roleImpact(roleId), []);
+}
+
+export function useDeactivateRole() {
+  return useCallback(
+    (roleId: string, confirmKey: string) =>
+      api.deactivateRole(roleId, confirmKey),
+    [],
+  );
+}
+
 export function useCreateOrganizationMember() {
   return useCallback(
     (input: {
@@ -352,7 +468,8 @@ export function useSwitchOrganization() {
   return useCallback(async (organizationId: string) => {
     const session = await api.switchOrganization(organizationId);
     setSession(session);
-    window.location.href = "/";
+    const { defaultRouteForSession } = await import("./authz");
+    window.location.href = defaultRouteForSession(session);
   }, []);
 }
 
@@ -633,7 +750,9 @@ export function useGenerateInstructorVideoQuiz() {
   );
 }
 
-export function useListInstructorAiItems(query: Record<string, string | undefined> = {}) {
+export function useListInstructorAiItems(
+  query: Record<string, string | undefined> = {},
+) {
   return useApiQuery<AiGeneratedItem[]>(
     () => api.listInstructorAiItems(query),
     [JSON.stringify(query)],
@@ -641,21 +760,33 @@ export function useListInstructorAiItems(query: Record<string, string | undefine
 }
 
 export function useApproveAiItem() {
-  return useCallback((itemId: string) => api.approveInstructorAiItem(itemId), []);
+  return useCallback(
+    (itemId: string) => api.approveInstructorAiItem(itemId),
+    [],
+  );
 }
 
 export function useRejectAiItem() {
-  return useCallback((itemId: string, reason?: string) =>
-    api.rejectInstructorAiItem(itemId, reason), []);
+  return useCallback(
+    (itemId: string, reason?: string) =>
+      api.rejectInstructorAiItem(itemId, reason),
+    [],
+  );
 }
 
 export function usePublishAiItem() {
-  return useCallback((itemId: string) => api.publishInstructorAiItem(itemId), []);
+  return useCallback(
+    (itemId: string) => api.publishInstructorAiItem(itemId),
+    [],
+  );
 }
 
 export function useUpdateAiItem() {
-  return useCallback((itemId: string, input: Record<string, unknown>) =>
-    api.updateInstructorAiItem(itemId, input), []);
+  return useCallback(
+    (itemId: string, input: Record<string, unknown>) =>
+      api.updateInstructorAiItem(itemId, input),
+    [],
+  );
 }
 
 export function useActivityFlashcards(activityId: string | null) {
@@ -666,16 +797,14 @@ export function useActivityFlashcards(activityId: string | null) {
 }
 
 export function useInstructorAiIndexCourse() {
-  return useCallback((courseId: string) => api.instructorAiIndexCourse(courseId), []);
+  return useCallback(
+    (courseId: string) => api.instructorAiIndexCourse(courseId),
+    [],
+  );
 }
 
 export function useInstructorAiIndexStatus(courseId: string | null) {
-  return useApiQuery<{
-    status: string;
-    documentCount: number;
-    chunkCount: number;
-    needsReindex: boolean;
-  }>(async () => {
+  return useApiQuery<AiCourseIndexStatus>(async () => {
     if (!courseId) throw new Error("Course id is required");
     return api.instructorAiIndexStatus(courseId);
   }, [courseId]);
@@ -691,28 +820,39 @@ export function useListCaptionCues(trackId: string | null) {
 
 export function useCreateCaptionCue() {
   return useCallback(
-    (trackId: string, input: { startSeconds: number; endSeconds: number; text: string }) =>
-      api.createInstructorCaptionCue(trackId, input),
+    (
+      trackId: string,
+      input: { startSeconds: number; endSeconds: number; text: string },
+    ) => api.createInstructorCaptionCue(trackId, input),
     [],
   );
 }
 
 export function useUpdateCaptionCue() {
   return useCallback(
-    (trackId: string, cueIndex: number, input: { startSeconds?: number; endSeconds?: number; text?: string }) =>
-      api.updateInstructorCaptionCue(trackId, cueIndex, input),
+    (
+      trackId: string,
+      cueIndex: number,
+      input: { startSeconds?: number; endSeconds?: number; text?: string },
+    ) => api.updateInstructorCaptionCue(trackId, cueIndex, input),
     [],
   );
 }
 
 export function useDeleteCaptionCue() {
-  return useCallback((trackId: string, cueIndex: number) =>
-    api.deleteInstructorCaptionCue(trackId, cueIndex), []);
+  return useCallback(
+    (trackId: string, cueIndex: number) =>
+      api.deleteInstructorCaptionCue(trackId, cueIndex),
+    [],
+  );
 }
 
 export function useReorderCaptionCues() {
-  return useCallback((trackId: string, orderedIndices: number[]) =>
-    api.reorderInstructorCaptionCues(trackId, orderedIndices), []);
+  return useCallback(
+    (trackId: string, orderedIndices: number[]) =>
+      api.reorderInstructorCaptionCues(trackId, orderedIndices),
+    [],
+  );
 }
 
 // Phase 18: Advanced assignment hooks
@@ -725,8 +865,10 @@ export function useAssignmentGroups(assignmentId: string | null) {
 
 export function useCreateAssignmentGroup() {
   return useCallback(
-    (assignmentId: string, input: { name: string; maxMembers?: number; memberIds?: string[] }) =>
-      api.createAssignmentGroup(assignmentId, input),
+    (
+      assignmentId: string,
+      input: { name: string; maxMembers?: number; memberIds?: string[] },
+    ) => api.createAssignmentGroup(assignmentId, input),
     [],
   );
 }
@@ -736,28 +878,42 @@ export function useUpdateAssignmentGroup() {
     (
       assignmentId: string,
       groupId: string,
-      input: { name?: string; maxMembers?: number; status?: "ACTIVE" | "ARCHIVED" },
+      input: {
+        name?: string;
+        maxMembers?: number;
+        status?: "ACTIVE" | "ARCHIVED";
+      },
     ) => api.updateAssignmentGroup(assignmentId, groupId, input),
     [],
   );
 }
 
 export function useDeleteAssignmentGroup() {
-  return useCallback((assignmentId: string, groupId: string) =>
-    api.deleteAssignmentGroup(assignmentId, groupId), []);
+  return useCallback(
+    (assignmentId: string, groupId: string) =>
+      api.deleteAssignmentGroup(assignmentId, groupId),
+    [],
+  );
 }
 
 export function useAddAssignmentGroupMember() {
   return useCallback(
-    (assignmentId: string, groupId: string, userId: string, role: "member" | "leader" = "member") =>
-      api.addAssignmentGroupMember(assignmentId, groupId, userId, role),
+    (
+      assignmentId: string,
+      groupId: string,
+      userId: string,
+      role: "member" | "leader" = "member",
+    ) => api.addAssignmentGroupMember(assignmentId, groupId, userId, role),
     [],
   );
 }
 
 export function useRemoveAssignmentGroupMember() {
-  return useCallback((assignmentId: string, groupId: string, userId: string) =>
-    api.removeAssignmentGroupMember(assignmentId, groupId, userId), []);
+  return useCallback(
+    (assignmentId: string, groupId: string, userId: string) =>
+      api.removeAssignmentGroupMember(assignmentId, groupId, userId),
+    [],
+  );
 }
 
 export function useUpdateAssignmentCollaboration() {
@@ -794,8 +950,10 @@ export function useUpsertPeerReviewConfig() {
 }
 
 export function useGeneratePeerReviewMatches() {
-  return useCallback((assignmentId: string) =>
-    api.generatePeerReviewMatches(assignmentId), []);
+  return useCallback(
+    (assignmentId: string) => api.generatePeerReviewMatches(assignmentId),
+    [],
+  );
 }
 
 export function usePeerReviewMatches(assignmentId: string | null) {
@@ -823,7 +981,12 @@ export function useCreateSubmissionAnnotation() {
   return useCallback(
     (
       submissionId: string,
-      input: { startOffset: number; endOffset: number; selectedText: string; comment: string },
+      input: {
+        startOffset: number;
+        endOffset: number;
+        selectedText: string;
+        comment: string;
+      },
     ) => api.createSubmissionAnnotation(submissionId, input),
     [],
   );
@@ -831,15 +994,21 @@ export function useCreateSubmissionAnnotation() {
 
 export function useUpdateSubmissionAnnotation() {
   return useCallback(
-    (submissionId: string, annotationId: string, input: { comment?: string; resolved?: boolean }) =>
-      api.updateSubmissionAnnotation(submissionId, annotationId, input),
+    (
+      submissionId: string,
+      annotationId: string,
+      input: { comment?: string; resolved?: boolean },
+    ) => api.updateSubmissionAnnotation(submissionId, annotationId, input),
     [],
   );
 }
 
 export function useDeleteSubmissionAnnotation() {
-  return useCallback((submissionId: string, annotationId: string) =>
-    api.deleteSubmissionAnnotation(submissionId, annotationId), []);
+  return useCallback(
+    (submissionId: string, annotationId: string) =>
+      api.deleteSubmissionAnnotation(submissionId, annotationId),
+    [],
+  );
 }
 
 export function usePlagiarismChecks(submissionId: string | null) {
@@ -850,8 +1019,11 @@ export function usePlagiarismChecks(submissionId: string | null) {
 }
 
 export function useRunPlagiarismCheck() {
-  return useCallback((submissionId: string, input: { provider?: string } = {}) =>
-    api.runPlagiarismCheck(submissionId, input), []);
+  return useCallback(
+    (submissionId: string, input: { provider?: string } = {}) =>
+      api.runPlagiarismCheck(submissionId, input),
+    [],
+  );
 }
 
 export function useCourseShowcases(courseId: string | null) {
@@ -879,13 +1051,18 @@ export function useCreateCourseShowcase() {
 }
 
 export function useUpdateCourseShowcase() {
-  return useCallback((showcaseId: string, input: Record<string, unknown>) =>
-    api.updateCourseShowcase(showcaseId, input), []);
+  return useCallback(
+    (showcaseId: string, input: Record<string, unknown>) =>
+      api.updateCourseShowcase(showcaseId, input),
+    [],
+  );
 }
 
 export function useDeleteCourseShowcase() {
-  return useCallback((showcaseId: string) =>
-    api.deleteCourseShowcase(showcaseId), []);
+  return useCallback(
+    (showcaseId: string) => api.deleteCourseShowcase(showcaseId),
+    [],
+  );
 }
 
 // Learner hooks
@@ -916,14 +1093,19 @@ export function useAddPortfolioEntry() {
 
 export function useUpdatePortfolioEntry() {
   return useCallback(
-    (entryId: string, input: { title?: string; description?: string; orderIndex?: number }) =>
-      api.updatePortfolioEntry(entryId, input),
+    (
+      entryId: string,
+      input: { title?: string; description?: string; orderIndex?: number },
+    ) => api.updatePortfolioEntry(entryId, input),
     [],
   );
 }
 
 export function useRemovePortfolioEntry() {
-  return useCallback((entryId: string) => api.removePortfolioEntry(entryId), []);
+  return useCallback(
+    (entryId: string) => api.removePortfolioEntry(entryId),
+    [],
+  );
 }
 
 export function useLearnerPeerReviews() {
@@ -934,7 +1116,16 @@ export function useSubmitLearnerPeerReview() {
   return useCallback(
     (
       matchId: string,
-      input: { overallScore?: number; feedback?: string; rubricScores?: { criterionId: string; levelId?: string; points: number; feedback?: string }[] },
+      input: {
+        overallScore?: number;
+        feedback?: string;
+        rubricScores?: {
+          criterionId: string;
+          levelId?: string;
+          points: number;
+          feedback?: string;
+        }[];
+      },
     ) => api.submitLearnerPeerReview(matchId, input),
     [],
   );
@@ -1308,12 +1499,23 @@ export function useLearnerStreak() {
 }
 
 export function useStartStudySession() {
-  return useCallback((input: { courseId?: string; goalId?: string; targetSeconds?: number }) =>
-    api.startStudySession(input), []);
+  return useCallback(
+    (input: { courseId?: string; goalId?: string; targetSeconds?: number }) =>
+      api.startStudySession(input),
+    [],
+  );
 }
 
-export function useListStudySessions(params?: { status?: string; from?: string; to?: string; limit?: number }) {
-  return useApiQuery<StudySession[]>(async () => api.listStudySessions(params), [JSON.stringify(params)]);
+export function useListStudySessions(params?: {
+  status?: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+}) {
+  return useApiQuery<StudySession[]>(
+    async () => api.listStudySessions(params),
+    [JSON.stringify(params)],
+  );
 }
 
 export function useGetStudySession(id: string | null) {
@@ -1324,8 +1526,11 @@ export function useGetStudySession(id: string | null) {
 }
 
 export function useUpdateStudySession() {
-  return useCallback((id: string, input: { status?: string; elapsedSeconds?: number }) =>
-    api.updateStudySession(id, input), []);
+  return useCallback(
+    (id: string, input: { status?: string; elapsedSeconds?: number }) =>
+      api.updateStudySession(id, input),
+    [],
+  );
 }
 
 export function useCancelStudySession() {
@@ -1363,7 +1568,10 @@ export function useAuditLogs(query?: Record<string, string>) {
   }, [JSON.stringify(query)]);
 }
 
-export function useInstructorCourseRoster(courseId: string | null, query?: Record<string, string>) {
+export function useInstructorCourseRoster(
+  courseId: string | null,
+  query?: Record<string, string>,
+) {
   return useApiQuery(async () => {
     if (!courseId) throw new Error("Course id is required");
     const result = await api.instructorCourseRoster(courseId, query);
@@ -1380,10 +1588,17 @@ export function useInstructorCourseGradebook(courseId: string | null) {
 }
 
 export function useReviewLateSubmission() {
-  return useCallback((submissionId: string, input: Record<string, unknown>) => api.reviewLateSubmission(submissionId, input), []);
+  return useCallback(
+    (submissionId: string, input: Record<string, unknown>) =>
+      api.reviewLateSubmission(submissionId, input),
+    [],
+  );
 }
 
-export function useInstructorCourseEngagement(courseId: string | null, query?: Record<string, string>) {
+export function useInstructorCourseEngagement(
+  courseId: string | null,
+  query?: Record<string, string>,
+) {
   return useApiQuery(async () => {
     if (!courseId) throw new Error("Course id is required");
     return api.instructorCourseEngagement(courseId, query);
@@ -1568,7 +1783,10 @@ export function useWebhooks() {
   }, []);
 }
 
-export function useWebhookDeliveries(endpointId: string | null, query?: Record<string, string>) {
+export function useWebhookDeliveries(
+  endpointId: string | null,
+  query?: Record<string, string>,
+) {
   return useApiQuery(async () => {
     if (!endpointId) throw new Error("Endpoint id is required");
     const result = await api.webhookDeliveries(endpointId, query);
@@ -1578,7 +1796,10 @@ export function useWebhookDeliveries(endpointId: string | null, query?: Record<s
 
 // ── Phase 15 — Reviews, Wishlist, Favorites hooks ──
 
-export function useCourseReviews(courseId: string | null, query?: Record<string, string>) {
+export function useCourseReviews(
+  courseId: string | null,
+  query?: Record<string, string>,
+) {
   return useApiQuery(async () => {
     if (!courseId) throw new Error("Course id is required");
     const result = await api.courseReviews(courseId, query);
@@ -1619,7 +1840,10 @@ export function useExportNotes() {
 
 // ── Phase 16: Experiences ──
 export function useScormPackages(courseId?: string) {
-  return useApiQuery<ScormPackage[]>(() => api.listScormPackages(courseId), [courseId]);
+  return useApiQuery<ScormPackage[]>(
+    () => api.listScormPackages(courseId),
+    [courseId],
+  );
 }
 export function useScormPackage(id: string | null) {
   return useApiQuery<ScormPackage | null>(async () => {
@@ -1643,7 +1867,10 @@ export function useCommitScormAttempt() {
 }
 
 export function useH5PContent(courseId?: string) {
-  return useApiQuery<H5PContent[]>(() => api.listH5PContent(courseId), [courseId]);
+  return useApiQuery<H5PContent[]>(
+    () => api.listH5PContent(courseId),
+    [courseId],
+  );
 }
 export function useSubmitH5PResult() {
   return useCallback(
@@ -1654,17 +1881,24 @@ export function useSubmitH5PResult() {
 }
 
 export function useXapiStatements(limit = 50) {
-  return useApiQuery<XapiStatement[]>(() => api.listXapiStatements(limit), [limit]);
+  return useApiQuery<XapiStatement[]>(
+    () => api.listXapiStatements(limit),
+    [limit],
+  );
 }
 export function usePostXapiStatements() {
   return useCallback(
-    (statements: Array<Record<string, unknown>>) => api.postXapiStatements(statements),
+    (statements: Array<Record<string, unknown>>) =>
+      api.postXapiStatements(statements),
     [],
   );
 }
 
 export function useSurveys(query?: Record<string, string>) {
-  return useApiQuery<Survey[]>(() => api.listSurveys(query), [JSON.stringify(query)]);
+  return useApiQuery<Survey[]>(
+    () => api.listSurveys(query),
+    [JSON.stringify(query)],
+  );
 }
 export function useSurvey(id: string | null) {
   return useApiQuery<SurveyWithQuestions | null>(async () => {
@@ -1673,29 +1907,38 @@ export function useSurvey(id: string | null) {
   }, [id]);
 }
 export function useCreateSurvey() {
-  return useCallback((input: Record<string, unknown>) => api.createSurvey(input), []);
+  return useCallback(
+    (input: Record<string, unknown>) => api.createSurvey(input),
+    [],
+  );
 }
 export function useUpdateSurvey() {
-  return useCallback((id: string, input: Record<string, unknown>) => api.updateSurvey(id, input), []);
+  return useCallback(
+    (id: string, input: Record<string, unknown>) => api.updateSurvey(id, input),
+    [],
+  );
 }
 export function useDeleteSurvey() {
   return useCallback((id: string) => api.deleteSurvey(id), []);
 }
 export function useAddSurveyQuestion() {
   return useCallback(
-    (surveyId: string, input: Record<string, unknown>) => api.addSurveyQuestion(surveyId, input),
+    (surveyId: string, input: Record<string, unknown>) =>
+      api.addSurveyQuestion(surveyId, input),
     [],
   );
 }
 export function useRemoveSurveyQuestion() {
   return useCallback(
-    (surveyId: string, questionId: string) => api.removeSurveyQuestion(surveyId, questionId),
+    (surveyId: string, questionId: string) =>
+      api.removeSurveyQuestion(surveyId, questionId),
     [],
   );
 }
 export function useSubmitSurveyResponse() {
   return useCallback(
-    (surveyId: string, input: Record<string, unknown>) => api.submitSurveyResponse(surveyId, input),
+    (surveyId: string, input: Record<string, unknown>) =>
+      api.submitSurveyResponse(surveyId, input),
     [],
   );
 }
@@ -1707,19 +1950,31 @@ export function useSurveyResponses(surveyId: string | null) {
 }
 
 export function usePolls(query?: Record<string, string>) {
-  return useApiQuery<Poll[]>(() => api.listPolls(query), [JSON.stringify(query)]);
+  return useApiQuery<Poll[]>(
+    () => api.listPolls(query),
+    [JSON.stringify(query)],
+  );
 }
 export function useCreatePoll() {
-  return useCallback((input: Record<string, unknown>) => api.createPoll(input), []);
+  return useCallback(
+    (input: Record<string, unknown>) => api.createPoll(input),
+    [],
+  );
 }
 export function useUpdatePoll() {
-  return useCallback((id: string, input: Record<string, unknown>) => api.updatePoll(id, input), []);
+  return useCallback(
+    (id: string, input: Record<string, unknown>) => api.updatePoll(id, input),
+    [],
+  );
 }
 export function useDeletePoll() {
   return useCallback((id: string) => api.deletePoll(id), []);
 }
 export function useVotePoll() {
-  return useCallback((id: string, selected: string[]) => api.votePoll(id, selected), []);
+  return useCallback(
+    (id: string, selected: string[]) => api.votePoll(id, selected),
+    [],
+  );
 }
 export function usePollResults(id: string | null) {
   return useApiQuery<PollResults | null>(async () => {
@@ -1767,11 +2022,17 @@ export function useBulkJob(id: string | null) {
 }
 
 export function useCreateBulkJob() {
-  return useCallback((input: CreateBulkJobInput) => api.createBulkJob(input), []);
+  return useCallback(
+    (input: CreateBulkJobInput) => api.createBulkJob(input),
+    [],
+  );
 }
 
 export function useCancelBulkJob() {
-  return useCallback((id: string, reason: string) => api.cancelBulkJob(id, reason), []);
+  return useCallback(
+    (id: string, reason: string) => api.cancelBulkJob(id, reason),
+    [],
+  );
 }
 
 export function useResumeBulkJob() {
@@ -1795,7 +2056,10 @@ export function useConversation(id: string | null) {
   }, [id]);
 }
 
-export function useMessages(conversationId: string | null, params?: { cursor?: string; limit?: number }) {
+export function useMessages(
+  conversationId: string | null,
+  params?: { cursor?: string; limit?: number },
+) {
   return useApiQuery<{
     data: ChatMessage[];
     meta?: { limit: number; nextCursor: string | null; hasMore: boolean };
@@ -1806,21 +2070,32 @@ export function useMessages(conversationId: string | null, params?: { cursor?: s
 }
 
 export function useCreateConversation() {
-  return useCallback((input: CreateConversationInput) => api.createConversation(input), []);
+  return useCallback(
+    (input: CreateConversationInput) => api.createConversation(input),
+    [],
+  );
 }
 
 export function useAddConversationMembers() {
-  return useCallback((id: string, userIds: string[]) => api.addConversationMembers(id, userIds), []);
+  return useCallback(
+    (id: string, userIds: string[]) => api.addConversationMembers(id, userIds),
+    [],
+  );
 }
 
 export function useSendMessage() {
-  return useCallback((conversationId: string, input: SendMessageInput) =>
-    api.sendMessage(conversationId, input), []);
+  return useCallback(
+    (conversationId: string, input: SendMessageInput) =>
+      api.sendMessage(conversationId, input),
+    [],
+  );
 }
 
 export function useEditMessage() {
-  return useCallback((messageId: string, content: string) =>
-    api.editMessage(messageId, content), []);
+  return useCallback(
+    (messageId: string, content: string) => api.editMessage(messageId, content),
+    [],
+  );
 }
 
 export function useDeleteMessage() {
@@ -1828,18 +2103,31 @@ export function useDeleteMessage() {
 }
 
 export function useReactMessage() {
-  return useCallback((messageId: string, emoji: string) =>
-    api.reactMessage(messageId, emoji), []);
+  return useCallback(
+    (messageId: string, emoji: string) => api.reactMessage(messageId, emoji),
+    [],
+  );
 }
 
 export function useMarkConversationRead() {
-  return useCallback((conversationId: string, messageId?: string) =>
-    api.markConversationRead(conversationId, messageId), []);
+  return useCallback(
+    (conversationId: string, messageId?: string) =>
+      api.markConversationRead(conversationId, messageId),
+    [],
+  );
 }
 
 // ── Phase 19: Global Search hooks ───────────────────
 
-export function useGlobalSearch(query: string, options: { types?: SearchEntityType[]; courseId?: string; limit?: number } = {}, enabled = true) {
+export function useGlobalSearch(
+  query: string,
+  options: {
+    types?: SearchEntityType[];
+    courseId?: string;
+    limit?: number;
+  } = {},
+  enabled = true,
+) {
   return useApiQuery<GlobalSearchResult>(async () => {
     if (!enabled || !query.trim()) {
       return { query: "", total: 0, hits: [], facetCounts: emptyFacetCounts() };
@@ -1848,7 +2136,9 @@ export function useGlobalSearch(query: string, options: { types?: SearchEntityTy
   }, [query, JSON.stringify(options), enabled]);
 }
 
-export function useSearchAnalytics(params: { days?: number; limit?: number } = {}) {
+export function useSearchAnalytics(
+  params: { days?: number; limit?: number } = {},
+) {
   return useApiQuery<SearchAnalytics>(
     () => api.searchAnalytics(params),
     [JSON.stringify(params)],
@@ -1856,7 +2146,14 @@ export function useSearchAnalytics(params: { days?: number; limit?: number } = {
 }
 
 function emptyFacetCounts(): GlobalSearchResult["facetCounts"] {
-  return { course: 0, lesson: 0, discussion: 0, user: 0, certificate: 0, help_article: 0 };
+  return {
+    course: 0,
+    lesson: 0,
+    discussion: 0,
+    user: 0,
+    certificate: 0,
+    help_article: 0,
+  };
 }
 
 // ── Phase 20: Localization hooks ─────────────────────
@@ -1869,7 +2166,10 @@ export function useLocalePreference() {
 }
 
 export function useUpdateLocalePreference() {
-  return useCallback((input: Partial<UserLocalePreference>) => api.updateLocalePreference(input), []);
+  return useCallback(
+    (input: Partial<UserLocalePreference>) => api.updateLocalePreference(input),
+    [],
+  );
 }
 
 export function useOrgLocalePreference() {
@@ -1883,7 +2183,11 @@ export function useOrgLocalePreference() {
 }
 
 export function useUpdateOrgLocalePreference() {
-  return useCallback((input: Partial<OrgLocalePreference>) => api.updateOrgLocalePreference(input), []);
+  return useCallback(
+    (input: Partial<OrgLocalePreference>) =>
+      api.updateOrgLocalePreference(input),
+    [],
+  );
 }
 
 // ── Phase 20: Help Center hooks ──────────────────────
@@ -1892,8 +2196,13 @@ export function useHelpCategories() {
   return useApiQuery<HelpCategory[]>(async () => api.listHelpCategories(), []);
 }
 
-export function useHelpArticles(params: { q?: string; categoryId?: string; limit?: number } = {}) {
-  return useApiQuery<HelpArticle[]>(() => api.listHelpArticles(params), [JSON.stringify(params)]);
+export function useHelpArticles(
+  params: { q?: string; categoryId?: string; limit?: number } = {},
+) {
+  return useApiQuery<HelpArticle[]>(
+    () => api.listHelpArticles(params),
+    [JSON.stringify(params)],
+  );
 }
 
 export function useHelpArticle(id: string | null) {
@@ -1905,16 +2214,33 @@ export function useHelpArticle(id: string | null) {
 
 export function useCreateHelpArticle() {
   return useCallback(
-    (input: { categoryId: string; slug: string; title: string; body: string; excerpt?: string; tags?: string[]; status?: "DRAFT" | "PUBLISHED" | "ARCHIVED" }) =>
-      api.createHelpArticle(input),
+    (input: {
+      categoryId: string;
+      slug: string;
+      title: string;
+      body: string;
+      excerpt?: string;
+      tags?: string[];
+      status?: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+    }) => api.createHelpArticle(input),
     [],
   );
 }
 
 export function useUpdateHelpArticle() {
   return useCallback(
-    (id: string, input: Partial<{ categoryId: string; slug: string; title: string; body: string; excerpt: string; tags: string[]; status: "DRAFT" | "PUBLISHED" | "ARCHIVED" }>) =>
-      api.updateHelpArticle(id, input),
+    (
+      id: string,
+      input: Partial<{
+        categoryId: string;
+        slug: string;
+        title: string;
+        body: string;
+        excerpt: string;
+        tags: string[];
+        status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+      }>,
+    ) => api.updateHelpArticle(id, input),
     [],
   );
 }
@@ -1925,16 +2251,29 @@ export function useDeleteHelpArticle() {
 
 export function useCreateHelpCategory() {
   return useCallback(
-    (input: { key: string; title: string; description?: string; icon?: string; orderIndex?: number }) =>
-      api.createHelpCategory(input),
+    (input: {
+      key: string;
+      title: string;
+      description?: string;
+      icon?: string;
+      orderIndex?: number;
+    }) => api.createHelpCategory(input),
     [],
   );
 }
 
 export function useUpdateHelpCategory() {
   return useCallback(
-    (id: string, input: Partial<{ key: string; title: string; description?: string; icon?: string; orderIndex?: number }>) =>
-      api.updateHelpCategory(id, input),
+    (
+      id: string,
+      input: Partial<{
+        key: string;
+        title: string;
+        description?: string;
+        icon?: string;
+        orderIndex?: number;
+      }>,
+    ) => api.updateHelpCategory(id, input),
     [],
   );
 }
@@ -1945,8 +2284,13 @@ export function useDeleteHelpCategory() {
 
 // ── Phase 20: Support Tickets hooks ──────────────────
 
-export function useSupportTickets(params: { status?: string; limit?: number } = {}) {
-  return useApiQuery<SupportTicket[]>(() => api.listSupportTickets(params), [JSON.stringify(params)]);
+export function useSupportTickets(
+  params: { status?: string; limit?: number } = {},
+) {
+  return useApiQuery<SupportTicket[]>(
+    () => api.listSupportTickets(params),
+    [JSON.stringify(params)],
+  );
 }
 
 export function useSupportTicket(id: string | null) {
@@ -1958,23 +2302,30 @@ export function useSupportTicket(id: string | null) {
 
 export function useCreateSupportTicket() {
   return useCallback(
-    (input: { subject: string; body: string; category?: string; priority?: "LOW" | "NORMAL" | "HIGH" | "URGENT" }) =>
-      api.createSupportTicket(input),
+    (input: {
+      subject: string;
+      body: string;
+      category?: string;
+      priority?: "LOW" | "NORMAL" | "HIGH" | "URGENT";
+    }) => api.createSupportTicket(input),
     [],
   );
 }
 
 export function useReplySupportTicket() {
   return useCallback(
-    (id: string, body: string, isInternal = false) => api.replySupportTicket(id, body, isInternal),
+    (id: string, body: string, isInternal = false) =>
+      api.replySupportTicket(id, body, isInternal),
     [],
   );
 }
 
 export function useUpdateSupportTicket() {
   return useCallback(
-    (id: string, input: { status?: string; priority?: string; assignedToId?: string }) =>
-      api.updateSupportTicket(id, input),
+    (
+      id: string,
+      input: { status?: string; priority?: string; assignedToId?: string },
+    ) => api.updateSupportTicket(id, input),
     [],
   );
 }
@@ -1988,7 +2339,15 @@ export function useTranscriptNotes(lessonId?: string) {
   );
 }
 
-export function useSearchTranscriptNotes(params: { q?: string; lessonId?: string; activityId?: string; tags?: string[]; limit?: number } = {}) {
+export function useSearchTranscriptNotes(
+  params: {
+    q?: string;
+    lessonId?: string;
+    activityId?: string;
+    tags?: string[];
+    limit?: number;
+  } = {},
+) {
   return useApiQuery<TranscriptNote[]>(
     () => api.searchTranscriptNotes(params),
     [JSON.stringify(params)],
@@ -2011,12 +2370,15 @@ export function useCreateTranscriptNote() {
 
 export function useUpdateTranscriptNote() {
   return useCallback(
-    (id: string, input: Partial<{
-      content: string;
-      color: "yellow" | "green" | "blue" | "pink" | "purple";
-      tags: string[];
-      timestampSeconds: number;
-    }>) => api.updateTranscriptNote(id, input),
+    (
+      id: string,
+      input: Partial<{
+        content: string;
+        color: "yellow" | "green" | "blue" | "pink" | "purple";
+        tags: string[];
+        timestampSeconds: number;
+      }>,
+    ) => api.updateTranscriptNote(id, input),
     [],
   );
 }
@@ -2027,8 +2389,10 @@ export function useDeleteTranscriptNote() {
 
 export function useGenerateNoteContext() {
   return useCallback(
-    (id: string, input: { providerKey?: string; candidateNoteIds?: string[] } = {}) =>
-      api.generateNoteContext(id, input),
+    (
+      id: string,
+      input: { providerKey?: string; candidateNoteIds?: string[] } = {},
+    ) => api.generateNoteContext(id, input),
     [],
   );
 }
@@ -2041,7 +2405,10 @@ export function useNoteContext(noteId: string | null) {
 }
 
 export function useExportTranscriptNotes() {
-  return useCallback((input: { lessonId?: string } = {}) => api.exportTranscriptNotes(input), []);
+  return useCallback(
+    (input: { lessonId?: string } = {}) => api.exportTranscriptNotes(input),
+    [],
+  );
 }
 
 // ── Phase 21: Data Governance & Backup ──────────────────────
@@ -2119,7 +2486,8 @@ export function useAdminCreateOrganization() {
 
 export function useAdminUpdateOrganization() {
   return useCallback(
-    (id: string, input: Record<string, unknown>) => api.adminUpdateOrganization(id, input),
+    (id: string, input: Record<string, unknown>) =>
+      api.adminUpdateOrganization(id, input),
     [],
   );
 }
@@ -2141,7 +2509,8 @@ export function useAdminUser(id: string | null) {
 
 export function useUpdateAdminUser() {
   return useCallback(
-    (id: string, input: Record<string, unknown>) => api.updateAdminUser(id, input),
+    (id: string, input: Record<string, unknown>) =>
+      api.updateAdminUser(id, input),
     [],
   );
 }
@@ -2233,10 +2602,7 @@ export function useOAuthAccounts() {
 }
 
 export function useUnlinkOAuthAccount() {
-  return useCallback(
-    (id: string) => api.unlinkOAuthAccount(id),
-    [],
-  );
+  return useCallback((id: string) => api.unlinkOAuthAccount(id), []);
 }
 
 export function useLinkOAuthAccount() {
@@ -2354,7 +2720,9 @@ export function useSubmitReport() {
 
 // ── Phase 23: Cohort & Timezone hooks ──────────────────────
 
-export function useCohorts(params: { courseId?: string; status?: Cohort["status"] } = {}) {
+export function useCohorts(
+  params: { courseId?: string; status?: Cohort["status"] } = {},
+) {
   return useApiQuery<Cohort[]>(
     () => api.listCohorts(params),
     [JSON.stringify(params)],
@@ -2410,15 +2778,18 @@ export function useDeleteCohort() {
 
 export function useAddCohortMember() {
   return useCallback(
-    (cohortId: string, input: { userId: string; status?: CohortMember["status"] }) =>
-      api.addCohortMember(cohortId, input),
+    (
+      cohortId: string,
+      input: { userId: string; status?: CohortMember["status"] },
+    ) => api.addCohortMember(cohortId, input),
     [],
   );
 }
 
 export function useRemoveCohortMember() {
   return useCallback(
-    (cohortId: string, userId: string) => api.removeCohortMember(cohortId, userId),
+    (cohortId: string, userId: string) =>
+      api.removeCohortMember(cohortId, userId),
     [],
   );
 }
@@ -2476,7 +2847,9 @@ export function useUpdateMyTimezone() {
 
 // ── Phase 28: Proctoring hooks ──────────────────────
 
-export function useProctoringSessions(params: { userId?: string; status?: ProctoringSession["status"] } = {}) {
+export function useProctoringSessions(
+  params: { userId?: string; status?: ProctoringSession["status"] } = {},
+) {
   return useApiQuery<ProctoringSession[]>(
     () => api.listProctoringSessions(params),
     [JSON.stringify(params)],
@@ -2490,7 +2863,9 @@ export function useProctoringSession(id: string | null) {
   }, [id]);
 }
 
-export function useProctoringFlags(params: { status?: ProctoringFlagStatus; sessionId?: string } = {}) {
+export function useProctoringFlags(
+  params: { status?: ProctoringFlagStatus; sessionId?: string } = {},
+) {
   return useApiQuery<ProctoringFlag[]>(
     () => api.listProctoringFlags(params),
     [JSON.stringify(params)],
@@ -2499,8 +2874,11 @@ export function useProctoringFlags(params: { status?: ProctoringFlagStatus; sess
 
 export function useStartProctoringSession() {
   return useCallback(
-    (input: { attemptId: string; attemptType?: string; metadata?: Record<string, unknown> }) =>
-      api.startProctoringSession(input),
+    (input: {
+      attemptId: string;
+      attemptType?: string;
+      metadata?: Record<string, unknown>;
+    }) => api.startProctoringSession(input),
     [],
   );
 }
@@ -2509,14 +2887,21 @@ export function useIngestProctoringEvent() {
   return useCallback(
     (
       sessionId: string,
-      input: { type: ProctoringEventType; severity?: ProctoringSeverity; metadata?: Record<string, unknown> },
+      input: {
+        type: ProctoringEventType;
+        severity?: ProctoringSeverity;
+        metadata?: Record<string, unknown>;
+      },
     ) => api.ingestProctoringEvent(sessionId, input),
     [],
   );
 }
 
 export function useEndProctoringSession() {
-  return useCallback((sessionId: string) => api.endProctoringSession(sessionId), []);
+  return useCallback(
+    (sessionId: string) => api.endProctoringSession(sessionId),
+    [],
+  );
 }
 
 export function useReviewProctoringFlag() {
@@ -2535,8 +2920,12 @@ export function useRevenueShareRules() {
 
 export function useCreateRevenueShareRule() {
   return useCallback(
-    (input: { scope: RevenueShareScope; targetId?: string; percent: number; active?: boolean }) =>
-      api.createRevenueShareRule(input),
+    (input: {
+      scope: RevenueShareScope;
+      targetId?: string;
+      percent: number;
+      active?: boolean;
+    }) => api.createRevenueShareRule(input),
     [],
   );
 }
@@ -2578,7 +2967,10 @@ export function useCreatePayoutPeriod() {
 }
 
 export function useComputePayoutPeriod() {
-  return useCallback((periodId: string) => api.computePayoutPeriod(periodId), []);
+  return useCallback(
+    (periodId: string) => api.computePayoutPeriod(periodId),
+    [],
+  );
 }
 
 export function useLockPayoutPeriod() {
@@ -2587,7 +2979,8 @@ export function useLockPayoutPeriod() {
 
 export function usePayPayoutPeriod() {
   return useCallback(
-    (periodId: string, input: { reference?: string }) => api.payPayoutPeriod(periodId, input),
+    (periodId: string, input: { reference?: string }) =>
+      api.payPayoutPeriod(periodId, input),
     [],
   );
 }
@@ -2621,8 +3014,10 @@ export function useCreateTaxRule() {
 
 export function useUpdateTaxRule() {
   return useCallback(
-    (id: string, input: { rate?: number; inclusive?: boolean; active?: boolean }) =>
-      api.updateTaxRule(id, input),
+    (
+      id: string,
+      input: { rate?: number; inclusive?: boolean; active?: boolean },
+    ) => api.updateTaxRule(id, input),
     [],
   );
 }
@@ -2633,7 +3028,11 @@ export function useCalculateTax() {
       subtotal: number;
       regionCode: string;
       currency: SupportedCurrency;
-      lines?: Array<{ productId: string; amount: number; metadata?: Record<string, unknown> }>;
+      lines?: Array<{
+        productId: string;
+        amount: number;
+        metadata?: Record<string, unknown>;
+      }>;
     }) => api.calculateTax(input),
     [],
   );
@@ -2641,10 +3040,13 @@ export function useCalculateTax() {
 
 // ── Phase 31: 3D Content Plugin hooks ──────────────────────
 
-export function useThreeDAssets(params: { search?: string; format?: string } = {}) {
+export function useThreeDAssets(
+  params: { search?: string; format?: string } = {},
+  enabled = true,
+) {
   return useApiQuery<ThreeDAssetRecord[]>(
-    () => api.listThreeDAssets(params),
-    [JSON.stringify(params)],
+    () => (enabled ? api.listThreeDAssets(params) : Promise.resolve([])),
+    [JSON.stringify(params), enabled],
   );
 }
 
@@ -2701,8 +3103,10 @@ export function useThreeDScenes(assetId: string | null) {
 
 export function useCreateThreeDScene() {
   return useCallback(
-    (assetId: string, input: { scene: Record<string, unknown>; version?: number }) =>
-      api.createThreeDScene(assetId, input),
+    (
+      assetId: string,
+      input: { scene: Record<string, unknown>; version?: number },
+    ) => api.createThreeDScene(assetId, input),
     [],
   );
 }
@@ -2733,7 +3137,9 @@ export function useCodeExecution(id: string | null) {
   }, [id]);
 }
 
-export function useCodeSubmissions(params: { assignmentId?: string; userId?: string } = {}) {
+export function useCodeSubmissions(
+  params: { assignmentId?: string; userId?: string } = {},
+) {
   return useApiQuery<CodeSubmissionRecord[]>(
     () => api.listCodeSubmissions(params),
     [JSON.stringify(params)],
@@ -2758,7 +3164,11 @@ export function useJudgeCode() {
       assignmentId: string;
       language: CodeLanguage;
       code: string;
-      testCases: Array<{ name: string; input?: string; expectedOutput: string }>;
+      testCases: Array<{
+        name: string;
+        input?: string;
+        expectedOutput: string;
+      }>;
       timeoutMs?: number;
       scoreWeight?: number;
     }) => api.judgeCode(input),
@@ -2823,10 +3233,14 @@ export function useUpdatePluginListingStatus() {
 }
 
 export function usePluginReviews(listingId?: string) {
-  return useApiQuery<Array<PluginReviewRecord & { reviewer: { id: string; name: string; email: string }; listing: { id: string; name: string } }>>(
-    () => api.listPluginReviews(listingId),
-    [listingId ?? ""],
-  );
+  return useApiQuery<
+    Array<
+      PluginReviewRecord & {
+        reviewer: { id: string; name: string; email: string };
+        listing: { id: string; name: string };
+      }
+    >
+  >(() => api.listPluginReviews(listingId), [listingId ?? ""]);
 }
 
 export function useCreatePluginReview() {
@@ -2860,6 +3274,14 @@ export function useInstallPlugin() {
   );
 }
 
+export function useUpdatePluginInstallationStatus() {
+  return useCallback(
+    (id: string, status: PluginInstallationStatus) =>
+      api.updatePluginInstallationStatus(id, status),
+    [],
+  );
+}
+
 export function useUninstallPlugin() {
   return useCallback((id: string) => api.uninstallPlugin(id), []);
 }
@@ -2870,8 +3292,11 @@ export function usePluginPolicy() {
 
 export function useUpdatePluginPolicy() {
   return useCallback(
-    (input: { maxInstalls?: number; allowedCategories?: string[]; requireApproval?: boolean }) =>
-      api.updatePluginPolicy(input),
+    (input: {
+      maxInstalls?: number;
+      allowedCategories?: string[];
+      requireApproval?: boolean;
+    }) => api.updatePluginPolicy(input),
     [],
   );
 }
@@ -2880,7 +3305,8 @@ export function useUpdatePluginPolicy() {
 
 export function useIssuePopoutToken() {
   return useCallback(
-    (input: { lessonId: string; ttlMs?: number }) => api.issuePopoutToken(input),
+    (input: { lessonId: string; ttlMs?: number }) =>
+      api.issuePopoutToken(input),
     [],
   );
 }
@@ -2903,7 +3329,10 @@ export function useRevokePopoutToken() {
 // ── Phase 36: Plugin Workspace Panels hooks ──────────────────────
 
 export function useAvailablePanels() {
-  return useApiQuery<PluginPanelDefinition[]>(() => api.listAvailablePanels(), []);
+  return useApiQuery<PluginPanelDefinition[]>(
+    () => api.listAvailablePanels(),
+    [],
+  );
 }
 
 export function useRegisterPluginPanel() {

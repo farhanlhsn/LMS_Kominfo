@@ -1,5 +1,5 @@
-import { NotFoundException, ForbiddenException, BadRequestException } from "@nestjs/common";
-import { describe, expect, it, vi } from "vitest";
+import { ForbiddenException,NotFoundException } from "@nestjs/common";
+import { describe,expect,it,vi } from "vitest";
 import { AnalyticsService } from "./analytics.service";
 
 const org = { id: "org-a", slug: "a", name: "A", memberId: "m1", roleKeys: ["learner"], permissionKeys: [], isPlatformAdmin: false };
@@ -42,7 +42,7 @@ describe("AnalyticsService", () => {
 
   describe("getInstructorDashboard", () => {
     it("returns empty stats when no courses", async () => {
-      const { service, prisma } = setup({ course: { findMany: vi.fn().mockResolvedValue([]) } });
+      const { service } = setup({ course: { findMany: vi.fn().mockResolvedValue([]) } });
       const result = await service.getInstructorDashboard(org, "instructor-a");
       expect(result).toMatchObject({ totalLearners: 0, totalEnrollments: 0 });
     });
@@ -107,7 +107,7 @@ describe("AnalyticsService", () => {
 
   describe("tenant isolation", () => {
     it("rejects access to non-existent course", async () => {
-      const { service, prisma } = setup({ course: { findFirst: vi.fn().mockResolvedValue(null) } });
+      const { service } = setup({ course: { findFirst: vi.fn().mockResolvedValue(null) } });
       await expect(service.getLearnerCourseProgress(org, "user-a", "course-other-org")).rejects.toBeInstanceOf(NotFoundException);
     });
   });

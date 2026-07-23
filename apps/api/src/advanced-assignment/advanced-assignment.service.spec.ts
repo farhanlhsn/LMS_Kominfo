@@ -1,10 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
 import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
   NotFoundException,
 } from "@nestjs/common";
+import { describe,expect,it,vi } from "vitest";
 import { AdvancedAssignmentService } from "./advanced-assignment.service";
 import { MockPlagiarismProvider } from "./plagiarism.provider";
 
@@ -126,7 +126,7 @@ function setup(options: {
         ...args.data,
         user: { id: args.data.userId, email: `${args.data.userId}@e.c`, name: args.data.userId },
       })),
-      delete: vi.fn(async (args: any) => groups.size),
+      delete: vi.fn(async (_args: any) => groups.size),
     },
     enrollment: {
       findUnique: vi.fn(async (args: any) => {

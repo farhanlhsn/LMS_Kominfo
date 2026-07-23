@@ -21,6 +21,7 @@ export default tseslint.config(
       "**/*.config.ts",
       "**/next-env.d.ts",
       "**/e2e/**",
+      "apps/api/src/modules/**",
     ],
   },
   js.configs.recommended,

@@ -17,13 +17,23 @@ function setup() {
   const layouts = new Map<string, Record<string, any>>();
 
   const prisma: any = {
+    pluginInstallation: {
+      findMany: vi.fn(async () =>
+        Array.from(
+          new Set(Array.from(panels.values()).map((panel) => panel.pluginId)),
+        ).map((pluginId) => ({ listing: { pluginId } })),
+      ),
+    },
     pluginPanel: {
       findMany: vi.fn(async (args: any) =>
         Array.from(panels.values()).filter(
-          (p) => p.organizationId === args?.where?.organizationId,
+          (p) =>
+            p.organizationId === args?.where?.organizationId &&
+            (!args?.where?.pluginId?.in ||
+              args.where.pluginId.in.includes(p.pluginId)),
         ),
       ),
-      findFirst: vi.fn(async (args: any) => null),
+      findFirst: vi.fn(async (_args: any) => null),
       upsert: vi.fn(async (args: any) => {
         const key = `${args.where.organizationId_pluginId_panelKey.organizationId}:${args.where.organizationId_pluginId_panelKey.pluginId}:${args.where.organizationId_pluginId_panelKey.panelKey}`;
         panels.set(key, { ...args.create, ...(args.update ?? {}) });
@@ -65,7 +75,7 @@ describe("PluginPanelService", () => {
   });
 
   it("lists available panels for the org", async () => {
-    const { service, panels } = setup();
+    const { service } = setup();
     await service.registerPanel(org, {
       pluginId: "plugin.notes",
       panelKey: "notes",
@@ -103,7 +113,9 @@ describe("PluginPanelService", () => {
       name: "Notes",
     } as any);
     const saved = await service.saveLayout(org, "u1", "lesson", {
-      panels: [{ panelKey: "notes", size: "lg", position: "left", visible: true }],
+      panels: [
+        { panelKey: "notes", size: "lg", position: "left", visible: true },
+      ],
     } as any);
     expect(saved.panels).toHaveLength(1);
     expect(layouts.size).toBe(1);

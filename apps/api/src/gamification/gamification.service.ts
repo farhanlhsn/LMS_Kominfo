@@ -1,8 +1,8 @@
-﻿import { Inject, Injectable, NotFoundException, ForbiddenException, BadRequestException } from "@nestjs/common";
-import { normalizePageLimit, pageMeta } from "@lms/shared";
-import { PrismaService } from "../prisma/prisma.service";
+﻿import { normalizePageLimit,pageMeta } from "@lms/shared";
+import { Inject,Injectable,NotFoundException } from "@nestjs/common";
 import type { OrganizationContext } from "../auth/types/authenticated-request";
-import type { CreateSkillDto, UpdateSkillDto, CourseSkillDto, XpQueryDto, LeaderboardQueryDto, CreateAchievementDto, UpdateAchievementDto } from "./dto/gamification.dto";
+import { PrismaService } from "../prisma/prisma.service";
+import type { CourseSkillDto,CreateAchievementDto,CreateSkillDto,LeaderboardQueryDto,UpdateSkillDto,XpQueryDto } from "./dto/gamification.dto";
 
 @Injectable()
 export class GamificationService {
@@ -113,53 +113,18 @@ export class GamificationService {
   async getLeaderboard(org: OrganizationContext, query: LeaderboardQueryDto) {
     const period = query.period ?? "ALL_TIME";
     const limit = query.limit ?? 20;
-
-    if (period === "ALL_TIME") {
-      const rankings = await this.prisma.xpTransaction.groupBy({
-        by: ["userId"],
-        where: { organizationId: org.id, ...(query.courseId ? { sourceType: "course", sourceId: query.courseId } : {}) },
-        _sum: { amount: true },
-        orderBy: { _sum: { amount: "desc" } },
-        take: limit,
-      });
-      const userIds = rankings.map((r) => r.userId);
-      const users = await this.prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true, email: true } });
-      const userMap = new Map(users.map((u) => [u.id, u]));
-      return rankings.map((r, i) => ({
-        rank: i + 1,
-        userId: r.userId,
-        name: userMap.get(r.userId)?.name ?? userMap.get(r.userId)?.email ?? "Unknown",
-        totalXp: r._sum.amount ?? 0,
-      }));
-    }
-
-    // For daily/weekly/monthly, compute from recent snapshots
-    const snapshot = await this.prisma.leaderboardSnapshot.findFirst({
-      where: { organizationId: org.id, courseId: query.courseId ?? null, period: period as any },
-      orderBy: { snapshotDate: "desc" },
-    });
-    return (snapshot?.rankings as Array<{ rank: number; userId: string; name: string; totalXp: number }>) ?? [];
+    const createdAt =
+      period === "ALL_TIME" ? undefined : { gte: this.periodStart(period) };
+    return this.buildLeaderboard(org.id, query.courseId, limit, createdAt);
   }
 
   async takeSnapshot(org: OrganizationContext, period: string, courseId?: string) {
-    const where: Record<string, unknown> = { organizationId: org.id };
-    if (courseId) where.courseId = courseId;
-    const rankings = await this.prisma.xpTransaction.groupBy({
-      by: ["userId"],
-      where: where as any,
-      _sum: { amount: true },
-      orderBy: { _sum: { amount: "desc" } },
-      take: 100,
-    });
-    const userIds = rankings.map((r) => r.userId);
-    const users = await this.prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true, email: true } });
-    const userMap = new Map(users.map((u) => [u.id, u]));
-    const data = rankings.map((r, i) => ({
-      rank: i + 1,
-      userId: r.userId,
-      name: userMap.get(r.userId)?.name ?? userMap.get(r.userId)?.email ?? "Unknown",
-      totalXp: r._sum.amount ?? 0,
-    }));
+    const data = await this.buildLeaderboard(
+      org.id,
+      courseId,
+      100,
+      period === "ALL_TIME" ? undefined : { gte: this.periodStart(period) },
+    );
     return this.prisma.leaderboardSnapshot.create({
       data: {
         organizationId: org.id,
@@ -169,6 +134,60 @@ export class GamificationService {
         rankings: data,
       },
     });
+  }
+
+  private async buildLeaderboard(
+    organizationId: string,
+    courseId: string | undefined,
+    limit: number,
+    createdAt?: { gte: Date },
+  ) {
+    const rankings = await this.prisma.xpTransaction.groupBy({
+      by: ["userId"],
+      where: {
+        organizationId,
+        createdAt,
+        ...(courseId ? { sourceType: "course", sourceId: courseId } : {}),
+      },
+      _sum: { amount: true },
+      orderBy: { _sum: { amount: "desc" } },
+      take: limit,
+    });
+    const userIds = rankings.map((ranking) => ranking.userId);
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, name: true, email: true },
+    });
+    const userMap = new Map(users.map((user) => [user.id, user]));
+    return rankings.map((ranking, index) => ({
+      rank: index + 1,
+      userId: ranking.userId,
+      name:
+        userMap.get(ranking.userId)?.name ??
+        userMap.get(ranking.userId)?.email ??
+        "Unknown",
+      totalXp: ranking._sum.amount ?? 0,
+    }));
+  }
+
+  private periodStart(period: string) {
+    const now = new Date();
+    if (period === "DAILY") {
+      return new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+      );
+    }
+    if (period === "WEEKLY") {
+      const daysSinceMonday = (now.getUTCDay() + 6) % 7;
+      return new Date(
+        Date.UTC(
+          now.getUTCFullYear(),
+          now.getUTCMonth(),
+          now.getUTCDate() - daysSinceMonday,
+        ),
+      );
+    }
+    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   }
 
   // ── Achievements ─────────────────────────────────────

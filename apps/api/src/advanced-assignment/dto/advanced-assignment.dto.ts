@@ -6,12 +6,11 @@ import {
   IsIn,
   IsInt,
   IsNumber,
-  IsObject,
   IsOptional,
   IsString,
   Min,
   MinLength,
-  ValidateNested,
+  ValidateNested
 } from "class-validator";
 
 // =====================

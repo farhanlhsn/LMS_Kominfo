@@ -4,11 +4,13 @@ import type { InternalPluginManifest } from "@lms/shared";
 import { PluginManifestValidator } from "./plugin-manifest-validator.service";
 
 const validManifest: InternalPluginManifest = {
-  key: "test.activity",
+  key: "plugin.test_activity",
   name: "Test Activity",
   version: "1.0.0",
   category: "ACTIVITY",
-  activityTypes: [{ key: "test.activity", name: "Test Activity" }],
+  distribution: "MARKETPLACE",
+  runtime: { kind: "INTERNAL" },
+  activityTypes: [{ key: "plugin.test_activity", name: "Test Activity" }],
   capabilities: ["render_activity"],
 };
 
@@ -56,9 +58,9 @@ describe("PluginManifestValidator", () => {
 
   it("rejects invalid name, category, and activity types", () => {
     const validator = new PluginManifestValidator();
-    expect(() =>
-      validator.validate({ ...validManifest, name: "  " }),
-    ).toThrow(BadRequestException);
+    expect(() => validator.validate({ ...validManifest, name: "  " })).toThrow(
+      BadRequestException,
+    );
     expect(() =>
       validator.validate({ ...validManifest, category: "NOPE" as any }),
     ).toThrow(BadRequestException);
@@ -76,5 +78,20 @@ describe("PluginManifestValidator", () => {
     ).toThrow(BadRequestException);
     expect(() => validator.validateAll([validManifest])).not.toThrow();
   });
-});
 
+  it("rejects invalid namespace and remote runtime entrypoint", () => {
+    const validator = new PluginManifestValidator();
+    expect(() =>
+      validator.validate({
+        ...validManifest,
+        key: "core.not_marketplace",
+      }),
+    ).toThrow(BadRequestException);
+    expect(() =>
+      validator.validate({
+        ...validManifest,
+        runtime: { kind: "REMOTE_IFRAME", entrypoint: "http://unsafe.test" },
+      }),
+    ).toThrow(BadRequestException);
+  });
+});

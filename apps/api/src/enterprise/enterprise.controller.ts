@@ -19,6 +19,7 @@ export class EnterpriseController {
   // ── Branding ─────────────────────────────────────────
 
   @Get("branding")
+  @Permissions(PERMISSIONS.coursesRead)
   async getBranding(@Req() req: AuthenticatedRequest) {
     return { data: await this.enterprise.getBranding(req.organization!.id) };
   }
@@ -58,6 +59,7 @@ export class EnterpriseController {
   // ── Login Policy ─────────────────────────────────────
 
   @Get("login-policy")
+  @Permissions(PERMISSIONS.organizationsManage)
   async getLoginPolicy(@Req() req: AuthenticatedRequest) {
     return { data: await this.enterprise.getLoginPolicy(req.organization!.id) };
   }

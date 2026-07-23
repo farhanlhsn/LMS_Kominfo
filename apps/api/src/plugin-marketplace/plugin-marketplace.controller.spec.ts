@@ -21,6 +21,7 @@ function service() {
     updateReviewStatus: vi.fn().mockResolvedValue({ id: "r1" }),
     listInstallations: vi.fn().mockResolvedValue([]),
     installPlugin: vi.fn().mockResolvedValue({ id: "i1" }),
+    updateInstallationStatus: vi.fn().mockResolvedValue({ id: "i1" }),
     uninstallPlugin: vi.fn().mockResolvedValue({ deleted: true }),
     getPolicy: vi.fn().mockResolvedValue({ maxInstalls: 50 }),
     updatePolicy: vi.fn().mockResolvedValue({ maxInstalls: 25 }),
@@ -48,13 +49,14 @@ describe("Plugin marketplace controllers", () => {
 
     const installs = new PluginInstallationController(svc as any);
     await installs.list(org);
-    await installs.install(org, { listingId: "l1" } as any);
-    await installs.uninstall(org, "i1");
+    await installs.install(org, user, { listingId: "l1" } as any);
+    await installs.updateStatus(org, user, "i1", { status: "ACTIVE" } as any);
+    await installs.uninstall(org, user, "i1");
 
     const policy = new PluginPolicyController(svc as any);
     await policy.get(org);
     await policy.update(org, { maxInstalls: 25 } as any);
-    expect(svc.uninstallPlugin).toHaveBeenCalledWith("org-a", "i1");
+    expect(svc.uninstallPlugin).toHaveBeenCalledWith("org-a", user, "i1");
     expect(svc.updatePolicy).toHaveBeenCalled();
   });
 });

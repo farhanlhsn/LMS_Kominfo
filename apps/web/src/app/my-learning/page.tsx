@@ -1,21 +1,23 @@
 ﻿"use client";
 
-import { useMemo, useState } from "react";
-import { GraduationCap, BookOpen, BarChart3, Activity } from "lucide-react";
+import { useMemo,useState } from "react";
+import { MetricCard } from "../../components/analytics/charts";
 import { AuthGate } from "../../components/auth/auth-gate";
 import { AppShell } from "../../components/layout/shells";
 import { CourseProgressCard } from "../../components/lms/courses";
-import { MetricCard } from "../../components/analytics/charts";
-import { FilterBar, PageHeader } from "../../components/ui/core";
-import { ApiErrorState, EmptyState, LoadingState } from "../../components/ui/states";
-import { useMyEnrollments, useLearnerDashboard, useLearnerStreak } from "../../lib/api-hooks";
+import { FilterBar,PageHeader } from "../../components/ui/core";
+import { ApiErrorState,EmptyState,LoadingState } from "../../components/ui/states";
+import { useLearnerDashboard,useLearnerStreak,useMyEnrollments } from "../../lib/api-hooks";
 
 export default function MyLearningPage() {
   const [search, setSearch] = useState("");
   const enrollmentsQuery = useMyEnrollments();
   const dashboardQuery = useLearnerDashboard();
   const streakQuery = useLearnerStreak();
-  const enrollments = enrollmentsQuery.data ?? [];
+  const enrollments = useMemo(
+    () => enrollmentsQuery.data ?? [],
+    [enrollmentsQuery.data],
+  );
   const dashboard = dashboardQuery.data;
 
   const filteredEnrollments = useMemo(

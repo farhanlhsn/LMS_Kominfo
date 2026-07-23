@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -16,6 +17,9 @@ import {
 import { CertificatesService } from "../certificates/certificates.service";
 import { RedisService } from "../redis/redis.service";
 import { NotificationService } from "../engagement/notification.service";
+import { PluginRegistry } from "../plugins/plugin-registry.service";
+import type { InternalPluginManifest } from "@lms/shared";
+import { AiIndexingService } from "../ai/ai-indexing.service";
 import type { OrganizationContext } from "../auth/types/authenticated-request";
 import type {
   CreateActivityDto,
@@ -38,9 +42,19 @@ const CURRICULUM_TTL = 60;
 export class CoreLmsService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
-    @Optional() @Inject(CertificatesService) private readonly certificates?: CertificatesService,
+    @Optional()
+    @Inject(CertificatesService)
+    private readonly certificates?: CertificatesService,
     @Optional() @Inject(RedisService) private readonly redis?: RedisService,
-    @Optional() @Inject(NotificationService) private readonly notifications?: NotificationService,
+    @Optional()
+    @Inject(NotificationService)
+    private readonly notifications?: NotificationService,
+    @Optional()
+    @Inject(PluginRegistry)
+    private readonly pluginRegistry?: PluginRegistry,
+    @Optional()
+    @Inject(AiIndexingService)
+    private readonly aiIndexing?: AiIndexingService,
   ) {}
 
   private courseKey(courseId: string) {
@@ -61,14 +75,47 @@ export class CoreLmsService {
     return `catalog:${orgId}:`;
   }
 
-  private async invalidateCourse(courseId: string, orgId?: string, userId?: string) {
+  private async ensureActivityTypeAvailable(
+    organizationId: string,
+    activityTypeKey: string,
+  ): Promise<InternalPluginManifest | null> {
+    if (!this.pluginRegistry) return null;
+
+    let manifest: InternalPluginManifest;
+    try {
+      manifest = this.pluginRegistry.getPlugin(activityTypeKey);
+    } catch {
+      throw new BadRequestException(
+        `Unknown activity type: ${activityTypeKey}`,
+      );
+    }
+    if (
+      manifest.distribution === "MARKETPLACE" &&
+      !(await this.pluginRegistry.isEnabledForOrganization(
+        organizationId,
+        manifest.key,
+      ))
+    ) {
+      throw new BadRequestException(
+        `Install and enable ${manifest.name} from the plugin marketplace first`,
+      );
+    }
+    return manifest;
+  }
+
+  private async invalidateCourse(
+    courseId: string,
+    orgId?: string,
+    userId?: string,
+  ) {
     await this.redis?.del(this.courseKey(courseId));
     if (orgId) {
       await this.redis?.del(this.curriculumKey(orgId, courseId));
       // Invalidate all catalog pages for this org (publish/unpublish/title edits).
       await this.redis?.delByPrefix(this.catalogPrefix(orgId));
     }
-    if (orgId && userId) await this.redis?.del(this.coursesListKey(orgId, userId));
+    if (orgId && userId)
+      await this.redis?.del(this.coursesListKey(orgId, userId));
   }
 
   async listCategories(organizationId: string): Promise<unknown> {
@@ -83,7 +130,11 @@ export class CoreLmsService {
     organizationId: string,
     query: { page?: number; limit?: number; search?: string },
   ): Promise<unknown> {
-    const { page, limit, skip } = normalizePageLimit(query.page, query.limit, 50);
+    const { page, limit, skip } = normalizePageLimit(
+      query.page,
+      query.limit,
+      50,
+    );
     const search = query.search?.trim() || "";
     const cacheKey = `catalog:${organizationId}:${page}:${limit}:${search.toLowerCase()}`;
 
@@ -220,20 +271,28 @@ export class CoreLmsService {
     const key = isPlatformAdmin
       ? `instructor:courses:${organizationId}:admin`
       : this.coursesListKey(organizationId, userId);
-    const fetcher = () => this.prisma.course.findMany({
-      where: {
-        organizationId,
-        deletedAt: null,
-        ...(isPlatformAdmin ? {} : { instructors: { some: { userId } } }),
-      },
-      include: {
-        category: true,
-        instructors: { include: { user: true } },
-        _count: { select: { modules: true, lessons: true, activities: true, enrollments: true } },
-      },
-      orderBy: { updatedAt: "desc" },
-      take: 100,
-    });
+    const fetcher = () =>
+      this.prisma.course.findMany({
+        where: {
+          organizationId,
+          deletedAt: null,
+          ...(isPlatformAdmin ? {} : { instructors: { some: { userId } } }),
+        },
+        include: {
+          category: true,
+          instructors: { include: { user: true } },
+          _count: {
+            select: {
+              modules: true,
+              lessons: true,
+              activities: true,
+              enrollments: true,
+            },
+          },
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 100,
+      });
     if (this.redis) return this.redis.getOrSet(key, fetcher, COURSES_LIST_TTL);
     return fetcher();
   }
@@ -244,29 +303,37 @@ export class CoreLmsService {
     courseId: string,
   ): Promise<unknown> {
     await this.ensureCanManageCourse(organization, userId, courseId);
-    const fetcher = () => this.prisma.course.findFirstOrThrow({
-      where: { id: courseId, organizationId: organization.id, deletedAt: null },
-      include: {
-        category: true,
-        instructors: { include: { user: true } },
-        modules: {
-          orderBy: { orderIndex: "asc" },
-          include: {
-            lessons: {
-              orderBy: { orderIndex: "asc" },
-              include: {
-                activities: {
-                  orderBy: { orderIndex: "asc" },
-                  include: { activityContent: true },
+    const fetcher = () =>
+      this.prisma.course.findFirstOrThrow({
+        where: {
+          id: courseId,
+          organizationId: organization.id,
+          deletedAt: null,
+        },
+        include: {
+          category: true,
+          instructors: { include: { user: true } },
+          modules: {
+            orderBy: { orderIndex: "asc" },
+            include: {
+              lessons: {
+                orderBy: { orderIndex: "asc" },
+                include: {
+                  activities: {
+                    orderBy: { orderIndex: "asc" },
+                    include: { activityContent: true },
+                  },
                 },
               },
             },
           },
+          _count: {
+            select: { enrollments: true, lessons: true, activities: true },
+          },
         },
-        _count: { select: { enrollments: true, lessons: true, activities: true } },
-      },
-    });
-    if (this.redis) return this.redis.getOrSet(this.courseKey(courseId), fetcher, COURSE_TTL);
+      });
+    if (this.redis)
+      return this.redis.getOrSet(this.courseKey(courseId), fetcher, COURSE_TTL);
     return fetcher();
   }
 
@@ -496,7 +563,10 @@ export class CoreLmsService {
   ): Promise<unknown> {
     const module = await this.getModuleOrThrow(organization.id, moduleId);
     await this.ensureCanManageCourse(organization, userId, module.courseId);
-    const result = await this.prisma.courseModule.update({ where: { id: moduleId }, data: dto });
+    const result = await this.prisma.courseModule.update({
+      where: { id: moduleId },
+      data: dto,
+    });
     await this.invalidateCourse(module.courseId);
     return result;
   }
@@ -508,7 +578,20 @@ export class CoreLmsService {
   ): Promise<unknown> {
     const module = await this.getModuleOrThrow(organization.id, moduleId);
     await this.ensureCanManageCourse(organization, userId, module.courseId);
-    const result = await this.prisma.courseModule.delete({ where: { id: moduleId } });
+    const lessonIds = (
+      await this.prisma.lesson.findMany({
+        where: { organizationId: organization.id, moduleId },
+        select: { id: true },
+      })
+    ).map((lesson) => lesson.id);
+    const result = await this.prisma.courseModule.delete({
+      where: { id: moduleId },
+    });
+    await this.aiIndexing?.removeLessonIndexes(
+      organization.id,
+      module.courseId,
+      lessonIds,
+    );
     await this.invalidateCourse(module.courseId);
     return result;
   }
@@ -549,7 +632,10 @@ export class CoreLmsService {
         courseId: module.courseId,
         moduleId,
         title: dto.title,
-        slug: await this.uniqueLessonSlug(module.courseId, dto.slug ?? dto.title),
+        slug: await this.uniqueLessonSlug(
+          module.courseId,
+          dto.slug ?? dto.title,
+        ),
         summary: dto.summary,
         orderIndex,
         estimatedMinutes: dto.estimatedMinutes ?? 0,
@@ -567,7 +653,10 @@ export class CoreLmsService {
   ): Promise<unknown> {
     const lesson = await this.getLessonOrThrow(organization.id, lessonId);
     await this.ensureCanManageCourse(organization, userId, lesson.courseId);
-    const result = await this.prisma.lesson.update({ where: { id: lessonId }, data: dto });
+    const result = await this.prisma.lesson.update({
+      where: { id: lessonId },
+      data: dto,
+    });
     await this.invalidateCourse(lesson.courseId);
     return result;
   }
@@ -580,6 +669,11 @@ export class CoreLmsService {
     const lesson = await this.getLessonOrThrow(organization.id, lessonId);
     await this.ensureCanManageCourse(organization, userId, lesson.courseId);
     const result = await this.prisma.lesson.delete({ where: { id: lessonId } });
+    await this.aiIndexing?.removeLessonIndexes(
+      organization.id,
+      lesson.courseId,
+      [lessonId],
+    );
     await this.invalidateCourse(lesson.courseId);
     return result;
   }
@@ -612,6 +706,10 @@ export class CoreLmsService {
   ): Promise<unknown> {
     const lesson = await this.getLessonOrThrow(organization.id, lessonId);
     await this.ensureCanManageCourse(organization, userId, lesson.courseId);
+    const pluginManifest = await this.ensureActivityTypeAvailable(
+      organization.id,
+      dto.activityTypeKey,
+    );
     const orderIndex = await this.prisma.activity.count({
       where: { organizationId: organization.id, lessonId },
     });
@@ -623,6 +721,14 @@ export class CoreLmsService {
         title: dto.title,
         description: dto.description,
         activityTypeKey: dto.activityTypeKey,
+        pluginKey:
+          pluginManifest?.distribution === "MARKETPLACE"
+            ? pluginManifest.key
+            : null,
+        pluginVersion:
+          pluginManifest?.distribution === "MARKETPLACE"
+            ? pluginManifest.version
+            : null,
         orderIndex,
         isRequired: dto.isRequired ?? true,
         isPublished: true,
@@ -638,6 +744,7 @@ export class CoreLmsService {
       },
     });
     await this.invalidateCourse(lesson.courseId);
+    await this.aiIndexing?.requestActivityReindex(organization.id, result.id);
     return result;
   }
 
@@ -649,6 +756,15 @@ export class CoreLmsService {
   ): Promise<unknown> {
     const activity = await this.getActivityOrThrow(organization.id, activityId);
     await this.ensureCanManageCourse(organization, userId, activity.courseId);
+    const activityTypeChanged = Boolean(
+      dto.activityTypeKey && dto.activityTypeKey !== activity.activityTypeKey,
+    );
+    const pluginManifest = activityTypeChanged
+      ? await this.ensureActivityTypeAvailable(
+          organization.id,
+          dto.activityTypeKey!,
+        )
+      : null;
     const result = await this.prisma.activity.update({
       where: { id: activityId },
       data: {
@@ -657,7 +773,19 @@ export class CoreLmsService {
         isRequired: dto.isRequired,
         isPublished: dto.isPublished,
         activityTypeKey: dto.activityTypeKey,
-        content: dto.content ? (dto.content as Prisma.InputJsonObject) : undefined,
+        pluginKey: activityTypeChanged
+          ? pluginManifest?.distribution === "MARKETPLACE"
+            ? pluginManifest.key
+            : null
+          : undefined,
+        pluginVersion: activityTypeChanged
+          ? pluginManifest?.distribution === "MARKETPLACE"
+            ? pluginManifest.version
+            : null
+          : undefined,
+        content: dto.content
+          ? (dto.content as Prisma.InputJsonObject)
+          : undefined,
         activityContent: dto.content
           ? {
               upsert: {
@@ -673,6 +801,7 @@ export class CoreLmsService {
       },
     });
     await this.invalidateCourse(activity.courseId);
+    await this.aiIndexing?.requestActivityReindex(organization.id, activityId);
     return result;
   }
 
@@ -683,7 +812,14 @@ export class CoreLmsService {
   ): Promise<unknown> {
     const activity = await this.getActivityOrThrow(organization.id, activityId);
     await this.ensureCanManageCourse(organization, userId, activity.courseId);
-    const result = await this.prisma.activity.delete({ where: { id: activityId } });
+    const result = await this.prisma.activity.delete({
+      where: { id: activityId },
+    });
+    await this.aiIndexing?.removeActivityIndex(
+      organization.id,
+      activity.courseId,
+      activityId,
+    );
     await this.invalidateCourse(activity.courseId);
     return result;
   }
@@ -888,7 +1024,10 @@ export class CoreLmsService {
       progress = await this.prisma.activityProgress.update({
         where: { id: existingProgress.id },
         data: {
-          status: existingProgress.status === "COMPLETED" ? "COMPLETED" : "IN_PROGRESS",
+          status:
+            existingProgress.status === "COMPLETED"
+              ? "COMPLETED"
+              : "IN_PROGRESS",
           startedAt: existingProgress.startedAt ?? now,
           lastAccessedAt: now,
           enrollmentId: enrollment.id,
@@ -1122,7 +1261,8 @@ export class CoreLmsService {
     courseId: string,
     userId?: string,
   ) {
-    const fetcher = () => this.loadCourseCurriculum(organizationId, courseId, userId);
+    const fetcher = () =>
+      this.loadCourseCurriculum(organizationId, courseId, userId);
     if (!this.redis) return fetcher();
     // Cache skeleton only (no user progress) — progress is user-specific.
     if (userId) return fetcher();
@@ -1257,9 +1397,11 @@ export class CoreLmsService {
       progress.progressPercent === 100 && progress.requiredTotal > 0;
     // Trigger auto-certificate if course just reached 100% completion
     if (completed && this.certificates) {
-      this.certificates.autoIssue(organizationId, userId, courseId).catch(() => {
-        // Auto-certificate failure must never block the learner's progress update
-      });
+      this.certificates
+        .autoIssue(organizationId, userId, courseId)
+        .catch(() => {
+          // Auto-certificate failure must never block the learner's progress update
+        });
     }
   }
 

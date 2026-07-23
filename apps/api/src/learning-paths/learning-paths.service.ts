@@ -1,10 +1,8 @@
-﻿import { Inject, Injectable, NotFoundException, ForbiddenException, BadRequestException } from "@nestjs/common";
-import { normalizePageLimit, pageMeta } from "@lms/shared";
-import { PrismaService } from "../prisma/prisma.service";
+﻿import { normalizePageLimit,pageMeta } from "@lms/shared";
+import { BadRequestException,Inject,Injectable,NotFoundException } from "@nestjs/common";
 import type { OrganizationContext } from "../auth/types/authenticated-request";
-import type { CreateLearningPathDto, UpdateLearningPathDto, AddCourseToPathDto, LearningPathQueryDto } from "./dto/learning-path.dto";
-
-const ADMIN_ROLES = new Set(["org_admin", "course_manager"]);
+import { PrismaService } from "../prisma/prisma.service";
+import type { AddCourseToPathDto,CreateLearningPathDto,LearningPathQueryDto,UpdateLearningPathDto } from "./dto/learning-path.dto";
 
 @Injectable()
 export class LearningPathsService {

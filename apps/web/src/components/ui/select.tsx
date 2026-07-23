@@ -51,7 +51,7 @@ export function SelectTrigger({
   children: ReactNode;
   className?: string;
 }) {
-  const { value, setOpen, setTriggerRef, open } = useSelectContext();
+  const { setOpen, setTriggerRef, open } = useSelectContext();
   return (
     <button
       type="button"

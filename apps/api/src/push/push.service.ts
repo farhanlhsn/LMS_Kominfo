@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable } from "@nestjs/common";
+import { BadRequestException,Inject,Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 
 export interface PushPayload {
@@ -181,7 +181,7 @@ export class PushService {
   private async deliver(
     endpoint: string,
     payload: PushPayload,
-    keys: { p256dh: string; auth: string },
+    _keys: { p256dh: string; auth: string },
   ): Promise<boolean> {
     if (!this.isConfigured()) {
       // Without VAPID we cannot actually deliver to a push service; mark as best-effort.

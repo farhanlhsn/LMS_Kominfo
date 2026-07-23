@@ -134,6 +134,9 @@ describe("RbacService", () => {
       },
       rolePermission: {
         upsert: vi.fn().mockResolvedValue({})
+      },
+      roleDelegation: {
+        upsert: vi.fn().mockResolvedValue({})
       }
     };
     const service = new RbacService(prisma as never);

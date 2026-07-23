@@ -4,7 +4,7 @@ import { useState } from "react";
 import { PERMISSIONS } from "@lms/shared";
 import { AuthGate, PermissionGate } from "../../../components/auth/auth-gate";
 import { AppShell } from "../../../components/layout/shells";
-import { PageHeader, ButtonLink, FilterBar, StatusBadge } from "../../../components/ui/core";
+import { PageHeader, FilterBar, StatusBadge } from "../../../components/ui/core";
 import { XapiStatementList } from "../../../components/experiences/experiences-views";
 import { usePostXapiStatements, useXapiStatements } from "../../../lib/api-hooks";
 
@@ -51,7 +51,7 @@ export default function AdminXapiPage() {
         <PageHeader
         eyebrow="Admin"
         title="xAPI statements"
-        description="Learning events captured from course activities, plugins, and runtime."
+        description="Interoperable learning-event records from activities, plugins, and external runtimes for analytics or Learning Record Store export."
       />
 
       <FilterBar>
@@ -115,12 +115,6 @@ export default function AdminXapiPage() {
             </button>
           </div>
         </section>
-      </div>
-
-      <div className="mt-6 flex gap-2">
-        <ButtonLink href="/admin" variant="secondary">
-          ← Back to admin
-        </ButtonLink>
       </div>
       </div>
     </AppShell>

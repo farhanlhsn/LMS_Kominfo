@@ -31,6 +31,15 @@ interface Region {
   bannerUrl?: string | null;
 }
 
+interface RegionPayload {
+  name: string;
+  slug: string;
+  themeColor: string;
+  description?: string;
+  logoUrl?: string;
+  bannerUrl?: string;
+}
+
 const slugify = (s: string) =>
   s
     .toLowerCase()
@@ -65,7 +74,7 @@ export default function AdminRegionsPage(): React.ReactElement {
   });
 
   const createMutation = useMutation({
-    mutationFn: (body: typeof form) => api.post('/regions', body),
+    mutationFn: (body: RegionPayload) => api.post('/regions', body),
     onSuccess: () => {
       toast.success('Wilayah berhasil dibuat');
       setFormOpen(false);
@@ -80,7 +89,7 @@ export default function AdminRegionsPage(): React.ReactElement {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: Partial<typeof form> }) =>
+    mutationFn: ({ id, body }: { id: string; body: Partial<RegionPayload> }) =>
       api.patch(`/regions/${id}`, body),
     onSuccess: () => {
       toast.success('Wilayah diperbarui');

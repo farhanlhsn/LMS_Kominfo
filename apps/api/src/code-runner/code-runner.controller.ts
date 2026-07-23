@@ -15,18 +15,23 @@ import { Permissions } from "../rbac/decorators/permissions.decorator";
 import { JwtAuthGuard } from "../rbac/guards/jwt-auth.guard";
 import { OrganizationContextGuard } from "../rbac/guards/organization-context.guard";
 import { PermissionsGuard } from "../rbac/guards/permissions.guard";
+import { RequiresPlugin } from "../plugins/decorators/requires-plugin.decorator";
+import { PluginEntitlementGuard } from "../plugins/guards/plugin-entitlement.guard";
 import type {
   AuthenticatedUser,
   OrganizationContext,
 } from "../auth/types/authenticated-request";
 import { CodeRunnerService } from "./code-runner.service";
-import {
-  ExecuteCodeDto,
-  JudgeCodeDto,
-} from "./dto/code-runner.dto";
+import { ExecuteCodeDto, JudgeCodeDto } from "./dto/code-runner.dto";
 
 @Controller("code-runner")
-@UseGuards(JwtAuthGuard, OrganizationContextGuard, PermissionsGuard)
+@RequiresPlugin("plugin.code_runner")
+@UseGuards(
+  JwtAuthGuard,
+  OrganizationContextGuard,
+  PluginEntitlementGuard,
+  PermissionsGuard,
+)
 export class CodeRunnerController {
   constructor(
     @Inject(CodeRunnerService) private readonly service: CodeRunnerService,
@@ -62,9 +67,16 @@ export class CodeRunnerController {
     @Query("userId") userId?: string,
   ) {
     // Learners can only see their own submissions
-    const resolvedUserId = organization.roleKeys.some(r =>
-      ["org_admin", "course_manager", "instructor", "assistant_instructor"].includes(r)
-    ) ? userId : user.id;
+    const resolvedUserId = organization.roleKeys.some((r) =>
+      [
+        "org_admin",
+        "course_manager",
+        "instructor",
+        "assistant_instructor",
+      ].includes(r),
+    )
+      ? userId
+      : user.id;
     return this.service.listSubmissions(organization.id, {
       assignmentId,
       userId: resolvedUserId,

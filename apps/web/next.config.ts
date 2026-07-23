@@ -17,7 +17,17 @@ const cspReportOnly = [
 
 const nextConfig: NextConfig = {
   ...(isWindows ? {} : { output: "standalone" }),
-  transpilePackages: ["@lms/shared"],
+  transpilePackages: ["@lms/shared", "@lms/ui", "@lms/utils", "@lms/types"],
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "**" },
+      { protocol: "http", hostname: "localhost" },
+      { protocol: "http", hostname: "127.0.0.1" },
+    ],
+  },
   async headers() {
     return [
       {

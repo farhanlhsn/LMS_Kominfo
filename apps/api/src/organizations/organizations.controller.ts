@@ -161,7 +161,7 @@ export class OrganizationsController {
   // ── Platform admin: organization management ──
 
   @Get("admin/list")
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @UseGuards(JwtAuthGuard, OrganizationContextGuard, PermissionsGuard)
   @Permissions(PERMISSIONS.platformAdmin)
   adminList(
     @Query("status") status?: string,
@@ -171,7 +171,7 @@ export class OrganizationsController {
   }
 
   @Post("admin/create")
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @UseGuards(JwtAuthGuard, OrganizationContextGuard, PermissionsGuard)
   @Permissions(PERMISSIONS.platformAdmin)
   adminCreate(
     @CurrentUser() user: AuthenticatedUser,
@@ -181,7 +181,7 @@ export class OrganizationsController {
   }
 
   @Patch("admin/:id")
-  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @UseGuards(JwtAuthGuard, OrganizationContextGuard, PermissionsGuard)
   @Permissions(PERMISSIONS.platformAdmin)
   adminUpdate(
     @Param("id") id: string,

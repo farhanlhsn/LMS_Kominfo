@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe,expect,it,vi } from "vitest";
 import { ContentLibraryController } from "./content-library.controller";
 
 const org = { id: "org-a", slug: "a", name: "A", memberId: "m1", roleKeys: ["instructor"], permissionKeys: ["content_library:manage"], isPlatformAdmin: false };
@@ -53,7 +53,7 @@ describe("ContentLibraryController", () => {
   });
 
   it("propagates errors from the service", async () => {
-    const { controller, contentLibraryService } = setup({
+    const { controller } = setup({
       get: vi.fn().mockRejectedValue(new Error("not found")),
     });
     await expect(controller.get(org, "missing")).rejects.toThrow("not found");

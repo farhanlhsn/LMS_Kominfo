@@ -1,3 +1,4 @@
+import { Prisma } from "@lms/db";
 import {
   BadRequestException,
   ForbiddenException,
@@ -6,12 +7,11 @@ import {
   NotFoundException,
   Optional,
 } from "@nestjs/common";
-import { Prisma } from "@lms/db";
 import { randomBytes } from "node:crypto";
-import { PrismaService } from "../prisma/prisma.service";
 import type { OrganizationContext } from "../auth/types/authenticated-request";
 import { NotificationService } from "../engagement/notification.service";
 import { FilesService } from "../files/files.service";
+import { PrismaService } from "../prisma/prisma.service";
 import { CertificatePdfService } from "./certificate-pdf.service";
 import type {
   CreateCertificateTemplateDto,
@@ -152,7 +152,7 @@ export class CertificatesService {
         courseId,
         userId: dto.userId,
         templateId: dto.templateId,
-        certificateNumber: await this.uniqueCertificateNumber(organization.id),
+        certificateNumber: await this.uniqueCertificateNumber(),
         verificationCode: await this.uniqueVerificationCode(),
         expiresAt: this.date(dto.expiresAt),
         metadata: (dto.metadata ?? {}) as Prisma.InputJsonObject,
@@ -296,7 +296,7 @@ export class CertificatesService {
         courseId,
         userId,
         templateId: course.autoCertificateTemplateId ?? null,
-        certificateNumber: await this.uniqueCertificateNumber(organizationId),
+        certificateNumber: await this.uniqueCertificateNumber(),
         verificationCode: await this.uniqueVerificationCode(),
         metadata: {},
       },
@@ -394,7 +394,7 @@ export class CertificatesService {
     return course;
   }
 
-  private async uniqueCertificateNumber(organizationId: string) {
+  private async uniqueCertificateNumber() {
     const build = () =>
       `CERT-${new Date().getUTCFullYear()}-${randomBytes(5).toString("hex").toUpperCase()}`;
     let value = build();

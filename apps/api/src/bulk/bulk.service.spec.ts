@@ -1,8 +1,6 @@
-import { BadRequestException, ForbiddenException, NotFoundException } from "@nestjs/common";
-import { BulkJobItemStatus, BulkJobStatus, BulkJobType } from "@lms/db";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { PrismaService } from "../prisma/prisma.service";
-import { RealtimeService } from "../realtime/realtime.service";
+import { BulkJobItemStatus,BulkJobStatus,BulkJobType } from "@lms/db";
+import { BadRequestException,ForbiddenException,NotFoundException } from "@nestjs/common";
+import { beforeEach,describe,expect,it,vi } from "vitest";
 import { BulkOperationService } from "./bulk.service";
 import { CreateBulkJobDto } from "./dto/bulk.dto";
 

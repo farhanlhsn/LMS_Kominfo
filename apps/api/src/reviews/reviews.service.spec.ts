@@ -1,5 +1,5 @@
-﻿import { NotFoundException, ForbiddenException, BadRequestException } from "@nestjs/common";
-import { describe, expect, it, vi } from "vitest";
+﻿import { BadRequestException,ForbiddenException } from "@nestjs/common";
+import { describe,expect,it,vi } from "vitest";
 import { ReviewsService } from "./reviews.service";
 
 const org = { id: "org-a", slug: "a", name: "A", memberId: "m1", roleKeys: ["learner"], permissionKeys: [], isPlatformAdmin: false };
@@ -92,7 +92,7 @@ describe("ReviewsService", () => {
     });
 
     it("rejects duplicate review", async () => {
-      const { service, prisma } = setup({ courseReview: { findUnique: vi.fn().mockResolvedValue({ id: "existing" }) } });
+      const { service } = setup({ courseReview: { findUnique: vi.fn().mockResolvedValue({ id: "existing" }) } });
       await expect(service.create(org, "user-a", { courseId: "course-a", rating: 3 })).rejects.toBeInstanceOf(BadRequestException);
     });
 

@@ -1,18 +1,17 @@
+import { ConversationType,Prisma } from "@lms/db";
+import { cursorMeta,normalizeCursorLimit } from "@lms/shared";
 import {
   BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { ConversationType, Prisma } from "@lms/db";
 import { randomUUID } from "crypto";
-import { cursorMeta, normalizeCursorLimit } from "@lms/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeService } from "../realtime/realtime.service";
 import {
   CreateConversationDto,
-  ConversationTypeValue,
-  SendMessageDto,
+  SendMessageDto
 } from "./dto/messaging.dto";
 
 @Injectable()

@@ -15,7 +15,7 @@ import { JwtAuthGuard } from "../rbac/guards/jwt-auth.guard";
 import { OrganizationContextGuard } from "../rbac/guards/organization-context.guard";
 import { PermissionsGuard } from "../rbac/guards/permissions.guard";
 import type { OrganizationContext } from "../auth/types/authenticated-request";
-import type {
+import {
   ListUsersQueryDto,
   UpdateUserDto,
   UpdateUserStatusDto,

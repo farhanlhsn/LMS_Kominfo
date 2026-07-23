@@ -53,3 +53,9 @@ assessment and private learner data from the index, blocks cheating and explicit
 off-topic requests before the main model, returns citations only for course-grounded
 answers, and labels general educational fallback separately. Suggested follow-up
 questions are clickable and do not require another generation call.
+
+AI capabilities are delivered as organization-installable marketplace plugins.
+Organization provider credentials are encrypted and isolated. Index, tutor, content
+draft, question generation, and grading suggestion endpoints enforce plugin entitlement.
+Generated questions remain drafts until instructor approval and publish. Grading output
+remains suggestion-only until instructor submits normal manual grade.

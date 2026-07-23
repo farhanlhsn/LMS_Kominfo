@@ -308,6 +308,15 @@ describe("CourseFeedbackSummary", () => {
     expect(html).toContain("No feedback yet");
   });
 
+  it("renders empty state when response data is missing", () => {
+    const html = renderToStaticMarkup(
+      createElement(CourseFeedbackSummary, {
+        data: { average: 0, totalFeedback: 0 } as CourseFeedbackListResponse,
+      }),
+    );
+    expect(html).toContain("No feedback yet");
+  });
+
   it("renders average rating and count", () => {
     const data: CourseFeedbackListResponse = {
       data: sampleFeedback,

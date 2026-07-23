@@ -1,8 +1,8 @@
-import { Inject, Injectable, NotFoundException, ForbiddenException } from "@nestjs/common";
-import { normalizePageLimit, pageMeta, PERMISSIONS } from "@lms/shared";
-import { PrismaService } from "../prisma/prisma.service";
+import { normalizePageLimit,pageMeta } from "@lms/shared";
+import { ForbiddenException,Inject,Injectable,NotFoundException } from "@nestjs/common";
 import type { OrganizationContext } from "../auth/types/authenticated-request";
-import type { AnalyticsQueryDto, EventQueryDto, AuditLogQueryDto } from "./dto/analytics.dto";
+import { PrismaService } from "../prisma/prisma.service";
+import type { AnalyticsQueryDto,AuditLogQueryDto,EventQueryDto } from "./dto/analytics.dto";
 
 const ADMIN_ROLES = new Set(["org_admin", "course_manager"]);
 

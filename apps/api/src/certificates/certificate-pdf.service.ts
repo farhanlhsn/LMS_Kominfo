@@ -57,6 +57,7 @@ export class CertificatePdfService {
         expiresAt: certificate.expiresAt,
         status: currentStatus,
         qrCode,
+        design: this.jsonObject(certificate.template?.design ?? {}),
       });
       const stored = await this.files.createManagedFile({
         organizationId,
@@ -117,6 +118,7 @@ export class CertificatePdfService {
     expiresAt: Date | null;
     status: CertificateStatus;
     qrCode: Buffer;
+    design: Record<string, Prisma.JsonValue>;
   }) {
     return new Promise<Buffer>((resolve, reject) => {
       const document = new PDFDocument({ size: "A4", layout: "landscape", margin: 42, info: { Title: "Course Certificate" } });
@@ -125,12 +127,24 @@ export class CertificatePdfService {
       document.on("end", () => resolve(Buffer.concat(chunks)));
       document.on("error", reject);
 
-      const teal = "#0f766e";
+      const configuredAccent =
+        typeof input.design.accentColor === "string"
+          ? input.design.accentColor
+          : "";
+      const teal = /^#[0-9a-fA-F]{6}$/.test(configuredAccent)
+        ? configuredAccent
+        : "#0f766e";
+      const configuredTitle =
+        typeof input.design.title === "string"
+          ? this.clean(input.design.title)
+          : "";
+      const certificateTitle =
+        configuredTitle || "Certificate of Completion";
       const ink = "#17324d";
       document.rect(24, 24, 794, 547).lineWidth(3).stroke(teal);
       document.rect(32, 32, 778, 531).lineWidth(0.8).stroke("#94a3b8");
       document.fillColor(teal).font("Helvetica-Bold").fontSize(13).text("LEARNING CERTIFICATE", 60, 58, { align: "center", width: 720, characterSpacing: 2 });
-      document.fillColor(ink).font("Helvetica-Bold").fontSize(34).text("Certificate of Completion", 80, 94, { align: "center", width: 680 });
+      document.fillColor(ink).font("Helvetica-Bold").fontSize(34).text(certificateTitle, 80, 94, { align: "center", width: 680 });
       document.fillColor("#475569").font("Helvetica").fontSize(13).text("This certificate is presented to", 80, 151, { align: "center", width: 680 });
       document.fillColor(ink).font("Helvetica-Bold").fontSize(27).text(this.clean(input.learnerName), 95, 181, { align: "center", width: 650 });
       document.moveTo(210, 218).lineTo(630, 218).lineWidth(1).stroke("#cbd5e1");

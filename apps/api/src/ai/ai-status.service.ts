@@ -1,10 +1,12 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 import { AI_CONFIG, type AiConfig } from "@lms/config";
 import { PrismaService } from "../prisma/prisma.service";
 import {
   AiChatProviderFactory,
   AiEmbeddingProviderFactory,
 } from "./ai-provider.factories";
+import { AiTenantRuntimeService } from "./ai-tenant-runtime.service";
+import { PluginRegistry } from "../plugins/plugin-registry.service";
 
 @Injectable()
 export class AiStatusService {
@@ -13,57 +15,93 @@ export class AiStatusService {
     private readonly chatFactory: AiChatProviderFactory,
     private readonly embeddingFactory: AiEmbeddingProviderFactory,
     private readonly prisma: PrismaService,
+    @Optional()
+    private readonly tenantRuntime?: AiTenantRuntimeService,
+    @Optional()
+    private readonly pluginRegistry?: PluginRegistry,
   ) {}
 
   async getStatus(organizationId: string) {
-    const chat = this.chatFactory.create().capabilities;
-    const embedding = this.embeddingFactory.create().capabilities;
+    const config =
+      (await this.tenantRuntime?.getConfig(organizationId)) ?? this.config;
+    const chat = this.chatFactory.create(config).capabilities;
+    const embedding = this.embeddingFactory.create(config).capabilities;
     const needsReindex = await this.detectModelMismatch(
       organizationId,
       embedding.model,
+      config,
     );
+    const featureKeys = [
+      "plugin.ai_provider",
+      "plugin.ai_course_indexer",
+      "plugin.ai_tutor",
+      "plugin.ai_content_studio",
+      "plugin.ai_question_generator",
+      "plugin.ai_grading_assistant",
+    ] as const;
+    const features = Object.fromEntries(
+      await Promise.all(
+        featureKeys.map(async (key) => [
+          key,
+          this.pluginRegistry
+            ? await this.pluginRegistry.isEnabledForOrganization(
+                organizationId,
+                key,
+              )
+            : true,
+        ]),
+      ),
+    );
+    const missingConfiguration =
+      features["plugin.ai_provider"] && !config.enabled
+        ? ["apiKey or provider model configuration"]
+        : [];
 
     return {
-      enabled: this.config.enabled,
-      chatProvider: this.config.chatProvider,
-      embeddingProvider: this.config.embeddingProvider,
+      enabled: config.enabled,
+      chatProvider: config.chatProvider,
+      embeddingProvider: config.embeddingProvider,
       chatModel: chat.model,
       embeddingModel: embedding.model,
-      localEmbeddingModel: this.config.localEmbedding.model,
+      localEmbeddingModel: config.localEmbedding.model,
       capabilities: { chat, embedding },
-      answerMode: this.config.answerMode,
-      routerMode: this.config.routerMode,
-      cacheEnabled: this.config.cache.enabled,
-      followupsEnabled: this.config.followups.enabled,
-      localClassifierEnabled: this.config.localClassifier.enabled,
-      missingConfiguration: [],
+      answerMode: config.answerMode,
+      routerMode: config.routerMode,
+      cacheEnabled: config.cache.enabled,
+      followupsEnabled: config.followups.enabled,
+      localClassifierEnabled: config.localClassifier.enabled,
+      missingConfiguration,
+      features,
       needsReindex,
-      disabledReason: this.config.enabled
+      disabledReason: config.enabled
         ? null
-        : "AI is disabled by AI_ENABLED=false; mock-safe configuration remains available.",
+        : features["plugin.ai_provider"]
+          ? "AI Provider needs organization configuration."
+          : "AI Provider plugin is not installed and enabled for this organization.",
     };
   }
 
   private async detectModelMismatch(
     organizationId: string,
     model: string | null,
+    config: AiConfig,
   ): Promise<boolean> {
-    if (!model || this.config.embeddingProvider === "mock") return false;
+    if (!model || config.embeddingProvider === "mock") return false;
 
     const expected = {
       embeddingProvider:
-        this.config.embeddingProvider === "local"
-          ? this.config.localEmbedding.provider
-          : this.config.embeddingProvider,
+        config.embeddingProvider === "local"
+          ? config.localEmbedding.provider
+          : config.embeddingProvider,
       embeddingModel: model,
       embeddingRevision:
-        this.config.embeddingProvider === "local"
-          ? (this.config.localEmbedding.revision ?? null)
+        config.embeddingProvider === "local"
+          ? (config.localEmbedding.revision ?? null)
           : null,
     };
     const dimensions =
-      this.config.embeddingProvider === "local"
-        ? this.config.localEmbedding.dimensions
+      config.embeddingProvider === "local"
+        ? config.localEmbedding.dimensions
         : undefined;
     const mismatch = {
       OR: [

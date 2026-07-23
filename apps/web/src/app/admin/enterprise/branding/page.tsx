@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Image, Save, Upload } from "lucide-react";
-import { AuthGate, PermissionGate } from "../../../../components/auth/auth-gate";
+import { PERMISSIONS } from "@lms/shared";
+import { Save,Upload } from "lucide-react";
+import Image from "next/image";
+import { useEffect,useRef,useState } from "react";
+import { AuthGate,PermissionGate } from "../../../../components/auth/auth-gate";
 import { AppShell } from "../../../../components/layout/shells";
 import { PageHeader } from "../../../../components/ui/core";
-import { ApiErrorState, LoadingState } from "../../../../components/ui/states";
+import { ApiErrorState,LoadingState } from "../../../../components/ui/states";
 import { useBranding } from "../../../../lib/api-hooks";
-import { PERMISSIONS } from "@lms/shared";
 import type { Branding } from "../../../../lib/lms-types";
 
 function defaultBranding(): Branding {
@@ -97,7 +98,7 @@ function ImageUploadField({
       {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
       {value && (
         <div className="mt-2 flex items-center gap-2">
-          <img src={value} alt={label} className="h-8 w-auto rounded border border-border object-contain" onError={(e) => (e.currentTarget.style.display = "none")} />
+          <Image src={value} alt={label} width={96} height={32} unoptimized className="h-8 w-auto rounded border border-border object-contain" onError={(e) => (e.currentTarget.style.display = "none")} />
           <button type="button" onClick={() => onChange(null)} className="text-xs text-muted-foreground hover:text-destructive">Remove</button>
         </div>
       )}

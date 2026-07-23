@@ -15,7 +15,7 @@ export default function GlobalError({
   useEffect(() => {
     // Log to console so developers can pick this up. Avoid leaking
     // sensitive details to the user.
-    // eslint-disable-next-line no-console
+     
     console.error("[LMS] Route error boundary:", error);
   }, [error]);
 

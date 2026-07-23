@@ -1,8 +1,10 @@
 import { createHash } from "node:crypto";
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
 import { Prisma } from "@lms/db";
 import type { OrganizationContext } from "../auth/types/authenticated-request";
@@ -11,6 +13,7 @@ import { AiChunkerService } from "./ai-chunker.service";
 import { AiEmbeddingProviderFactory } from "./ai-provider.factories";
 import type { LocalEmbeddingProvider } from "./ai-provider.types";
 import { AiTextExtractorService } from "./ai-text-extractor.service";
+import { AiTenantRuntimeService } from "./ai-tenant-runtime.service";
 
 interface IndexableDocument {
   sourceType: string;
@@ -37,13 +40,25 @@ type ExistingIndexedDocument = {
   status: string;
 };
 
+type ActivityIndexJob = {
+  organizationId: string;
+  courseId: string;
+  activityId: string;
+  rerun: boolean;
+};
+
 @Injectable()
 export class AiIndexingService {
+  private readonly activityJobs = new Map<string, ActivityIndexJob>();
+  private readonly courseJobs = new Map<string, Promise<void>>();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly extractor: AiTextExtractorService,
     private readonly chunker: AiChunkerService,
     private readonly embeddingFactory: AiEmbeddingProviderFactory,
+    @Optional()
+    private readonly tenantRuntime?: AiTenantRuntimeService,
   ) {}
 
   async indexCourse(
@@ -62,6 +77,21 @@ export class AiIndexingService {
         },
       },
       orderBy: { orderIndex: "asc" },
+    });
+    const indexedActivityIds = activities
+      .filter(
+        (activity) => !this.isAssessmentActivity(activity.activityTypeKey),
+      )
+      .map((activity) => activity.id);
+    await this.prisma.aiDocument.deleteMany({
+      where: {
+        organizationId: organization.id,
+        courseId,
+        deletedAt: null,
+        ...(indexedActivityIds.length
+          ? { activityId: { notIn: indexedActivityIds } }
+          : {}),
+      },
     });
     const existingDocuments = activities.length
       ? await this.prisma.aiDocument.findMany({
@@ -108,7 +138,10 @@ export class AiIndexingService {
   }
 
   async indexActivity(organizationId: string, activityId: string) {
-    const activity = await this.findActivityForIndexing(organizationId, activityId);
+    const activity = await this.findActivityForIndexing(
+      organizationId,
+      activityId,
+    );
     if (!activity) throw new NotFoundException("Activity not found");
     const existingDocuments = await this.prisma.aiDocument.findMany({
       where: {
@@ -130,16 +163,148 @@ export class AiIndexingService {
     return this.indexResolvedActivity(activity, existingDocumentMap);
   }
 
+  async requestActivityReindex(organizationId: string, activityId: string) {
+    const activity = await this.prisma.activity.findFirst({
+      where: { id: activityId, organizationId },
+      select: {
+        id: true,
+        courseId: true,
+        isPublished: true,
+        activityTypeKey: true,
+      },
+    });
+    if (!activity) throw new NotFoundException("Activity not found");
+    if (
+      !activity.isPublished ||
+      this.isAssessmentActivity(activity.activityTypeKey)
+    ) {
+      await this.removeActivityIndex(
+        organizationId,
+        activity.courseId,
+        activityId,
+      );
+      return {
+        queued: false,
+        courseId: activity.courseId,
+        activityId,
+        reason: "not_indexable",
+      };
+    }
+
+    await this.markActivityNeedsReindex(organizationId, activityId);
+    const key = this.activityJobKey(organizationId, activityId);
+    const existing = this.activityJobs.get(key);
+    if (existing) {
+      existing.rerun = true;
+      return {
+        queued: true,
+        courseId: activity.courseId,
+        activityId,
+        deduplicated: true,
+      };
+    }
+
+    const job: ActivityIndexJob = {
+      organizationId,
+      courseId: activity.courseId,
+      activityId,
+      rerun: false,
+    };
+    this.activityJobs.set(key, job);
+    void this.runActivityIndexJob(key, job);
+    return {
+      queued: true,
+      courseId: activity.courseId,
+      activityId,
+      deduplicated: false,
+    };
+  }
+
+  async requestCourseReindex(
+    organization: OrganizationContext,
+    userId: string,
+    courseId: string,
+  ) {
+    await this.ensureCanManageCourse(organization, userId, courseId);
+    const key = this.courseJobKey(organization.id, courseId);
+    if (this.courseJobs.has(key)) {
+      return { queued: true, courseId, deduplicated: true };
+    }
+    await this.prisma.aiDocument.updateMany({
+      where: {
+        organizationId: organization.id,
+        courseId,
+        deletedAt: null,
+      },
+      data: { status: "NEEDS_REINDEX", error: null },
+    });
+    await this.prisma.aiDocumentChunk.updateMany({
+      where: { organizationId: organization.id, courseId },
+      data: { status: "NEEDS_REINDEX" },
+    });
+    const promise = this.indexCourse(organization, userId, courseId)
+      .then(() => undefined)
+      .catch(async (error: unknown) => {
+        await this.prisma.aiDocument.updateMany({
+          where: {
+            organizationId: organization.id,
+            courseId,
+            deletedAt: null,
+          },
+          data: {
+            status: "FAILED",
+            error:
+              error instanceof Error
+                ? error.message.slice(0, 500)
+                : "Course indexing failed",
+          },
+        });
+      })
+      .finally(() => {
+        this.courseJobs.delete(key);
+      });
+    this.courseJobs.set(key, promise);
+    void promise;
+    return { queued: true, courseId, deduplicated: false };
+  }
+
+  async removeActivityIndex(
+    organizationId: string,
+    courseId: string,
+    activityId: string,
+  ) {
+    await this.prisma.aiDocument.deleteMany({
+      where: { organizationId, courseId, activityId },
+    });
+  }
+
+  async removeLessonIndexes(
+    organizationId: string,
+    courseId: string,
+    lessonIds: string[],
+  ) {
+    if (!lessonIds.length) return;
+    await this.prisma.aiDocument.deleteMany({
+      where: {
+        organizationId,
+        courseId,
+        lessonId: { in: lessonIds },
+      },
+    });
+  }
+
   private async indexResolvedActivity(
     activity: IndexedActivity,
     existingDocuments: Map<string, ExistingIndexedDocument>,
   ) {
     const organizationId = activity.organizationId;
     const activityId = activity.id;
-    if (
-      activity.activityTypeKey === "core.quiz" ||
-      activity.activityTypeKey === "core.assignment"
-    ) {
+    if (this.isAssessmentActivity(activity.activityTypeKey)) {
+      await this.removeActivityIndex(
+        organizationId,
+        activity.courseId,
+        activityId,
+      );
       return {
         activityId,
         documents: 0,
@@ -199,6 +364,37 @@ export class AiIndexingService {
       }
     }
 
+    const activeDocumentKeys = new Set(
+      documents.map((document) =>
+        this.documentKey(
+          activity.id,
+          document.sourceType,
+          document.fileId ?? null,
+        ),
+      ),
+    );
+    const staleDocumentIds = [...existingDocuments.values()]
+      .filter(
+        (document) =>
+          document.activityId === activity.id &&
+          !activeDocumentKeys.has(
+            this.documentKey(
+              document.activityId,
+              document.sourceType,
+              document.fileId,
+            ),
+          ),
+      )
+      .map((document) => document.id);
+    if (staleDocumentIds.length) {
+      await this.prisma.aiDocument.deleteMany({
+        where: {
+          organizationId,
+          id: { in: staleDocumentIds },
+        },
+      });
+    }
+
     let chunkCount = 0;
     for (const document of documents) {
       chunkCount += await this.persistDocument({
@@ -208,7 +404,11 @@ export class AiIndexingService {
         activityId,
         existingDocument:
           existingDocuments.get(
-            this.documentKey(activity.id, document.sourceType, document.fileId ?? null),
+            this.documentKey(
+              activity.id,
+              document.sourceType,
+              document.fileId ?? null,
+            ),
           ) ?? null,
         ...document,
       });
@@ -227,16 +427,89 @@ export class AiIndexingService {
       where: { organizationId: organization.id, courseId, deletedAt: null },
       _count: { _all: true },
     });
+    const statuses = Object.fromEntries(
+      grouped.map((item) => [item.status, item._count._all]),
+    );
+    const documents = grouped.reduce((sum, item) => sum + item._count._all, 0);
+    const chunks = await this.prisma.aiDocumentChunk.count({
+      where: { organizationId: organization.id, courseId, status: "READY" },
+    });
+    const isIndexing = this.isCourseIndexing(organization.id, courseId);
+    const hasPendingDocuments =
+      (statuses.PENDING ?? 0) > 0 ||
+      (statuses.INDEXING ?? 0) > 0 ||
+      (statuses.NEEDS_REINDEX ?? 0) > 0;
+    const hasFailures = (statuses.FAILED ?? 0) > 0;
+    const state =
+      isIndexing || hasPendingDocuments
+        ? "INDEXING"
+        : documents === 0 || chunks === 0
+          ? "EMPTY"
+          : hasFailures
+            ? "FAILED"
+            : "READY";
     return {
       courseId,
-      documents: grouped.reduce((sum, item) => sum + item._count._all, 0),
-      statuses: Object.fromEntries(
-        grouped.map((item) => [item.status, item._count._all]),
-      ),
-      chunks: await this.prisma.aiDocumentChunk.count({
-        where: { organizationId: organization.id, courseId, status: "READY" },
-      }),
+      state,
+      ready: state === "READY",
+      isIndexing: state === "INDEXING",
+      needsReindex: hasPendingDocuments,
+      documents,
+      statuses,
+      chunks,
     };
+  }
+
+  async assertCourseReady(
+    organization: OrganizationContext,
+    userId: string,
+    courseId: string,
+  ) {
+    const status = await this.courseStatus(organization, userId, courseId);
+    if (status.isIndexing) {
+      throw new BadRequestException(
+        "Course material is still being indexed. Generate questions after indexing completes.",
+      );
+    }
+    if (!status.ready) {
+      throw new BadRequestException(
+        status.state === "FAILED"
+          ? "Course material indexing failed. Retry indexing before generating questions."
+          : "Course has no ready indexed material. Add or index material before generating questions.",
+      );
+    }
+    return status;
+  }
+
+  async courseSources(
+    organization: OrganizationContext,
+    userId: string,
+    courseId: string,
+  ) {
+    await this.ensureCanManageCourse(organization, userId, courseId);
+    const sources = await this.prisma.aiDocument.findMany({
+      where: {
+        organizationId: organization.id,
+        courseId,
+        status: "READY",
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        title: true,
+        sourceType: true,
+        lessonId: true,
+        activityId: true,
+        fileId: true,
+        indexedAt: true,
+        _count: { select: { chunks: true } },
+      },
+      orderBy: [{ lessonId: "asc" }, { activityId: "asc" }, { title: "asc" }],
+    });
+    return sources.map(({ _count, ...source }) => ({
+      ...source,
+      chunkCount: _count.chunks,
+    }));
   }
 
   private async persistDocument(
@@ -309,7 +582,10 @@ export class AiIndexingService {
 
     try {
       const chunks = this.chunker.chunk(input.rawText);
-      const provider = this.embeddingFactory.create();
+      const tenantConfig = await this.tenantRuntime?.assertReady(
+        input.organizationId,
+      );
+      const provider = this.embeddingFactory.create(tenantConfig);
       const vectors = await provider.embedBatch(
         chunks.map((chunk) => chunk.content),
       );
@@ -362,6 +638,67 @@ export class AiIndexingService {
       });
       return 0;
     }
+  }
+
+  private async markActivityNeedsReindex(
+    organizationId: string,
+    activityId: string,
+  ) {
+    await this.prisma.aiDocument.updateMany({
+      where: { organizationId, activityId, deletedAt: null },
+      data: { status: "NEEDS_REINDEX", error: null },
+    });
+    await this.prisma.aiDocumentChunk.updateMany({
+      where: { organizationId, activityId },
+      data: { status: "NEEDS_REINDEX" },
+    });
+  }
+
+  private async runActivityIndexJob(key: string, job: ActivityIndexJob) {
+    try {
+      do {
+        job.rerun = false;
+        await this.indexActivity(job.organizationId, job.activityId);
+      } while (job.rerun);
+    } catch {
+      await this.prisma.aiDocument.updateMany({
+        where: {
+          organizationId: job.organizationId,
+          activityId: job.activityId,
+          deletedAt: null,
+        },
+        data: {
+          status: "FAILED",
+          error: "Automatic indexing failed",
+        },
+      });
+    } finally {
+      this.activityJobs.delete(key);
+    }
+  }
+
+  private isCourseIndexing(organizationId: string, courseId: string) {
+    if (this.courseJobs.has(this.courseJobKey(organizationId, courseId))) {
+      return true;
+    }
+    return [...this.activityJobs.values()].some(
+      (job) =>
+        job.organizationId === organizationId && job.courseId === courseId,
+    );
+  }
+
+  private activityJobKey(organizationId: string, activityId: string) {
+    return `${organizationId}:${activityId}`;
+  }
+
+  private courseJobKey(organizationId: string, courseId: string) {
+    return `${organizationId}:${courseId}`;
+  }
+
+  private isAssessmentActivity(activityTypeKey: string) {
+    return (
+      activityTypeKey === "core.quiz" || activityTypeKey === "core.assignment"
+    );
   }
 
   private assertValidEmbeddings(

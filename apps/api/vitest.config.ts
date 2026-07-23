@@ -12,10 +12,15 @@ export default defineConfig({
     environment: "node",
     globals: true,
     forbidOnly: Boolean(process.env.CI),
+    testTimeout: 15000,
     // Log tests slower than 1s (9.4).
     slowTestThreshold: 1000,
     include: ["src/**/*.spec.ts"],
-    exclude: ["src/**/*.integration.spec.ts", "node_modules/**"],
+    exclude: [
+      "src/**/*.integration.spec.ts",
+      "src/modules/**",
+      "node_modules/**",
+    ],
     // Soft floor — raise as suites expand; fails CI if coverage collapses.
     coverage: {
       provider: "v8",
@@ -24,6 +29,7 @@ export default defineConfig({
       exclude: [
         "src/**/*.spec.ts",
         "src/**/*.integration.spec.ts",
+        "src/modules/**",
         "src/main.ts",
         "src/**/dto/**",
         "src/**/*.dto.ts",

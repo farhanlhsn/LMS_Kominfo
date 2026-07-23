@@ -13,6 +13,7 @@ vi.mock("react", async () => {
     useEffect: () => undefined,
     useCallback: <T extends (...args: any[]) => any>(fn: T) => fn,
     useMemo: <T,>(factory: () => T) => factory(),
+    useRef: <T,>(initial: T) => ({ current: initial }),
   };
 });
 
@@ -23,23 +24,6 @@ vi.mock("react", async () => {
 // (which read/write the session) can be exercised without a DOM.
 vi.mock("./api-client", async () => {
   const memoryStore = new Map<string, string>();
-  const localStorageShim = {
-    getItem: (key: string) => memoryStore.get(key) ?? null,
-    setItem: (key: string, value: string) => {
-      memoryStore.set(key, value);
-    },
-    removeItem: (key: string) => {
-      memoryStore.delete(key);
-    },
-  };
-
-  const noopSession: any = {
-    accessToken: "stub-token",
-    refreshToken: "stub-refresh",
-    user: { id: "stub-user", email: "stub@example.com" },
-    activeOrganization: { id: "stub-org", slug: "stub", name: "Stub" },
-  };
-
   const sessionListeners = new Set<() => void>();
   const dispatchSession = () => sessionListeners.forEach((l) => l());
 

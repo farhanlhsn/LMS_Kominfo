@@ -22,7 +22,7 @@ export default function InstructorCoursesPage() {
   const session = useSession();
   const canCreate = hasPermission(session, PERMISSIONS.coursesCreate);
   const canPublish = hasPermission(session, PERMISSIONS.coursesPublish);
-  const courses = query.data ?? [];
+  const courses = useMemo(() => query.data ?? [], [query.data]);
   const filteredCourses = useMemo(
     () =>
       courses.filter((course) =>

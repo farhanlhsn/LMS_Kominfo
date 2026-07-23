@@ -1,10 +1,9 @@
 'use client';
 
-import type { Metadata } from 'next';
+import { MainLayout } from '@/components/layout/main-layout';
+import { useAuth } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import { useAuth } from '@/lib/auth';
-import { MainLayout } from '@/components/layout/main-layout';
 
 export default function DashboardLayout({
   children,

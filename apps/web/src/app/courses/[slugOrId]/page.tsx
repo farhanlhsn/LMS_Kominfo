@@ -26,6 +26,7 @@ import {
   useEnrollCourse,
   useMyEnrollments,
   useSession,
+  useWishlist,
 } from "../../../lib/api-hooks";
 import {
   coursePricing,
@@ -50,6 +51,7 @@ export default function CourseDetailPage() {
   const session = useSession();
   const enrollmentsQuery = useMyEnrollments();
   const reviewsQuery = useCourseReviews(courseId);
+  const wishlistQuery = useWishlist();
   const [enrolling, setEnrolling] = useState(false);
   const [enrollError, setEnrollError] = useState<string | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
@@ -94,6 +96,10 @@ export default function CourseDetailPage() {
   );
   const myReview: CourseReview | undefined = reviews.find(
     (review) => review.userId === session?.user?.id,
+  );
+  const isWishlisted = Boolean(
+    courseId &&
+      (wishlistQuery.data ?? []).some((item) => item.courseId === courseId),
   );
 
   async function submitReview(input: { rating: number; title: string; body: string }) {
@@ -240,7 +246,11 @@ export default function CourseDetailPage() {
                       Open first lesson
                     </ButtonLink>
                   ) : null}
-                  <WishlistButton courseId={course.id} />
+                  <WishlistButton
+                    courseId={course.id}
+                    initialActive={isWishlisted}
+                    onChange={() => void wishlistQuery.refresh()}
+                  />
                 </div>
                 {enrollError ? (
                   <p className="mt-3 text-sm text-destructive">{enrollError}</p>

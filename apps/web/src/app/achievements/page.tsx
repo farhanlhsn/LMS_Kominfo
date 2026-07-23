@@ -1,11 +1,11 @@
 "use client";
 
-import { Award, Trophy, Star } from "lucide-react";
+import { Award,Trophy } from "lucide-react";
 import { AuthGate } from "../../components/auth/auth-gate";
 import { AppShell } from "../../components/layout/shells";
-import { PageHeader, StatusBadge } from "../../components/ui/core";
-import { ApiErrorState, EmptyState, LoadingState } from "../../components/ui/states";
-import { useAchievements, useMyAchievements } from "../../lib/api-hooks";
+import { PageHeader,StatusBadge } from "../../components/ui/core";
+import { ApiErrorState,EmptyState,LoadingState } from "../../components/ui/states";
+import { useAchievements,useMyAchievements } from "../../lib/api-hooks";
 
 export default function AchievementsPage() {
   const allQuery = useAchievements();

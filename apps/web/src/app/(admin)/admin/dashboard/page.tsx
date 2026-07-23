@@ -1,11 +1,11 @@
 'use client';
 
-import React from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Users, BookOpen, GraduationCap, Percent, BarChart3 } from 'lucide-react';
 import { api } from '@/lib/api-client';
+import { useQuery } from '@tanstack/react-query';
+import { BarChart3,BookOpen,GraduationCap,Percent,Users } from 'lucide-react';
+import React from 'react';
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card,CardContent,CardHeader,CardTitle } from '@/components/ui/card';
 
 interface AdminStats {
   totalUsers: number;

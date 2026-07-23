@@ -15,7 +15,7 @@ export default function AdminCohortsPage() {
           <PageHeader
             eyebrow="Admin"
             title="Cohorts & scheduling"
-            description="Manage scheduled cohorts, members, and weekly meeting times."
+            description="Group learners into scheduled course runs with shared dates, membership, capacity, and recurring meeting times."
           />
           <CohortList />
           <section className="mt-6 rounded-md border border-border bg-card p-4">

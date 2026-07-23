@@ -1,18 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
 import { ShieldCheck } from "lucide-react";
+import { useMemo } from "react";
 import { useProctoringSessions } from "../../lib/api-hooks";
-import { Card, CardContent, CardHeader } from "../ui/card";
+import type { ProctoringSession } from "../../lib/lms-types";
+import { Card,CardContent,CardHeader } from "../ui/card";
 import { StatusBadge } from "../ui/core";
-import { ApiErrorState, LoadingState } from "../ui/states";
-import type { ProctoringSession, ProctoringSeverity } from "../../lib/lms-types";
-
-const SEVERITY_TONES: Record<ProctoringSeverity, "danger" | "warning" | "info"> = {
-  HIGH: "danger",
-  MEDIUM: "warning",
-  LOW: "info",
-};
+import { ApiErrorState,LoadingState } from "../ui/states";
 
 export function IntegrityScoreCard() {
   const sessionsQuery = useProctoringSessions();

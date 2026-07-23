@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { ForbiddenException, NotFoundException } from "@nestjs/common";
+import { ForbiddenException,NotFoundException } from "@nestjs/common";
+import { describe,expect,it,vi } from "vitest";
 import { ReviewsController } from "./reviews.controller";
 
 const org = { id: "org-a", slug: "a", name: "A", memberId: "m1", roleKeys: ["learner"], permissionKeys: [], isPlatformAdmin: false };
@@ -124,14 +124,14 @@ describe("ReviewsController", () => {
   });
 
   it("propagates not found errors from the service", async () => {
-    const { controller, reviews } = setup({
+    const { controller } = setup({
       update: vi.fn().mockRejectedValue(new NotFoundException("Review not found")),
     });
     await expect(controller.update(createRequest(), "missing", { courseId: "c-1", rating: 5 } as any)).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it("propagates forbidden exceptions from the service", async () => {
-    const { controller, reviews } = setup({
+    const { controller } = setup({
       delete: vi.fn().mockRejectedValue(new ForbiddenException("Not allowed")),
     });
     await expect(controller.delete(createRequest(), "r-1")).rejects.toBeInstanceOf(ForbiddenException);

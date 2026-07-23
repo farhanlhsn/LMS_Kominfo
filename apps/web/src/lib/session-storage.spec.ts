@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearSession, getSession, setSession } from "./api-client";
 
 const SESSION_KEY = "lms.session.v1";
+let cookieWrites: string[];
 
 function createMemoryStorage() {
   const data = new Map<string, string>();
@@ -48,8 +49,14 @@ const sampleSession = {
 beforeEach(() => {
   const storage = createMemoryStorage();
   const dispatchEvent = vi.fn();
+  cookieWrites = [];
   vi.stubGlobal("localStorage", storage);
   vi.stubGlobal("window", { localStorage: storage, dispatchEvent });
+  vi.stubGlobal("document", {
+    set cookie(value: string) {
+      cookieWrites.push(value);
+    },
+  });
 });
 
 afterEach(() => {
@@ -66,6 +73,8 @@ describe("api-client session storage", () => {
     setSession(sampleSession as any);
     const stored = JSON.parse(localStorage.getItem(SESSION_KEY) ?? "{}");
     expect(stored.accessToken).toBe("access-1");
+    expect(cookieWrites.at(-1)).toContain("access_token=access-1");
+    expect(cookieWrites.at(-1)).toContain("SameSite=Lax");
 
     const loaded = getSession();
     expect(loaded?.user.id).toBe("u1");
@@ -82,5 +91,7 @@ describe("api-client session storage", () => {
     clearSession();
     expect(localStorage.getItem(SESSION_KEY)).toBeNull();
     expect(getSession()).toBeNull();
+    expect(cookieWrites.at(-1)).toContain("access_token=");
+    expect(cookieWrites.at(-1)).toContain("Max-Age=0");
   });
 });

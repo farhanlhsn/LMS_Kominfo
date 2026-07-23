@@ -1,5 +1,6 @@
-import { Transform, Type } from "class-transformer";
+import { Type } from "class-transformer";
 import {
+  ArrayMinSize,
   IsArray,
   IsBoolean,
   IsDateString,
@@ -150,7 +151,7 @@ export class CreatePollDto {
   @IsOptional() @IsString() courseId?: string;
   @IsOptional() @IsString() activityId?: string;
   @IsString() @MinLength(3) @MaxLength(500) question!: string;
-  @IsArray() @MinLength(2, { each: false }) options!: Array<{ id: string; label: string }>;
+  @IsArray() @ArrayMinSize(2) options!: Array<{ id: string; label: string }>;
   @IsOptional() @IsBoolean() allowMultiple?: boolean;
   @IsOptional() @IsBoolean() anonymous?: boolean;
   @IsOptional() @IsDateString() closesAt?: string;

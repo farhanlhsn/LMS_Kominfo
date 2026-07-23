@@ -86,7 +86,7 @@ export function PushSubscribeButton({
       void result;
     } catch (err) {
       // Best-effort: keep the local subscription even if the server sync fails
-      // eslint-disable-next-line no-console
+       
       console.warn("Failed to sync push subscription", err);
     }
   }, [subscribe, onSubscribed]);
@@ -102,7 +102,7 @@ export function PushSubscribeButton({
         await api.unsubscribePush(endpoint);
         onUnsubscribed?.(endpoint);
       } catch (err) {
-        // eslint-disable-next-line no-console
+         
         console.warn("Failed to remove server subscription", err);
       }
     }

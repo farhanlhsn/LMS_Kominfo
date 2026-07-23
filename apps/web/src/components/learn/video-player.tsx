@@ -39,12 +39,12 @@ export function VideoPlayer({
     if (!video) return;
     if (!videoUrl.endsWith('.m3u8')) return;
     if (video.canPlayType('application/vnd.apple.mpegurl')) return; // Safari native
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     let hls: any = null;
     let cancelled = false;
     (async () => {
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         const mod = (await import(/* webpackIgnore: true */ 'hls.js' as any).catch(() => null)) as any;
         if (cancelled) return;
         if (!mod || !mod.default) {

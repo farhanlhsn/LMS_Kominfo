@@ -1,3 +1,4 @@
+/* eslint-disable no-secrets/no-secrets -- Static transactional email markup contains no credentials. */
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import nodemailer from "nodemailer";
 import type { Transporter } from "nodemailer";

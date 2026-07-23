@@ -13,10 +13,14 @@ export class PluginsController {
   ) {}
 
   @Get("activity-types")
-  listActivityTypes(@ActiveOrganization() organization: OrganizationContext) {
+  async listActivityTypes(
+    @ActiveOrganization() organization: OrganizationContext,
+  ) {
     return {
       organizationId: organization.id,
-      activityTypes: this.pluginRegistry.listActivityTypes(),
+      activityTypes: await this.pluginRegistry.listActivityTypesForOrganization(
+        organization.id,
+      ),
     };
   }
 }

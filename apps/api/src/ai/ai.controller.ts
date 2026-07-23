@@ -1,4 +1,16 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from "@nestjs/common";
+import {
+  BadGatewayException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  Res,
+  UseGuards,
+} from "@nestjs/common";
 import type { Request, Response } from "express";
 import { PERMISSIONS } from "@lms/shared";
 import type { OrganizationContext } from "../auth/types/authenticated-request";
@@ -13,13 +25,22 @@ import { AiIndexingService } from "./ai-indexing.service";
 import { AiGeneratedItemService } from "./ai-generated-item.service";
 import { AiStatusService } from "./ai-status.service";
 import { AiTutorService } from "./ai-tutor.service";
+import { AiGradingAssistantService } from "./ai-grading-assistant.service";
 import { AskAiTutorDto } from "./dto/ai.dto";
 import {
+  GenerateCourseQuestionsDto,
   GenerateVideoQuizDto,
   GenerateVideoSummaryDto,
   ListAiGeneratedItemsQueryDto,
   UpdateAiGeneratedItemDto,
 } from "./dto/video-ai.dto";
+import { PluginEntitlementGuard } from "../plugins/guards/plugin-entitlement.guard";
+import { RequiresPlugin } from "../plugins/decorators/requires-plugin.decorator";
+import {
+  AiChatProviderFactory,
+  AiEmbeddingProviderFactory,
+} from "./ai-provider.factories";
+import { AiTenantRuntimeService } from "./ai-tenant-runtime.service";
 
 @Controller("ai")
 @UseGuards(JwtAuthGuard, OrganizationContextGuard, PermissionsGuard)
@@ -34,7 +55,8 @@ export class AiController {
 }
 
 @Controller("learn/ai")
-@UseGuards(JwtAuthGuard, OrganizationContextGuard)
+@UseGuards(JwtAuthGuard, OrganizationContextGuard, PluginEntitlementGuard)
+@RequiresPlugin("plugin.ai_tutor")
 export class LearnerAiController {
   constructor(private readonly tutorService: AiTutorService) {}
 
@@ -88,12 +110,23 @@ export class LearnerAiController {
     @Param("messageId") messageId: string,
     @Body("feedback") feedback: "LIKE" | "DISLIKE",
   ) {
-    return this.tutorService.submitFeedback(organization.id, user.id, messageId, feedback);
+    return this.tutorService.submitFeedback(
+      organization.id,
+      user.id,
+      messageId,
+      feedback,
+    );
   }
 }
 
 @Controller("instructor/courses/:courseId/ai")
-@UseGuards(JwtAuthGuard, OrganizationContextGuard, PermissionsGuard)
+@UseGuards(
+  JwtAuthGuard,
+  OrganizationContextGuard,
+  PermissionsGuard,
+  PluginEntitlementGuard,
+)
+@RequiresPlugin("plugin.ai_course_indexer")
 export class InstructorAiController {
   constructor(
     private readonly indexingService: AiIndexingService,
@@ -107,7 +140,11 @@ export class InstructorAiController {
     @CurrentUser() user: AuthenticatedUser,
     @Param("courseId") courseId: string,
   ) {
-    return this.indexingService.indexCourse(organization, user.id, courseId);
+    return this.indexingService.requestCourseReindex(
+      organization,
+      user.id,
+      courseId,
+    );
   }
 
   @Get("index/status")
@@ -119,10 +156,95 @@ export class InstructorAiController {
   ) {
     return this.indexingService.courseStatus(organization, user.id, courseId);
   }
+
+  @Get("index/sources")
+  @Permissions(PERMISSIONS.coursesUpdate)
+  sources(
+    @ActiveOrganization() organization: OrganizationContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("courseId") courseId: string,
+  ) {
+    return this.indexingService.courseSources(organization, user.id, courseId);
+  }
+
+  @Post("questions")
+  @Permissions(PERMISSIONS.coursesUpdate)
+  @RequiresPlugin("plugin.ai_question_generator")
+  async generateQuestions(
+    @ActiveOrganization() organization: OrganizationContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("courseId") courseId: string,
+    @Body() dto: GenerateCourseQuestionsDto,
+  ) {
+    await this.indexingService.assertCourseReady(
+      organization,
+      user.id,
+      courseId,
+    );
+    return this.generatedItems.generateCourseQuestions(
+      organization,
+      user.id,
+      courseId,
+      dto,
+    );
+  }
+}
+
+@Controller("admin/ai-provider")
+@UseGuards(
+  JwtAuthGuard,
+  OrganizationContextGuard,
+  PermissionsGuard,
+  PluginEntitlementGuard,
+)
+@Permissions(PERMISSIONS.pluginsConfigure)
+@RequiresPlugin("plugin.ai_provider")
+export class AdminAiProviderController {
+  constructor(
+    private readonly runtime: AiTenantRuntimeService,
+    private readonly chatFactory: AiChatProviderFactory,
+    private readonly embeddingFactory: AiEmbeddingProviderFactory,
+  ) {}
+
+  @Post("test")
+  async test(@ActiveOrganization() organization: OrganizationContext) {
+    const config = await this.runtime.assertReady(organization.id);
+    const chat = this.chatFactory.create(config);
+    const embedding = this.embeddingFactory.create(config);
+    try {
+      const [chatResult, vector] = await Promise.all([
+        chat.generateText({
+          systemPrompt: "Reply with OK only.",
+          userPrompt: "Connection test",
+          temperature: 0,
+          // Thinking models can consume a tiny output budget before emitting text.
+          maxOutputTokens: 256,
+        }),
+        embedding.embedText("connection test"),
+      ]);
+      return {
+        ok: Boolean(chatResult.text.trim()) && vector.length > 0,
+        chatProvider: chat.capabilities.providerName,
+        chatModel: chat.capabilities.model,
+        embeddingProvider: embedding.capabilities.providerName,
+        embeddingModel: embedding.capabilities.model,
+        embeddingDimensions: vector.length,
+      };
+    } catch (error) {
+      const reason =
+        error instanceof Error ? error.message : "Unknown provider error";
+      throw new BadGatewayException(`AI provider connection failed: ${reason}`);
+    }
+  }
 }
 
 @Controller("instructor/activities/:activityId/ai")
-@UseGuards(JwtAuthGuard, OrganizationContextGuard, PermissionsGuard)
+@UseGuards(
+  JwtAuthGuard,
+  OrganizationContextGuard,
+  PermissionsGuard,
+  PluginEntitlementGuard,
+)
 export class InstructorActivityAiController {
   constructor(private readonly generatedItems: AiGeneratedItemService) {}
 
@@ -133,11 +255,16 @@ export class InstructorActivityAiController {
     @CurrentUser() user: AuthenticatedUser,
     @Param("activityId") activityId: string,
   ) {
-    return this.generatedItems.listForActivity(organization, user.id, activityId);
+    return this.generatedItems.listForActivity(
+      organization,
+      user.id,
+      activityId,
+    );
   }
 
   @Post("video-summary")
   @Permissions(PERMISSIONS.coursesUpdate)
+  @RequiresPlugin("plugin.ai_content_studio")
   generateVideoSummary(
     @ActiveOrganization() organization: OrganizationContext,
     @CurrentUser() user: AuthenticatedUser,
@@ -154,6 +281,7 @@ export class InstructorActivityAiController {
 
   @Post("video-quiz")
   @Permissions(PERMISSIONS.coursesUpdate)
+  @RequiresPlugin("plugin.ai_question_generator")
   generateVideoQuiz(
     @ActiveOrganization() organization: OrganizationContext,
     @CurrentUser() user: AuthenticatedUser,
@@ -169,6 +297,28 @@ export class InstructorActivityAiController {
   }
 }
 
+@Controller("instructor/quiz-answers")
+@UseGuards(
+  JwtAuthGuard,
+  OrganizationContextGuard,
+  PermissionsGuard,
+  PluginEntitlementGuard,
+)
+@RequiresPlugin("plugin.ai_grading_assistant")
+export class InstructorAiGradingController {
+  constructor(private readonly grading: AiGradingAssistantService) {}
+
+  @Post(":answerId/ai-grading-suggestion")
+  @Permissions(PERMISSIONS.quizGrade)
+  suggest(
+    @ActiveOrganization() organization: OrganizationContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("answerId") answerId: string,
+  ) {
+    return this.grading.suggest(organization, user.id, answerId);
+  }
+}
+
 @Controller("instructor/ai/items")
 @UseGuards(JwtAuthGuard, OrganizationContextGuard, PermissionsGuard)
 export class InstructorAiItemsController {
@@ -181,7 +331,11 @@ export class InstructorAiItemsController {
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: ListAiGeneratedItemsQueryDto,
   ) {
-    return this.generatedItems.listForOrganization(organization, user.id, query);
+    return this.generatedItems.listForOrganization(
+      organization,
+      user.id,
+      query,
+    );
   }
 
   @Get(":itemId")
@@ -221,7 +375,12 @@ export class InstructorAiItemsController {
     @Param("itemId") itemId: string,
     @Body("reason") reason?: string,
   ) {
-    return this.generatedItems.rejectItem(organization, user.id, itemId, reason);
+    return this.generatedItems.rejectItem(
+      organization,
+      user.id,
+      itemId,
+      reason,
+    );
   }
 
   @Post(":itemId/publish")

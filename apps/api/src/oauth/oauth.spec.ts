@@ -1,9 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
-import { BadRequestException, ForbiddenException, NotFoundException, UnauthorizedException } from "@nestjs/common";
-import { MfaService, generateTotpCode } from "./mfa.service";
+import { BadRequestException,ForbiddenException,NotFoundException,UnauthorizedException } from "@nestjs/common";
+import { describe,expect,it,vi } from "vitest";
+import { MockCaptchaProvider } from "./captcha.provider";
+import { MfaService,generateTotpCode } from "./mfa.service";
 import { OAuthService } from "./oauth.service";
 import { SessionService } from "./session.service";
-import { MockCaptchaProvider } from "./captcha.provider";
 
 const user = {
   id: "u-1",
@@ -278,7 +278,7 @@ describe("MfaService", () => {
   it("verifies a TOTP code and updates the factor", async () => {
     const prisma: any = buildPrisma();
     const service = new MfaService(prisma);
-    const enroll = await service.enroll(organization, user, "TOTP");
+    await service.enroll(organization, user, "TOTP");
     // Compute the current TOTP code using the service's own generator.
     const secret = Buffer.from(prisma.mfaFactor.create.mock.calls[0][0].data.secret, "hex");
     const otp = generateTotpCode(secret, Date.now());

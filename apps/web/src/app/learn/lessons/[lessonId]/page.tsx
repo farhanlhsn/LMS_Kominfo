@@ -48,9 +48,10 @@ export default function LearnLessonPage() {
     [course],
   );
 
-  const allActivities = courseActivities.length
-    ? courseActivities
-    : lesson?.activities ?? [];
+  const allActivities = useMemo(
+    () => (courseActivities.length ? courseActivities : lesson?.activities ?? []),
+    [courseActivities, lesson?.activities],
+  );
 
   useEffect(() => {
     // Keep a valid, user-driven selection untouched.

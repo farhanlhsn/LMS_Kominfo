@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 import { AI_CONFIG, type AiConfig } from "@lms/config";
 import { Prisma } from "@lms/db";
 import { PrismaService } from "../prisma/prisma.service";
 import { AiEmbeddingProviderFactory } from "./ai-provider.factories";
 import type { LocalEmbeddingProvider } from "./ai-provider.types";
+import { AiTenantRuntimeService } from "./ai-tenant-runtime.service";
 
 function cosine(left: number[], right: number[]) {
   if (!left.length || left.length !== right.length) return -1;
@@ -20,6 +21,8 @@ export class AiCanonicalCacheService {
     @Inject(AI_CONFIG) private readonly config: AiConfig,
     private readonly prisma: PrismaService,
     private readonly embeddingFactory: AiEmbeddingProviderFactory,
+    @Optional()
+    private readonly tenantRuntime?: AiTenantRuntimeService,
   ) {}
 
   async canonicalize(
@@ -31,7 +34,8 @@ export class AiCanonicalCacheService {
     if (!this.config.canonicalization.enabled) {
       return { text: normalized, key: this.hash(normalized) };
     }
-    const provider = this.embeddingFactory.create();
+    const tenantConfig = await this.tenantRuntime?.assertReady(organizationId);
+    const provider = this.embeddingFactory.create(tenantConfig);
     const vector = await provider.embedText(
       `${this.config.localEmbedding.queryPrefix} ${normalized}`,
     );

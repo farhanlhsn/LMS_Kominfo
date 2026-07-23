@@ -19,13 +19,28 @@ export class PluginPanelService {
   }
 
   async listAvailable(organizationId: string) {
+    const enabledPlugins = await this.db.pluginInstallation.findMany({
+      where: { organizationId, status: "ACTIVE" },
+      select: { listing: { select: { pluginId: true } } },
+    });
     return this.db.pluginPanel.findMany({
-      where: { organizationId },
+      where: {
+        organizationId,
+        pluginId: {
+          in: enabledPlugins.map(
+            (installation: { listing: { pluginId: string } }) =>
+              installation.listing.pluginId,
+          ),
+        },
+      },
       orderBy: { name: "asc" },
     });
   }
 
-  async registerPanel(organization: OrganizationContext, dto: RegisterPluginPanelDto) {
+  async registerPanel(
+    organization: OrganizationContext,
+    dto: RegisterPluginPanelDto,
+  ) {
     return this.db.pluginPanel.upsert({
       where: {
         organizationId_pluginId_panelKey: {
@@ -81,7 +96,9 @@ export class PluginPanelService {
         where: { organizationId: organization.id, panelKey: { in: panelKeys } },
         select: { panelKey: true },
       });
-      const knownKeys = new Set<string>(known.map((k: { panelKey: string }) => k.panelKey));
+      const knownKeys = new Set<string>(
+        known.map((k: { panelKey: string }) => k.panelKey),
+      );
       for (const entry of dto.panels as PanelEntryDto[]) {
         if (!knownKeys.has(entry.panelKey)) {
           throw new NotFoundException(

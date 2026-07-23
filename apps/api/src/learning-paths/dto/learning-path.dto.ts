@@ -1,5 +1,5 @@
-﻿import { IsString, IsOptional, IsInt, IsEnum, Min, Max } from "class-validator";
-import { Type } from "class-transformer";
+﻿import { Type } from "class-transformer";
+import { IsInt,IsOptional,IsString,Min } from "class-validator";
 
 export class CreateLearningPathDto {
   @IsString()

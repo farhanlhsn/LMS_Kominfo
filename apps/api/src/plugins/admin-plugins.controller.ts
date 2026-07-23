@@ -6,6 +6,8 @@ import {
   Param,
   Patch,
   Post,
+  Put,
+  Delete,
   UseGuards,
 } from "@nestjs/common";
 import { PERMISSIONS } from "@lms/shared";
@@ -20,6 +22,7 @@ import { JwtAuthGuard } from "../rbac/guards/jwt-auth.guard";
 import { OrganizationContextGuard } from "../rbac/guards/organization-context.guard";
 import { PermissionsGuard } from "../rbac/guards/permissions.guard";
 import { UpdatePluginConfigDto } from "./dto/plugin-config.dto";
+import { UpdatePluginSecretDto } from "./dto/plugin-secret.dto";
 import { PluginConfigService } from "./plugin-config.service";
 
 @Controller("admin/plugins")
@@ -82,6 +85,38 @@ export class AdminPluginsController {
       user,
       pluginKey,
       dto.config,
+    );
+  }
+
+  @Put(":pluginKey/secrets/:secretKey")
+  updateSecret(
+    @ActiveOrganization() organization: OrganizationContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("pluginKey") pluginKey: string,
+    @Param("secretKey") secretKey: string,
+    @Body() dto: UpdatePluginSecretDto,
+  ) {
+    return this.pluginConfigService.updateSecret(
+      organization.id,
+      user,
+      pluginKey,
+      secretKey,
+      dto.value,
+    );
+  }
+
+  @Delete(":pluginKey/secrets/:secretKey")
+  deleteSecret(
+    @ActiveOrganization() organization: OrganizationContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("pluginKey") pluginKey: string,
+    @Param("secretKey") secretKey: string,
+  ) {
+    return this.pluginConfigService.deleteSecret(
+      organization.id,
+      user,
+      pluginKey,
+      secretKey,
     );
   }
 

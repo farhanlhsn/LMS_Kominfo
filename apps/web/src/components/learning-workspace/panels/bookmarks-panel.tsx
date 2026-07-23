@@ -6,13 +6,12 @@ import {
   useDeleteLearnerBookmark,
   useLearnerBookmarks,
 } from "../../../lib/api-hooks";
-import type { Activity, Course, LearnerBookmark, Lesson } from "../../../lib/lms-types";
+import type { Activity,Course,LearnerBookmark,Lesson } from "../../../lib/lms-types";
 import {
   PanelFrame,
   PanelList,
   TimestampBookmarkButton,
-  formatTimestamp,
-  seekVideo,
+  formatTimestamp
 } from "./panel-shared";
 
 export function BookmarksPanel({

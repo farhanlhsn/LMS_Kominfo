@@ -1,3 +1,4 @@
+import { PERMISSIONS } from "@lms/shared";
 import {
   Body,
   Controller,
@@ -6,10 +7,8 @@ import {
   Param,
   Patch,
   Post,
-  Query,
-  UseGuards,
+  UseGuards
 } from "@nestjs/common";
-import { PERMISSIONS } from "@lms/shared";
 import type {
   AuthenticatedUser,
   OrganizationContext,

@@ -1,15 +1,14 @@
 "use client";
 
+import { PERMISSIONS } from "@lms/shared";
+import { RefreshCw,Search } from "lucide-react";
 import { useState } from "react";
-import { Shield, RefreshCw, Search } from "lucide-react";
-import { AuthGate } from "../../../components/auth/auth-gate";
-import { PermissionGate } from "../../../components/auth/auth-gate";
+import { AuthGate,PermissionGate } from "../../../components/auth/auth-gate";
 import { AppShell } from "../../../components/layout/shells";
-import { PageHeader, StatusBadge, Pagination, DataTable } from "../../../components/ui/core";
-import { ApiErrorState, EmptyState, LoadingState } from "../../../components/ui/states";
+import { DataTable,PageHeader,Pagination,StatusBadge } from "../../../components/ui/core";
+import { ApiErrorState,EmptyState,LoadingState } from "../../../components/ui/states";
 import { useAuditLogs } from "../../../lib/api-hooks";
 import type { AuditLogEntry } from "../../../lib/lms-types";
-import { PERMISSIONS } from "@lms/shared";
 
 export default function AuditLogsPage() {
   const [page, setPage] = useState(1);

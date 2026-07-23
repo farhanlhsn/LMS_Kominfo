@@ -1,15 +1,14 @@
 ﻿"use client";
 
-import { BookOpen, Users, TrendingUp, Activity, Shield, Building2, Globe } from "lucide-react";
-import Link from "next/link";
-import { AuthGate } from "../../components/auth/auth-gate";
-import { PermissionGate } from "../../components/auth/auth-gate";
-import { AppShell } from "../../components/layout/shells";
-import { MetricCard, SimpleBarChart } from "../../components/analytics/charts";
-import { PageHeader, StatusBadge } from "../../components/ui/core";
-import { ApiErrorState, LoadingState, EmptyState } from "../../components/ui/states";
-import { useAdminOverview, useAdminTrends, useSession } from "../../lib/api-hooks";
 import { PERMISSIONS } from "@lms/shared";
+import { Activity,Building2,Globe,Shield,Users } from "lucide-react";
+import Link from "next/link";
+import { MetricCard,SimpleBarChart } from "../../components/analytics/charts";
+import { AuthGate,PermissionGate } from "../../components/auth/auth-gate";
+import { AppShell } from "../../components/layout/shells";
+import { PageHeader,StatusBadge } from "../../components/ui/core";
+import { ApiErrorState } from "../../components/ui/states";
+import { useAdminOverview,useAdminTrends,useSession } from "../../lib/api-hooks";
 
 export default function AdminDashboardPage() {
   const session = useSession();

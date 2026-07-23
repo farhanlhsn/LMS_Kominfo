@@ -1,9 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { PermissionsGuard } from "../rbac/guards/permissions.guard";
+import { beforeEach,describe,expect,it,vi } from "vitest";
 import { JwtAuthGuard } from "../rbac/guards/jwt-auth.guard";
 import { OrganizationContextGuard } from "../rbac/guards/organization-context.guard";
+import { PermissionsGuard } from "../rbac/guards/permissions.guard";
 import { MessagingController } from "./messaging.controller";
-import { MessagingService } from "./messaging.service";
 
 describe("MessagingController", () => {
   let controller: MessagingController;

@@ -1,12 +1,13 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Inject,
   Injectable,
   NotFoundException,
   Optional,
 } from "@nestjs/common";
 import { Prisma } from "@lms/db";
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { extname } from "node:path";
 import { PrismaService } from "../prisma/prisma.service";
 import { StorageService } from "../storage/storage.service";
@@ -16,6 +17,7 @@ import type {
   OrganizationContext,
 } from "../auth/types/authenticated-request";
 import { FileAccessPolicyService } from "./file-access-policy.service";
+import { jwtAccessSecret } from "../common/security/jwt-secrets";
 import type {
   CreateFolderDto,
   ListFilesDto,
@@ -184,7 +186,7 @@ export class FilesService {
       where: { id: fileId, organizationId, deletedAt: null },
     });
     if (!file) throw new NotFoundException("Certificate file not found");
-    const url = await this.storage.getSignedUrl(file.bucket, file.key, expiresInSeconds);
+    const url = this.privateContentUrl(file, expiresInSeconds);
     return { url, expiresInSeconds };
   }
 
@@ -269,12 +271,8 @@ export class FilesService {
     );
     const url =
       file.visibility === "PUBLIC"
-        ? this.storage.getPublicUrl(file.bucket, file.key)
-        : await this.storage.getSignedUrl(
-            file.bucket,
-            file.key,
-            dto.expiresInSeconds ?? 300,
-          );
+        ? `${this.apiBaseUrl()}/files/public/${encodeURIComponent(file.id)}`
+        : this.privateContentUrl(file, dto.expiresInSeconds ?? 300);
     await this.audit(
       organization.id,
       userId,
@@ -282,6 +280,41 @@ export class FilesService {
       fileId,
     );
     return { url, expiresInSeconds: dto.expiresInSeconds ?? 300 };
+  }
+
+  async publicContent(fileId: string) {
+    const file = await this.prisma.file.findFirst({
+      where: { id: fileId, visibility: "PUBLIC", deletedAt: null },
+    });
+    if (!file) throw new NotFoundException("Public file not found");
+    return this.readContent(file);
+  }
+
+  async signedContent(fileId: string, expires: string, token: string) {
+    const expiresAt = Number(expires);
+    if (
+      !Number.isSafeInteger(expiresAt) ||
+      expiresAt <= Math.floor(Date.now() / 1000)
+    ) {
+      throw new ForbiddenException("File URL has expired");
+    }
+    const file = await this.prisma.file.findFirst({
+      where: { id: fileId, deletedAt: null },
+    });
+    if (!file) throw new NotFoundException("File not found");
+    if (!file.organizationId) {
+      throw new ForbiddenException("File is not tenant-scoped");
+    }
+    const expected = this.contentToken(file.id, file.organizationId, expiresAt);
+    const received = Buffer.from(token);
+    const expectedBuffer = Buffer.from(expected);
+    if (
+      received.length !== expectedBuffer.length ||
+      !timingSafeEqual(received, expectedBuffer)
+    ) {
+      throw new ForbiddenException("Invalid file URL");
+    }
+    return this.readContent(file);
   }
 
   async listFolders(organizationId: string) {
@@ -374,6 +407,48 @@ export class FilesService {
 
   private safeFilename(filename: string) {
     return filename.replace(/[^a-zA-Z0-9._-]/g, "-").toLowerCase();
+  }
+
+  private privateContentUrl(
+    file: { id: string; organizationId: string | null },
+    expiresInSeconds: number,
+  ) {
+    if (!file.organizationId) {
+      throw new ForbiddenException("File is not tenant-scoped");
+    }
+    const expires = Math.floor(Date.now() / 1000) + expiresInSeconds;
+    const token = this.contentToken(file.id, file.organizationId, expires);
+    return `${this.apiBaseUrl()}/files/content/${encodeURIComponent(file.id)}?expires=${expires}&token=${encodeURIComponent(token)}`;
+  }
+
+  private contentToken(fileId: string, organizationId: string, expires: number) {
+    const secret = process.env.FILE_URL_SIGNING_SECRET || jwtAccessSecret();
+    return createHmac("sha256", secret)
+      .update(`${fileId}.${organizationId}.${expires}`)
+      .digest("base64url");
+  }
+
+  private apiBaseUrl() {
+    const configured = process.env.PUBLIC_API_URL?.replace(/\/+$/, "");
+    if (configured) return configured;
+    const appUrl = process.env.PUBLIC_APP_URL?.replace(/\/+$/, "");
+    if (process.env.NODE_ENV === "production" && appUrl) {
+      return `${appUrl}/api/v1`;
+    }
+    return `http://localhost:${process.env.API_PORT ?? 4000}/api/v1`;
+  }
+
+  private async readContent(file: {
+    bucket: string;
+    key: string;
+    mimeType: string;
+    originalFilename: string;
+  }) {
+    return {
+      body: await this.storage.getFile(file.bucket, file.key),
+      mimeType: file.mimeType,
+      filename: file.originalFilename,
+    };
   }
 
   private async ensureFolderInOrganization(

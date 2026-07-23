@@ -1,11 +1,11 @@
 "use client";
 
+import { BarChart3,BookOpen,Clock,Users } from "lucide-react";
 import Link from "next/link";
-import { BookOpen, Clock, Users, BarChart3 } from "lucide-react";
 import { AuthGate } from "../../components/auth/auth-gate";
 import { AppShell } from "../../components/layout/shells";
-import { PageHeader, StatusBadge } from "../../components/ui/core";
-import { ApiErrorState, EmptyState, LoadingState } from "../../components/ui/states";
+import { PageHeader,StatusBadge } from "../../components/ui/core";
+import { ApiErrorState,EmptyState } from "../../components/ui/states";
 import { useLearningPaths } from "../../lib/api-hooks";
 import type { LearningPath } from "../../lib/lms-types";
 

@@ -35,8 +35,7 @@ function createService(overrides: Partial<Record<string, unknown>> = {}) {
   const storage = {
     uploadFile: vi.fn().mockResolvedValue(undefined),
     deleteFile: vi.fn().mockResolvedValue(undefined),
-    getSignedUrl: vi.fn().mockResolvedValue("https://signed.example/file"),
-    getPublicUrl: vi.fn().mockReturnValue("https://public.example/file"),
+    getFile: vi.fn().mockResolvedValue(Buffer.from("file-content")),
   };
   const accessPolicy = {
     ensureCanReadFile: vi.fn(),
@@ -83,9 +82,10 @@ describe("FilesService", () => {
   });
 
   it("generates signed URLs only after file access policy passes", async () => {
-    const { service, storage, accessPolicy } = createService();
+    const { service, accessPolicy } = createService();
     accessPolicy.ensureCanReadFile.mockResolvedValue({
       id: "file_1",
+      organizationId: "org_1",
       bucket: "bucket",
       key: "key",
       visibility: "PRIVATE",
@@ -96,7 +96,7 @@ describe("FilesService", () => {
         expiresInSeconds: 600,
       }),
     ).resolves.toEqual({
-      url: "https://signed.example/file",
+      url: expect.stringContaining("/api/v1/files/content/file_1"),
       expiresInSeconds: 600,
     });
     expect(accessPolicy.ensureCanReadFile).toHaveBeenCalledWith(
@@ -105,7 +105,6 @@ describe("FilesService", () => {
       "file_1",
       undefined,
     );
-    expect(storage.getSignedUrl).toHaveBeenCalledWith("bucket", "key", 600);
   });
 
   it("rejects upload into a folder from another organization", async () => {
@@ -213,6 +212,7 @@ describe("FilesService", () => {
 
     accessPolicy.ensureCanReadFile.mockResolvedValue({
       id: "file_1",
+      organizationId: "org_1",
       bucket: "b",
       key: "k",
       visibility: "PUBLIC",
@@ -223,7 +223,7 @@ describe("FilesService", () => {
       "file_1",
       {} as any,
     );
-    expect(publicUrl.url).toContain("public.example");
+    expect(publicUrl.url).toContain("/api/v1/files/public/file_1");
 
     prisma.folder.findFirst.mockResolvedValue({ id: "folder_1" });
     await service.createFolder(organization as any, "user_1", {
@@ -235,6 +235,7 @@ describe("FilesService", () => {
 
     prisma.file.findFirst.mockResolvedValue({
       id: "cert_1",
+      organizationId: "org_1",
       bucket: "b",
       key: "k",
     });
@@ -267,6 +268,36 @@ describe("FilesService", () => {
         originalname: "x.exe",
       } as any),
     ).toThrow(BadRequestException);
+  });
+
+  it("serves public files and validates signed private content URLs", async () => {
+    const { service, prisma, storage } = createService();
+    const file = {
+      id: "file_1",
+      organizationId: "org_1",
+      bucket: "bucket",
+      key: "key",
+      mimeType: "application/pdf",
+      originalFilename: "lesson.pdf",
+      visibility: "PRIVATE",
+    };
+    prisma.file.findFirst.mockResolvedValue(file);
+
+    const signed = await service.managedSignedUrl("org_1", "file_1", 300);
+    const parsed = new URL(signed.url);
+    const content = await service.signedContent(
+      "file_1",
+      parsed.searchParams.get("expires")!,
+      parsed.searchParams.get("token")!,
+    );
+    expect(content.body.toString()).toBe("file-content");
+    expect(storage.getFile).toHaveBeenCalledWith("bucket", "key");
+
+    prisma.file.findFirst.mockResolvedValue({ ...file, visibility: "PUBLIC" });
+    await expect(service.publicContent("file_1")).resolves.toMatchObject({
+      mimeType: "application/pdf",
+      filename: "lesson.pdf",
+    });
   });
 
   it("covers managed invalid, search list, folder not-found, mime purpose", async () => {

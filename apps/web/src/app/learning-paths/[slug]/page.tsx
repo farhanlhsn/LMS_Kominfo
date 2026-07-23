@@ -1,25 +1,43 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { ArrowRight,BookOpen,CheckCircle,Clock,Users } from "lucide-react";
 import Link from "next/link";
-import { BookOpen, CheckCircle, Clock, Users, ArrowRight } from "lucide-react";
+import { useParams } from "next/navigation";
+import { useState } from "react";
 import { AuthGate } from "../../../components/auth/auth-gate";
 import { AppShell } from "../../../components/layout/shells";
-import { PageHeader, StatusBadge, StatCard } from "../../../components/ui/core";
-import { ApiErrorState, EmptyState, LoadingState } from "../../../components/ui/states";
-import { useLearningPath } from "../../../lib/api-hooks";
+import { PageHeader,StatCard,StatusBadge } from "../../../components/ui/core";
+import { ApiErrorState,LoadingState } from "../../../components/ui/states";
+import {
+  useLearningPath,
+  useMyLearningPathEnrollments,
+} from "../../../lib/api-hooks";
 
 export default function LearningPathDetailPage() {
   const params = useParams();
   const slug = typeof params.slug === "string" ? params.slug : null;
   const query = useLearningPath(slug);
+  const enrollments = useMyLearningPathEnrollments();
   const path = query.data;
+  const [enrolling, setEnrolling] = useState(false);
+  const [enrollError, setEnrollError] = useState<string | null>(null);
+  const enrollment = (enrollments.data ?? []).find(
+    (item) => item.learningPathId === path?.id,
+  );
 
   async function handleEnroll() {
     if (!path) return;
-    const { api } = await import("../../../lib/api-client");
-    await api.enrollLearningPath(path.id);
-    await query.reload();
+    setEnrolling(true);
+    setEnrollError(null);
+    try {
+      const { api } = await import("../../../lib/api-client");
+      await api.enrollLearningPath(path.id);
+      await Promise.all([query.reload(), enrollments.reload()]);
+    } catch (error) {
+      setEnrollError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setEnrolling(false);
+    }
   }
 
   return (
@@ -39,14 +57,28 @@ export default function LearningPathDetailPage() {
               actions={
                 <button
                   className="inline-flex min-h-10 items-center gap-2 rounded-md bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
+                  disabled={enrolling || Boolean(enrollment)}
                   onClick={() => void handleEnroll()}
                   type="button"
                 >
-                  Enroll Now
-                  <ArrowRight className="h-4 w-4" />
+                  {enrollment
+                    ? "Enrolled"
+                    : enrolling
+                      ? "Enrolling..."
+                      : "Enroll now"}
+                  {enrollment ? (
+                    <CheckCircle className="h-4 w-4" />
+                  ) : (
+                    <ArrowRight className="h-4 w-4" />
+                  )}
                 </button>
               }
             />
+            {enrollError ? (
+              <p className="mb-4 text-sm text-destructive" role="alert">
+                {enrollError}
+              </p>
+            ) : null}
 
             <div className="mb-6 grid gap-4 sm:grid-cols-3">
               <StatCard icon={BookOpen} label="Courses" value={String(path.courses?.length ?? 0)} />

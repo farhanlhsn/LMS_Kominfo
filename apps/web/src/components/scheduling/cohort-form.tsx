@@ -1,7 +1,11 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { useCreateCohort, useUpdateCohort } from "../../lib/api-hooks";
+import {
+  useCreateCohort,
+  useInstructorCourses,
+  useUpdateCohort,
+} from "../../lib/api-hooks";
 import { Button } from "../ui/button";
 import type { Cohort, CohortStatus } from "../../lib/lms-types";
 
@@ -21,6 +25,7 @@ const ALL_STATUSES: CohortStatus[] = [
 export function CohortForm({ initial, onSubmitted, onCancel }: CohortFormProps) {
   const create = useCreateCohort();
   const update = useUpdateCohort();
+  const courses = useInstructorCourses();
   const [name, setName] = useState(initial?.name ?? "");
   const [courseId, setCourseId] = useState(initial?.courseId ?? "");
   const [startAt, setStartAt] = useState(initial?.startAt?.slice(0, 10) ?? "");
@@ -82,13 +87,22 @@ export function CohortForm({ initial, onSubmitted, onCancel }: CohortFormProps) 
           />
         </label>
         <label className="text-sm font-medium">
-          Course ID
-          <input
+          Course
+          <select
             className="mt-1 w-full rounded border border-border px-2 py-1"
             value={courseId}
             onChange={(e) => setCourseId(e.target.value)}
             disabled={Boolean(initial)}
-          />
+          >
+            <option value="">
+              {courses.loading ? "Loading courses..." : "Select a course"}
+            </option>
+            {(courses.data ?? []).map((course) => (
+              <option key={course.id} value={course.id}>
+                {course.title}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="text-sm font-medium">
           Start date

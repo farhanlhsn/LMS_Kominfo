@@ -4,6 +4,7 @@ import { KeyRound, LogIn, BookOpen, GraduationCap, BarChart3, Users } from "luci
 import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api-client";
+import { defaultRouteForSession } from "../../lib/authz";
 import { ThemeModeToggle } from "../../components/theme/theme-mode";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -128,8 +129,8 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     try {
-      await api.login(email, password);
-      window.location.href = "/";
+      const session = await api.login(email, password);
+      window.location.href = defaultRouteForSession(session);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Login failed");
     } finally {

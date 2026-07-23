@@ -4,6 +4,7 @@ import {
   canUseContentLibrary,
   canUseFileWorkspace,
   canUseInstructorWorkspace,
+  defaultRouteForSession,
   hasAnyPermission,
   hasPermission,
   visibleNavigationKeys,
@@ -87,13 +88,36 @@ describe("authz.visibleNavigationKeys", () => {
     expect(keys).toContain("instructor");
   });
 
-  it("adds admin and moderation for org_admin role", () => {
-    const keys = visibleNavigationKeys(buildSession(["org_admin"]));
+  it("adds admin and moderation when an admin capability is granted", () => {
+    const keys = visibleNavigationKeys(buildSession(["org_admin"], ["roles:view"]));
     expect(keys).toContain("admin");
     expect(keys).toContain("moderation");
   });
 
+  it("does not treat an admin-looking role key as a permission bypass", () => {
+    const keys = visibleNavigationKeys(buildSession(["org_admin"]));
+    expect(keys).not.toContain("admin");
+  });
+
   it("always exposes the public navigation keys even without a session", () => {
     expect(visibleNavigationKeys(null)).toEqual(["dashboard", "catalog", "my-learning"]);
+  });
+});
+
+describe("authz.defaultRouteForSession", () => {
+  it("routes administrators to admin workspace", () => {
+    expect(
+      defaultRouteForSession(buildSession(["org_admin"], ["roles:view"])),
+    ).toBe("/admin");
+  });
+
+  it("routes course managers to instructor workspace", () => {
+    expect(
+      defaultRouteForSession(buildSession([], ["courses:create"])),
+    ).toBe("/instructor");
+  });
+
+  it("routes learners to learner dashboard", () => {
+    expect(defaultRouteForSession(buildSession(["learner"]))).toBe("/");
   });
 });

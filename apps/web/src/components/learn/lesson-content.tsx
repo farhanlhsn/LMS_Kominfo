@@ -36,9 +36,9 @@ export function LessonContent({
   // Helper to get embed YouTube URL
   const getYoutubeEmbedUrl = (url: string) => {
     try {
-      const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+      const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
       const match = url.match(regExp);
-      if (match && match[2].length === 11) {
+      if (match?.[2]?.length === 11) {
         return `https://www.youtube.com/embed/${match[2]}`;
       }
     } catch (e) {

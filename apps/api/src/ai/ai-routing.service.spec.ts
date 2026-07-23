@@ -29,6 +29,8 @@ describe("AiRoutingService", () => {
     expect(strict.classify("cuaca hari ini", false)).toBe("OFF_TOPIC");
   });
 
+  // Method name is public API text, not secret material.
+  // eslint-disable-next-line no-secrets/no-secrets
   it("classifyWithLocalEmbedding falls back to rules", async () => {
     const route = await service.classifyWithLocalEmbedding(
       "apa itu tcp",

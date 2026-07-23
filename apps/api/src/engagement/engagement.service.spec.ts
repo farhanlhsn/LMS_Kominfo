@@ -75,10 +75,33 @@ describe("EngagementService access control", () => {
 
   it("does not expose a live meeting URL without course access", async () => {
     const { service } = setup({
-      liveClass: { findFirst: vi.fn().mockResolvedValue({ id: "live-a", organizationId: "org-a", courseId: "course-a", meetingUrl: "https://meeting.invalid", status: "SCHEDULED" }) },
+      liveClass: {
+        findFirst: vi.fn().mockResolvedValue({ id: "live-a", organizationId: "org-a", courseId: "course-a", meetingUrl: "https://meeting.invalid", status: "SCHEDULED" }),
+        updateMany: vi.fn(),
+      },
       enrollment: { findUnique: vi.fn().mockResolvedValue(null), findMany: vi.fn() },
     });
     await expect(service.joinLiveClass(org, "outsider", "live-a")).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it("does not expose a meeting URL after a live class ends", async () => {
+    const { service } = setup({
+      liveClass: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "live-a",
+          organizationId: "org-a",
+          courseId: "course-a",
+          meetingUrl: "https://meeting.invalid",
+          provider: "manual",
+          status: "SCHEDULED",
+          endAt: new Date(Date.now() - 60_000),
+        }),
+        updateMany: vi.fn(),
+      },
+    });
+    await expect(
+      service.joinLiveClass(org, "learner-a", "live-a"),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it("lists creates updates deletes discussion threads", async () => {
@@ -245,6 +268,15 @@ describe("EngagementService access control", () => {
       startsAt: "2026-08-02T10:00:00.000Z",
       visibility: "personal",
     } as any);
+    expect(prisma.calendarEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          courseId: null,
+          type: "PERSONAL_EVENT",
+          visibility: "personal",
+        }),
+      }),
+    );
     await service.updateCalendarEvent(managerOrg, "learner-a", "ev-1", {
       title: "Personal 2",
     } as any);

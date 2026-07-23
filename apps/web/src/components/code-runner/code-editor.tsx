@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
 import Editor from "@monaco-editor/react";
-import { CheckCircle2, ChevronDown, ChevronRight, Play, Send, Terminal, XCircle } from "lucide-react";
+import { CheckCircle2,Play,Send,Terminal,XCircle } from "lucide-react";
+import { useCallback,useState } from "react";
 import { useExecuteCode } from "../../lib/api-hooks";
+import type { CodeLanguage } from "../../lib/lms-types";
 import { StatusBadge } from "../ui/core";
-import type { CodeLanguage, CodeExecutionRecord } from "../../lib/lms-types";
 
 const LANGUAGES: { key: CodeLanguage; label: string; monacoId: string; starter: string }[] = [
   { key: "PYTHON",     label: "Python",     monacoId: "python",     starter: "# Write your Python code here\nprint('Hello, world!')\n" },
@@ -87,7 +87,7 @@ export function CodeEditor({
     } finally {
       setBusy(false);
     }
-  }, [code, language, stdin, execute, onExecuted]);
+  }, [code, language, stdin, execute, langMeta.label, onExecuted]);
 
   return (
     <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-[#1e1e1e] shadow-lg">

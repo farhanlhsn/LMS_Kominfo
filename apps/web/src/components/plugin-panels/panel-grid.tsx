@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { LayoutGrid, Save } from "lucide-react";
 import {
   useAvailablePanels,
@@ -31,7 +31,10 @@ export function PanelGrid({ layoutKey, onLayoutChange }: PanelGridProps) {
   const [error, setError] = useState<string | null>(null);
 
   const availablePanels = panelsQuery.data ?? [];
-  const savedEntries = layoutQuery.data?.panels ?? [];
+  const savedEntries = useMemo(
+    () => layoutQuery.data?.panels ?? [],
+    [layoutQuery.data?.panels],
+  );
   const effective = entries.length ? entries : savedEntries;
 
   const handleToggle = useCallback(

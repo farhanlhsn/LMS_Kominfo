@@ -27,6 +27,7 @@ describe("AiIndexingService", () => {
         findMany: vi.fn().mockResolvedValue([]),
         create: vi.fn().mockResolvedValue({ id: "doc-1" }),
         update: vi.fn().mockResolvedValue({ id: "doc-1" }),
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
       },
       aiDocumentChunk: {
         deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
@@ -51,9 +52,11 @@ describe("AiIndexingService", () => {
       fromFile: vi.fn(),
     };
     const chunker = {
-      chunk: vi.fn().mockReturnValue([
-        { chunkIndex: 0, content: "Lesson body", tokenCount: 2 },
-      ]),
+      chunk: vi
+        .fn()
+        .mockReturnValue([
+          { chunkIndex: 0, content: "Lesson body", tokenCount: 2 },
+        ]),
     };
     const embeddingFactory = {
       create: vi.fn().mockReturnValue({
@@ -163,6 +166,7 @@ describe("AiIndexingService", () => {
         findMany: vi.fn().mockResolvedValue([]),
         create: vi.fn(),
         update: vi.fn(),
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
         groupBy: vi.fn().mockResolvedValue([
           { status: "READY", _count: { _all: 2 } },
           { status: "FAILED", _count: { _all: 1 } },
@@ -201,9 +205,17 @@ describe("AiIndexingService", () => {
       permissionKeys: ["courses:update"],
       isPlatformAdmin: true,
     };
-    const indexed = await service.indexCourse(org as never, "user-1", "course-1");
+    const indexed = await service.indexCourse(
+      org as never,
+      "user-1",
+      "course-1",
+    );
     expect(indexed).toMatchObject({ activities: 1, documents: 0, chunks: 0 });
-    const status = await service.courseStatus(org as never, "user-1", "course-1");
+    const status = await service.courseStatus(
+      org as never,
+      "user-1",
+      "course-1",
+    );
     expect(status).toMatchObject({ documents: 3, chunks: 4 });
   });
 
@@ -273,9 +285,9 @@ describe("AiIndexingService", () => {
         .mockRejectedValueOnce(new Error("extract fail")),
     };
     const chunker = {
-      chunk: vi.fn().mockReturnValue([
-        { chunkIndex: 0, content: "chunk", tokenCount: 1 },
-      ]),
+      chunk: vi
+        .fn()
+        .mockReturnValue([{ chunkIndex: 0, content: "chunk", tokenCount: 1 }]),
     };
     const embedBatch = vi
       .fn()
@@ -343,17 +355,37 @@ describe("AiIndexingService", () => {
         create: vi.fn().mockResolvedValue({ id: "doc-1" }),
         update: vi.fn().mockResolvedValue({ id: "doc-1" }),
       },
-      aiDocumentChunk: { deleteMany: vi.fn(), createMany: vi.fn(), count: vi.fn() },
+      aiDocumentChunk: {
+        deleteMany: vi.fn(),
+        createMany: vi.fn(),
+        count: vi.fn(),
+      },
       $transaction: vi.fn(),
     };
     const service = new AiIndexingService(
       prisma as never,
       { fromRichContent: vi.fn().mockReturnValue("Body") } as never,
-      { chunk: vi.fn().mockReturnValue([{ chunkIndex: 0, content: "A", tokenCount: 1 }, { chunkIndex: 1, content: "B", tokenCount: 1 }]) } as never,
-      { create: vi.fn().mockReturnValue({ capabilities: { providerName: "mock", model: "m", embeddingDimensions: 2 }, embedBatch: vi.fn().mockResolvedValue([[0.1, Number.NaN]]) }) } as never,
+      {
+        chunk: vi.fn().mockReturnValue([
+          { chunkIndex: 0, content: "A", tokenCount: 1 },
+          { chunkIndex: 1, content: "B", tokenCount: 1 },
+        ]),
+      } as never,
+      {
+        create: vi.fn().mockReturnValue({
+          capabilities: {
+            providerName: "mock",
+            model: "m",
+            embeddingDimensions: 2,
+          },
+          embedBatch: vi.fn().mockResolvedValue([[0.1, Number.NaN]]),
+        }),
+      } as never,
     );
 
-    await expect(service.indexActivity("org-1", "activity-1")).resolves.toMatchObject({ chunks: 0 });
+    await expect(
+      service.indexActivity("org-1", "activity-1"),
+    ).resolves.toMatchObject({ chunks: 0 });
     expect(prisma.aiDocumentChunk.createMany).not.toHaveBeenCalled();
     expect(prisma.aiDocument.update).toHaveBeenCalledWith({
       where: { id: "doc-1" },
@@ -362,9 +394,8 @@ describe("AiIndexingService", () => {
   });
 
   it("rejects missing activity/course and allows instructor without courses:update", async () => {
-    const { ForbiddenException, NotFoundException } = await import(
-      "@nestjs/common"
-    );
+    const { ForbiddenException, NotFoundException } =
+      await import("@nestjs/common");
     const prisma = {
       activity: {
         findFirst: vi.fn().mockResolvedValue(null),
@@ -390,6 +421,7 @@ describe("AiIndexingService", () => {
           },
         ]),
         groupBy: vi.fn().mockResolvedValue([]),
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
       },
       aiDocumentChunk: { count: vi.fn().mockResolvedValue(0) },
       course: { findFirst: vi.fn().mockResolvedValue(null) },
@@ -405,9 +437,9 @@ describe("AiIndexingService", () => {
       { chunk: vi.fn() } as never,
       { create: vi.fn() } as never,
     );
-    await expect(service.indexActivity("org-1", "missing")).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    await expect(
+      service.indexActivity("org-1", "missing"),
+    ).rejects.toBeInstanceOf(NotFoundException);
 
     const orgNoPerm = {
       id: "org-1",
@@ -440,5 +472,131 @@ describe("AiIndexingService", () => {
       "c1",
     );
   });
-});
 
+  it("reports INDEXING while an automatic activity reindex is running", async () => {
+    let finishIndex: ((value: unknown) => void) | undefined;
+    const prisma = {
+      activity: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "activity-1",
+          courseId: "course-1",
+          isPublished: true,
+          activityTypeKey: "core.text",
+        }),
+      },
+      aiDocument: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        groupBy: vi
+          .fn()
+          .mockResolvedValue([{ status: "READY", _count: { _all: 1 } }]),
+      },
+      aiDocumentChunk: {
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        count: vi.fn().mockResolvedValue(2),
+      },
+      course: {
+        findFirst: vi.fn().mockResolvedValue({ id: "course-1" }),
+      },
+      courseInstructor: { findFirst: vi.fn() },
+    };
+    const service = new AiIndexingService(
+      prisma as never,
+      { fromRichContent: vi.fn(), fromFile: vi.fn() } as never,
+      { chunk: vi.fn() } as never,
+      { create: vi.fn() } as never,
+    );
+    const indexActivity = vi.spyOn(service, "indexActivity").mockReturnValue(
+      new Promise((resolve) => {
+        finishIndex = resolve;
+      }) as never,
+    );
+    const organization = {
+      id: "org-1",
+      slug: "org",
+      name: "Org",
+      memberId: "member-1",
+      roleKeys: ["instructor"],
+      permissionKeys: ["courses:update"],
+      isPlatformAdmin: false,
+    };
+
+    await service.requestActivityReindex("org-1", "activity-1");
+    await expect(
+      service.courseStatus(organization as never, "user-1", "course-1"),
+    ).resolves.toMatchObject({
+      state: "INDEXING",
+      ready: false,
+      isIndexing: true,
+    });
+    expect(prisma.aiDocument.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "NEEDS_REINDEX" }),
+      }),
+    );
+
+    finishIndex?.({});
+    await vi.waitFor(() => expect(indexActivity).toHaveBeenCalledTimes(1));
+    await vi.waitFor(async () => {
+      const status = await service.courseStatus(
+        organization as never,
+        "user-1",
+        "course-1",
+      );
+      expect(status.state).toBe("READY");
+    });
+  });
+
+  it("lists ready indexed sources within organization and course", async () => {
+    const prisma = {
+      course: { findFirst: vi.fn().mockResolvedValue({ id: "course-1" }) },
+      courseInstructor: { findFirst: vi.fn() },
+      aiDocument: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: "document-1",
+            title: "Lesson notes",
+            sourceType: "ACTIVITY_CONTENT",
+            lessonId: "lesson-1",
+            activityId: "activity-1",
+            fileId: null,
+            indexedAt: new Date("2026-07-23T00:00:00.000Z"),
+            _count: { chunks: 3 },
+          },
+        ]),
+      },
+    };
+    const service = new AiIndexingService(
+      prisma as never,
+      { fromRichContent: vi.fn(), fromFile: vi.fn() } as never,
+      { chunk: vi.fn() } as never,
+      { create: vi.fn() } as never,
+    );
+    const result = await service.courseSources(
+      {
+        id: "org-1",
+        slug: "org",
+        name: "Org",
+        memberId: "member-1",
+        roleKeys: ["instructor"],
+        permissionKeys: ["courses:update"],
+        isPlatformAdmin: false,
+      },
+      "user-1",
+      "course-1",
+    );
+
+    expect(prisma.aiDocument.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          organizationId: "org-1",
+          courseId: "course-1",
+          status: "READY",
+          deletedAt: null,
+        },
+      }),
+    );
+    expect(result).toEqual([
+      expect.objectContaining({ id: "document-1", chunkCount: 3 }),
+    ]);
+  });
+});
