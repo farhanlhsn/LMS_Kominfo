@@ -1,5 +1,5 @@
-import { NotFoundException, BadRequestException } from "@nestjs/common";
-import { describe, expect, it, vi } from "vitest";
+import { NotFoundException } from "@nestjs/common";
+import { describe,expect,it,vi } from "vitest";
 import { EnterpriseService } from "./enterprise.service";
 
 const org = { id: "org-a", slug: "a", name: "A", memberId: "m1", roleKeys: ["org_admin"], permissionKeys: [], isPlatformAdmin: false };
@@ -37,7 +37,7 @@ function setup(overrides: Record<string, unknown> = {}) {
 describe("EnterpriseService", () => {
   describe("Branding", () => {
     it("gets branding", async () => {
-      const { service, prisma } = setup();
+      const { service } = setup();
       const result = await service.getBranding("org-a");
       expect(result).toMatchObject({ primaryColor: "#2563eb" });
     });
@@ -85,7 +85,7 @@ describe("EnterpriseService", () => {
     });
 
     it("rejects cross-tenant delete", async () => {
-      const { service, prisma } = setup({ ssoProvider: { findFirst: vi.fn().mockResolvedValue(null) } });
+      const { service } = setup({ ssoProvider: { findFirst: vi.fn().mockResolvedValue(null) } });
       await expect(service.deleteProvider(org, "sso-org-b")).rejects.toBeInstanceOf(NotFoundException);
     });
   });

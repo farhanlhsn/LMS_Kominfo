@@ -7,10 +7,8 @@ import {
   Inject,
   Param,
   Post,
-  Req,
-  UseGuards,
+  UseGuards
 } from "@nestjs/common";
-import type { AuthenticatedRequest } from "../auth/types/authenticated-request";
 import type {
   AuthenticatedUser,
   OrganizationContext,
@@ -19,19 +17,10 @@ import { ActiveOrganization } from "../rbac/decorators/active-organization.decor
 import { CurrentUser } from "../rbac/decorators/current-user.decorator";
 import { JwtAuthGuard } from "../rbac/guards/jwt-auth.guard";
 import { OrganizationContextGuard } from "../rbac/guards/organization-context.guard";
+import { MfaEnrollDto,MfaVerifyDto,OAUTH_PROVIDERS,OAuthCallbackDto,OAuthProviderValue,OAuthStartDto } from "./dto/oauth.dto";
 import { MfaService } from "./mfa.service";
 import { OAuthService } from "./oauth.service";
 import { SessionService } from "./session.service";
-import { MfaEnrollDto, MfaVerifyDto, OAuthCallbackDto, OAuthStartDto } from "./dto/oauth.dto";
-import { OAUTH_PROVIDERS, OAuthProviderValue } from "./dto/oauth.dto";
-
-function normalizeProvider(raw: string): OAuthProviderValue {
-  const upper = raw.toUpperCase();
-  if ((OAUTH_PROVIDERS as readonly string[]).includes(upper)) {
-    return upper as OAuthProviderValue;
-  }
-  throw new BadRequestException("Unsupported OAuth provider");
-}
 
 @Controller("auth/oauth")
 export class OAuthController {

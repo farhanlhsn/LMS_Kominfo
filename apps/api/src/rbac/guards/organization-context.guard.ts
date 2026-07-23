@@ -28,7 +28,8 @@ export class OrganizationContextGuard implements CanActivate {
 
     request.organization = await this.rbacService.getOrganizationContext(
       request.user.id,
-      organizationId
+      organizationId,
+      request.user.sessionId,
     );
 
     return true;

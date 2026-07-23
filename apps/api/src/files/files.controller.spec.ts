@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { BadRequestException, NotFoundException } from "@nestjs/common";
+import { BadRequestException,NotFoundException } from "@nestjs/common";
+import { describe,expect,it,vi } from "vitest";
 import { FilesController } from "./files.controller";
 
 const org = { id: "org-a", slug: "a", name: "A", memberId: "m1", roleKeys: ["admin"], permissionKeys: ["files:read", "files:create", "files:delete", "files:update"], isPlatformAdmin: false };
@@ -86,14 +86,14 @@ describe("FilesController", () => {
   });
 
   it("propagates a not found error from the service", async () => {
-    const { controller, files } = setup({
+    const { controller } = setup({
       get: vi.fn().mockRejectedValue(new NotFoundException("File not found")),
     });
     await expect(controller.get(org, user, "missing")).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it("propagates a bad request error from the service", async () => {
-    const { controller, files } = setup({
+    const { controller } = setup({
       upload: vi.fn().mockRejectedValue(new BadRequestException("File is required")),
     });
     await expect(controller.upload(org, user, undefined as any, {} as any)).rejects.toBeInstanceOf(BadRequestException);

@@ -1,203 +1,208 @@
 "use client";
 
 import type {
+  AccessContextOption,
+  AccessContextType,
+  Achievement,
+  ActivityContentResponse,
+  ActivityProgress,
+  AdminOverview,
+  AdminUserRecord,
+  AiGeneratedItem,
+  AiGradingSuggestion,
+  AiIndexedSource,
+  AiStatus,
+  AiTutorResponse,
+  AnonymizationRequest,
+  ApiKey,
+  Assignment,
+  AssignmentGroup,
+  AssignmentSubmission,
+  AuditLogEntry,
+  AuthSession,
+  BackupJob,
+  Branding,
+  BulkJob,
+  CalendarEvent,
+  CapabilityDecisionRecord,
+  CapabilityEffect,
+  CapabilityOverrideRecord,
+  Certificate,
+  CertificateTemplate,
+  CertificateVerification,
+  ChatMessage,
   CodeExecutionRecord,
   CodeJudgeResult,
   CodeLanguage,
   CodeSubmissionRecord,
+  Cohort,
+  CohortMember,
+  CohortSchedule,
+  ConsentRecord,
+  ContentFlag,
+  ContentLibraryItem,
+  ContextRoleAssignmentRecord,
+  Conversation,
+  Coupon,
+  Course,
+  CourseFeedbackEntry,
+  CourseFeedbackListResponse,
+  CourseReview,
+  CourseSkill,
+  CreateBulkJobInput,
+  CreateBulkJobResult,
+  CreateConversationInput,
+  DailyTrend,
+  DataExportRequest,
+  DiscussionReport,
+  DiscussionThread,
+  Enrollment,
+  FavoriteInstructor,
+  FileAsset,
+  GenerateCourseAiQuestionsInput,
+  GlobalSearchResult,
+  H5PContent,
+  H5PResult,
+  HelpArticle,
+  HelpCategory,
+  InAppNotification,
+  InstructorDashboard,
+  InstructorGradebookRow,
+  InstructorRosterResponse,
+  LeaderboardEntry,
+  LearnerAssignmentResponse,
+  LearnerBookmark,
+  LearnerCourseProgress,
+  LearnerDashboard,
+  LearnerGrades,
+  LearnerNote,
+  LearnerQuizResponse,
+  LearnerStreak,
+  LearningCourseResponse,
+  LearningGoal,
+  LearningPath,
+  LearningPathEnrollment,
+  LearningWorkspacePreference,
+  LegalDocument,
+  LegalDocumentType,
+  Lesson,
+  LessonWorkspaceState,
+  LiveClass,
+  LoginPolicy,
+  MfaEnrollmentChallenge,
+  MfaFactor,
+  ModerationAction,
+  ModerationActionType,
+  ModerationReport,
+  ModerationReportStatus,
+  ModerationTargetType,
+  NoteContext,
+  NoteExportResult,
+  NotesExport,
+  NotificationPreference,
+  OAuthAccount,
+  OAuthProvider,
+  Order,
+  OrganizationMemberRecord,
+  OrganizationRoleRecord,
+  OrganizationSummary,
+  OrgDomain,
+  OrgLocalePreference,
+  PaginatedResponse,
   PanelEntry,
   PanelPosition,
   PanelSize,
+  Payment,
+  Payout,
+  PayoutBeneficiaryType,
+  PayoutMethod,
+  PayoutMethodType,
+  PayoutPeriod,
+  PeerReview,
+  PeerReviewConfig,
+  PeerReviewMatch,
+  PeerReviewRubricScore,
+  PermissionRecord,
+  PlagiarismCheck,
+  Plugin,
+  PluginActivityType,
+  PluginExecutionLog,
   PluginInstallationRecord,
+  PluginInstallationStatus,
   PluginListingRecord,
   PluginListingStatus,
   PluginPanelDefinition,
   PluginPolicyRecord,
   PluginReviewRecord,
   PluginReviewStatus,
+  Poll,
+  PollResults,
   PopoutSessionResponse,
   PopoutValidationResponse,
-  ThreeDAssetRecord,
-  ThreeDInteractionRecord,
-  ThreeDSceneRecord,
-  UserPanelLayoutRecord,
-} from "./lms-types";
-import type {
-  ActivityContentResponse,
-  ActivityProgress,
-  ApiMeta,
-  AiStatus,
-  AiGeneratedItem,
-  AiTutorResponse,
-  Assignment,
-  AssignmentSubmission,
-  AuthSession,
-  Certificate,
-  CertificateTemplate,
-  CertificateVerification,
-  ContentLibraryItem,
-  Course,
-  CalendarEvent,
-  DiscussionThread,
-  DiscussionReport,
-  Enrollment,
-  FileAsset,
-  LearningCourseResponse,
-  LearnerBookmark,
-  LearnerAssignmentResponse,
-  LearningGoal,
-  LiveClass,
-  InAppNotification,
-  NotificationPreference,
-  OrganizationMemberRecord,
-  OrganizationRoleRecord,
-  LearnerNote,
-  Lesson,
-  LessonWorkspaceState,
-  LearningWorkspacePreference,
-  OrganizationSummary,
-  PermissionRecord,
-  Plugin,
-  PluginActivityType,
-  PluginExecutionLog,
+  Portfolio,
+  PortfolioEntry,
+  ProctoringEvent,
+  ProctoringEventType,
+  ProctoringFlag,
+  ProctoringFlagStatus,
+  ProctoringSession,
+  ProctoringSeverity,
+  ProjectShowcase,
   Question,
   QuestionBank,
   Quiz,
   QuizAnswer,
   QuizAttempt,
-  LearnerQuizResponse,
   QuizResult,
-  Rubric,
-  TranscriptSegment,
-  VideoCaptionTrack,
-  WorkspaceContext,
-  LearnerDashboard,
-  LearnerCourseProgress,
-  LearnerGrades,
-  LearnerStreak,
-  StudySession,
-  InstructorDashboard,
-  InstructorGradebookRow,
-  InstructorRosterResponse,
-  AdminOverview,
-  DailyTrend,
-  AuditLogEntry,
-  LearningPath,
-  LearningPathEnrollment,
-  Skill,
-  CourseSkill,
-  UserSkill,
-  XpTransaction,
-  LeaderboardEntry,
-  Achievement,
-  UserAchievement,
-  Order,
-  Payment,
-  Coupon,
-  SubscriptionPlan,
-  UserSubscription,
-  Branding,
-  SsoProvider,
-  LoginPolicy,
-  OrgDomain,
-  ApiKey,
-  WebhookEndpoint,
-  WebhookDelivery,
-  CourseReview,
-  WishlistItem,
-  FavoriteInstructor,
-  RecentlyViewedCourse,
-  NotesExport,
-  ScormPackage,
-  ScormAttempt,
-  H5PContent,
-  H5PResult,
-  XapiStatement,
-  XapiStateResponse,
-  Survey,
-  SurveyWithQuestions,
-  SurveyResponse as SurveyResponseEntry,
-  Poll,
-  PollResults,
-  CourseFeedbackEntry,
-  CourseFeedbackListResponse,
-  SurveyQuestion,
-  AssignmentGroup,
-  PeerReviewConfig,
-  PeerReviewMatch,
-  PeerReview,
-  PeerReviewRubricScore,
-  SubmissionAnnotation,
-  PlagiarismCheck,
-  ProjectShowcase,
-  Portfolio,
-  PortfolioEntry,
   RealtimeEvent,
-  RealtimeTransportInfo,
   RealtimePollResult,
-  BulkJob,
-  CreateBulkJobInput,
-  CreateBulkJobResult,
-  Conversation,
-  CreateConversationInput,
-  ChatMessage,
-  SendMessageInput,
-  GlobalSearchResult,
+  RealtimeTransportInfo,
+  RecentlyViewedCourse,
+  RefreshSessionEntry,
+  RetentionPolicy,
+  RevenueShareRule,
+  RevenueShareScope,
+  RoleDelegationRecord,
+  RoleSwitchRecord,
+  Rubric,
+  ScormAttempt,
+  ScormPackage,
   SearchAnalytics,
   SearchEntityType,
-  UserLocalePreference,
-  OrgLocalePreference,
-  HelpCategory,
-  HelpArticle,
+  SendMessageInput,
+  Skill,
+  SsoProvider,
+  StudySession,
+  SubmissionAnnotation,
+  SubscriptionPlan,
+  SupportedCurrency,
   SupportTicket,
   SupportTicketReply,
-  TranscriptNote,
-  NoteContext,
-  NoteExportResult,
-  ContentFlag,
-  ModerationTargetType,
-  ModerationReportStatus,
-  ModerationActionType,
-  ModerationReport,
-  ModerationAction,
-  LegalDocument,
-  LegalDocumentType,
-  ConsentRecord,
-  DataExportRequest,
-  AnonymizationRequest,
-  RetentionPolicy,
-  BackupJob,
-  OAuthProvider,
-  OAuthAccount,
-  MfaFactor,
-  MfaEnrollmentChallenge,
-  RefreshSessionEntry,
-  Cohort,
-  CohortMember,
-  CohortSchedule,
-  UserTimezonePreference,
-  ProctoringSession,
-  ProctoringEvent,
-  ProctoringFlag,
-  ProctoringFlagStatus,
-  ProctoringEventType,
-  ProctoringSeverity,
-  RevenueShareRule,
-  Payout,
-  PayoutMethod,
-  PayoutPeriod,
-  PayoutPeriodStatus,
-  PayoutStatus,
-  PayoutBeneficiaryType,
-  PayoutMethodType,
-  RevenueShareScope,
+  Survey,
+  SurveyQuestion,
+  SurveyResponse as SurveyResponseEntry,
+  SurveyWithQuestions,
+  TaxCalculation,
   TaxRegion,
   TaxRule,
-  TaxCalculation,
   TaxRuleType,
-  SupportedCurrency,
-  AdminUserRecord,
-  PaginatedResponse,
+  ThreeDAssetRecord,
+  ThreeDInteractionRecord,
+  ThreeDSceneRecord,
+  TranscriptNote,
+  TranscriptSegment,
+  UserAchievement,
+  UserLocalePreference,
+  UserPanelLayoutRecord,
+  UserSkill,
+  UserSubscription,
+  UserTimezonePreference,
+  VideoCaptionTrack,
+  WebhookEndpoint,
+  WishlistItem,
+  WorkspaceContext,
+  XapiStatement,
+  XapiStateResponse,
 } from "./lms-types";
 
 const SESSION_KEY = "lms.session.v1";
@@ -213,6 +218,8 @@ export class ApiClientError extends Error {
     this.name = "ApiClientError";
   }
 }
+
+export { ApiClientError as ApiError };
 
 interface ApiSuccess<T> {
   success: true;
@@ -238,6 +245,18 @@ export function apiBaseUrl() {
   return process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
 }
 
+const AUTH_COOKIE = "access_token";
+const AUTH_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
+
+function syncAuthCookie(accessToken: string | null) {
+  if (typeof document === "undefined") return;
+  if (accessToken) {
+    document.cookie = `${AUTH_COOKIE}=${encodeURIComponent(accessToken)}; Max-Age=${AUTH_COOKIE_MAX_AGE_SECONDS}; Path=/; SameSite=Lax`;
+    return;
+  }
+  document.cookie = `${AUTH_COOKIE}=; Max-Age=0; Path=/; SameSite=Lax`;
+}
+
 export function getSession(): AuthSession | null {
   if (typeof window === "undefined") {
     return null;
@@ -250,12 +269,14 @@ export function getSession(): AuthSession | null {
     return JSON.parse(raw) as AuthSession;
   } catch {
     window.localStorage.removeItem(SESSION_KEY);
+    syncAuthCookie(null);
     return null;
   }
 }
 
 export function setSession(session: AuthSession) {
   window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  syncAuthCookie(session.accessToken);
   window.dispatchEvent(new Event("lms-session-changed"));
 }
 
@@ -272,6 +293,7 @@ function mergeSession(session: AuthSession, patch: Partial<AuthSession>) {
 
 export function clearSession() {
   window.localStorage.removeItem(SESSION_KEY);
+  syncAuthCookie(null);
   window.dispatchEvent(new Event("lms-session-changed"));
 }
 
@@ -433,7 +455,47 @@ export async function apiList<T>(path: string): Promise<ListResponse<T>> {
   };
 }
 
+interface RequestOptions {
+  params?: Record<string, unknown>;
+}
+
+function withQuery(path: string, params?: Record<string, unknown>) {
+  if (!params) {
+    return path;
+  }
+  const query = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      query.set(key, String(value));
+    }
+  });
+  const suffix = query.toString();
+  if (!suffix) {
+    return path;
+  }
+  return `${path}${path.includes("?") ? "&" : "?"}${suffix}`;
+}
+
 export const api = {
+  get: <T = unknown>(path: string, options?: RequestOptions) =>
+    apiRequest<T>(withQuery(path, options?.params)),
+  post: <T = unknown>(path: string, body?: unknown) =>
+    apiRequest<T>(path, {
+      method: "POST",
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }),
+  patch: <T = unknown>(path: string, body?: unknown) =>
+    apiRequest<T>(path, {
+      method: "PATCH",
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }),
+  put: <T = unknown>(path: string, body?: unknown) =>
+    apiRequest<T>(path, {
+      method: "PUT",
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }),
+  delete: <T = unknown>(path: string) =>
+    apiRequest<T>(path, { method: "DELETE" }),
   login: async (email: string, password: string) => {
     const data = await apiRequest<{
       user: AuthSession["user"];
@@ -519,7 +581,11 @@ export const api = {
       { method: "POST", body: JSON.stringify(input) },
     );
   },
-  inviteOrganizationMember: (input: { email: string; roleKeys?: string[]; message?: string }) => {
+  inviteOrganizationMember: (input: {
+    email: string;
+    roleKeys?: string[];
+    message?: string;
+  }) => {
     const organizationId = activeOrganizationId();
     return apiRequest<OrganizationMemberRecord>(
       `/organizations/${encodeURIComponent(organizationId)}/members/invite`,
@@ -553,6 +619,133 @@ export const api = {
     const organizationId = activeOrganizationId();
     return apiRequest<PermissionRecord[]>(
       `/organizations/${encodeURIComponent(organizationId)}/permissions`,
+    );
+  },
+  accessContexts: () => {
+    const organizationId = activeOrganizationId();
+    return apiRequest<AccessContextOption[]>(
+      `/organizations/${encodeURIComponent(organizationId)}/access-control/contexts`,
+    );
+  },
+  contextRoleAssignments: () => {
+    const organizationId = activeOrganizationId();
+    return apiRequest<ContextRoleAssignmentRecord[]>(
+      `/organizations/${encodeURIComponent(organizationId)}/access-control/assignments`,
+    );
+  },
+  assignContextRole: (input: {
+    userId: string;
+    roleId: string;
+    contextType: AccessContextType;
+    contextInstanceId: string;
+    startsAt?: string;
+    expiresAt?: string;
+  }) => {
+    const organizationId = activeOrganizationId();
+    return apiRequest<ContextRoleAssignmentRecord>(
+      `/organizations/${encodeURIComponent(organizationId)}/access-control/assignments`,
+      { method: "POST", body: JSON.stringify(input) },
+    );
+  },
+  removeContextRoleAssignment: (assignmentId: string) => {
+    const organizationId = activeOrganizationId();
+    return apiRequest<{ removed: boolean }>(
+      `/organizations/${encodeURIComponent(organizationId)}/access-control/assignments/${encodeURIComponent(assignmentId)}`,
+      { method: "DELETE" },
+    );
+  },
+  capabilityOverrides: () => {
+    const organizationId = activeOrganizationId();
+    return apiRequest<CapabilityOverrideRecord[]>(
+      `/organizations/${encodeURIComponent(organizationId)}/access-control/overrides`,
+    );
+  },
+  setCapabilityOverride: (input: {
+    roleId: string;
+    permissionKey: string;
+    effect: CapabilityEffect;
+    contextType: AccessContextType;
+    contextInstanceId: string;
+  }) => {
+    const organizationId = activeOrganizationId();
+    return apiRequest<CapabilityOverrideRecord | { inherited: true }>(
+      `/organizations/${encodeURIComponent(organizationId)}/access-control/overrides`,
+      { method: "PUT", body: JSON.stringify(input) },
+    );
+  },
+  roleDelegations: () => {
+    const organizationId = activeOrganizationId();
+    return apiRequest<RoleDelegationRecord[]>(
+      `/organizations/${encodeURIComponent(organizationId)}/access-control/delegations`,
+    );
+  },
+  setRoleDelegation: (input: {
+    actorRoleId: string;
+    targetRoleId: string;
+    canView: boolean;
+    canAssign: boolean;
+    canOverride: boolean;
+    canSwitch: boolean;
+  }) => {
+    const organizationId = activeOrganizationId();
+    return apiRequest<RoleDelegationRecord>(
+      `/organizations/${encodeURIComponent(organizationId)}/access-control/delegations`,
+      { method: "PUT", body: JSON.stringify(input) },
+    );
+  },
+  simulateAccess: (input: {
+    userId: string;
+    permissionKeys: string[];
+    contextType: AccessContextType;
+    contextInstanceId: string;
+    ignoreAdminBypass?: boolean;
+  }) => {
+    const organizationId = activeOrganizationId();
+    return apiRequest<CapabilityDecisionRecord[]>(
+      `/organizations/${encodeURIComponent(organizationId)}/access-control/simulate`,
+      { method: "POST", body: JSON.stringify(input) },
+    );
+  },
+  activeRoleSwitches: () => {
+    const organizationId = activeOrganizationId();
+    return apiRequest<RoleSwitchRecord[]>(
+      `/organizations/${encodeURIComponent(organizationId)}/access-control/role-switch`,
+    );
+  },
+  switchRole: (input: {
+    roleId: string;
+    contextType: AccessContextType;
+    contextInstanceId: string;
+    expiresAt?: string;
+  }) => {
+    const organizationId = activeOrganizationId();
+    return apiRequest<RoleSwitchRecord>(
+      `/organizations/${encodeURIComponent(organizationId)}/access-control/role-switch`,
+      { method: "POST", body: JSON.stringify(input) },
+    );
+  },
+  clearRoleSwitches: () => {
+    const organizationId = activeOrganizationId();
+    return apiRequest<{ cleared: number }>(
+      `/organizations/${encodeURIComponent(organizationId)}/access-control/role-switch`,
+      { method: "DELETE" },
+    );
+  },
+  roleImpact: (roleId: string) => {
+    const organizationId = activeOrganizationId();
+    return apiRequest<Record<string, number>>(
+      `/organizations/${encodeURIComponent(organizationId)}/access-control/roles/${encodeURIComponent(roleId)}/impact`,
+    );
+  },
+  deactivateRole: (roleId: string, confirmKey: string) => {
+    const organizationId = activeOrganizationId();
+    return apiRequest<{
+      deactivated: boolean;
+      behavior: string;
+      impact: Record<string, number>;
+    }>(
+      `/organizations/${encodeURIComponent(organizationId)}/access-control/roles/${encodeURIComponent(roleId)}`,
+      { method: "DELETE", body: JSON.stringify({ confirmKey }) },
     );
   },
   createOrganizationRole: (input: {
@@ -881,6 +1074,26 @@ export const api = {
       chunkCount: number;
       needsReindex: boolean;
     }>(`/instructor/courses/${encodeURIComponent(courseId)}/ai/index/status`),
+  instructorAiSources: (courseId: string) =>
+    apiRequest<AiIndexedSource[]>(
+      `/instructor/courses/${encodeURIComponent(courseId)}/ai/index/sources`,
+    ),
+  generateCourseAiQuestions: (
+    courseId: string,
+    input: GenerateCourseAiQuestionsInput,
+  ) =>
+    apiRequest<AiGeneratedItem>(
+      `/instructor/courses/${encodeURIComponent(courseId)}/ai/questions`,
+      {
+        method: "POST",
+        body: JSON.stringify(input),
+      },
+    ),
+  aiGradingSuggestion: (answerId: string) =>
+    apiRequest<AiGradingSuggestion>(
+      `/instructor/quiz-answers/${encodeURIComponent(answerId)}/ai-grading-suggestion`,
+      { method: "POST" },
+    ),
   // Phase 17 caption cue editor
   listInstructorCaptionCues: (trackId: string) =>
     apiRequest<unknown[]>(
@@ -941,7 +1154,11 @@ export const api = {
   updateAssignmentGroup: (
     assignmentId: string,
     groupId: string,
-    input: { name?: string; maxMembers?: number; status?: "ACTIVE" | "ARCHIVED" },
+    input: {
+      name?: string;
+      maxMembers?: number;
+      status?: "ACTIVE" | "ARCHIVED";
+    },
   ) =>
     apiRequest<AssignmentGroup>(
       `/instructor/assignments/${encodeURIComponent(assignmentId)}/groups/${groupId}`,
@@ -1010,7 +1227,15 @@ export const api = {
       },
     ),
   generatePeerReviewMatches: (assignmentId: string) =>
-    apiRequest<{ configId: string; count: number; matches: Array<{ matchId: string; submissionId: string; reviewerUserId: string }> }>(
+    apiRequest<{
+      configId: string;
+      count: number;
+      matches: Array<{
+        matchId: string;
+        submissionId: string;
+        reviewerUserId: string;
+      }>;
+    }>(
       `/instructor/assignments/${encodeURIComponent(assignmentId)}/peer-review/generate-matches`,
       { method: "POST" },
     ),
@@ -1096,10 +1321,7 @@ export const api = {
         body: JSON.stringify(input),
       },
     ),
-  updateCourseShowcase: (
-    showcaseId: string,
-    input: Record<string, unknown>,
-  ) =>
+  updateCourseShowcase: (showcaseId: string, input: Record<string, unknown>) =>
     apiRequest<ProjectShowcase>(
       `/instructor/showcases/${encodeURIComponent(showcaseId)}`,
       {
@@ -1113,10 +1335,15 @@ export const api = {
       { method: "DELETE" },
     ),
   // Learner
-  listLearnerPeerReviews: () => apiRequest<PeerReviewMatch[]>("/learn/peer-reviews"),
+  listLearnerPeerReviews: () =>
+    apiRequest<PeerReviewMatch[]>("/learn/peer-reviews"),
   submitLearnerPeerReview: (
     matchId: string,
-    input: { overallScore?: number; feedback?: string; rubricScores?: PeerReviewRubricScore[] },
+    input: {
+      overallScore?: number;
+      feedback?: string;
+      rubricScores?: PeerReviewRubricScore[];
+    },
   ) =>
     apiRequest<PeerReview>(
       `/learn/peer-reviews/matches/${encodeURIComponent(matchId)}/submit`,
@@ -1126,7 +1353,11 @@ export const api = {
       },
     ),
   getMyPortfolio: () => apiRequest<Portfolio>("/learn/portfolio"),
-  updateMyPortfolio: (input: { title?: string; description?: string; isPublic?: boolean }) =>
+  updateMyPortfolio: (input: {
+    title?: string;
+    description?: string;
+    isPublic?: boolean;
+  }) =>
     apiRequest<Portfolio>("/learn/portfolio", {
       method: "PATCH",
       body: JSON.stringify(input),
@@ -1275,16 +1506,29 @@ export const api = {
         body: JSON.stringify({ expiresInSeconds }),
       },
     ),
+  publicFileUrl: (fileId: string) =>
+    `${apiBaseUrl()}/files/public/${encodeURIComponent(fileId)}`,
   contentLibrary: () => apiRequest<ContentLibraryItem[]>("/content-library"),
   createContentLibraryItem: (input: Record<string, unknown>) =>
     apiRequest<ContentLibraryItem>("/content-library", {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  updateContentLibraryItem: (id: string, input: Record<string, unknown>) =>
+    apiRequest<ContentLibraryItem>(
+      `/content-library/${encodeURIComponent(id)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      },
+    ),
   deleteContentLibraryItem: (id: string) =>
-    apiRequest<{ deleted: boolean }>(`/content-library/${encodeURIComponent(id)}`, {
-      method: "DELETE",
-    }),
+    apiRequest<{ deleted: boolean }>(
+      `/content-library/${encodeURIComponent(id)}`,
+      {
+        method: "DELETE",
+      },
+    ),
   pluginActivityTypes: () =>
     apiRequest<{ organizationId: string; activityTypes: PluginActivityType[] }>(
       "/plugins/activity-types",
@@ -1305,6 +1549,32 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ config }),
     }),
+  updatePluginSecret: (
+    pluginKey: string,
+    secretKey: string,
+    value: string,
+  ) =>
+    apiRequest(
+      `/admin/plugins/${encodeURIComponent(pluginKey)}/secrets/${encodeURIComponent(secretKey)}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ value }),
+      },
+    ),
+  deletePluginSecret: (pluginKey: string, secretKey: string) =>
+    apiRequest(
+      `/admin/plugins/${encodeURIComponent(pluginKey)}/secrets/${encodeURIComponent(secretKey)}`,
+      { method: "DELETE" },
+    ),
+  testAiProvider: () =>
+    apiRequest<{
+      ok: boolean;
+      chatProvider: string;
+      chatModel?: string | null;
+      embeddingProvider: string;
+      embeddingModel?: string | null;
+      embeddingDimensions: number;
+    }>("/admin/ai-provider/test", { method: "POST" }),
   pluginLogs: (pluginKey: string) =>
     apiRequest<PluginExecutionLog[]>(
       `/admin/plugins/${encodeURIComponent(pluginKey)}/logs`,
@@ -1434,8 +1704,7 @@ export const api = {
       `/learn/quiz-attempts/${encodeURIComponent(attemptId)}/submit`,
       { method: "POST" },
     ),
-  myQuizAttempts: () =>
-    apiRequest<QuizAttempt[]>("/learn/quiz-attempts"),
+  myQuizAttempts: () => apiRequest<QuizAttempt[]>("/learn/quiz-attempts"),
   quizResult: (attemptId: string) =>
     apiRequest<QuizResult>(
       `/learn/quiz-attempts/${encodeURIComponent(attemptId)}/result`,
@@ -1599,51 +1868,140 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(input),
     }),
-  discussionThreads: (courseId: string, context?: { lessonId?: string; activityId?: string }) => {
+  discussionThreads: (
+    courseId: string,
+    context?: { lessonId?: string; activityId?: string },
+  ) => {
     const query = new URLSearchParams({ courseId });
     if (context?.lessonId) query.set("lessonId", context.lessonId);
     if (context?.activityId) query.set("activityId", context.activityId);
     return apiRequest<DiscussionThread[]>(`/discussions?${query}`);
   },
-  discussionThread: (id: string) => apiRequest<DiscussionThread>(`/discussions/${encodeURIComponent(id)}`),
-  createDiscussionThread: (input: Record<string, unknown>) => apiRequest<DiscussionThread>("/discussions", { method: "POST", body: JSON.stringify(input) }),
-  createDiscussionReply: (id: string, input: Record<string, unknown>) => apiRequest(`/discussions/${encodeURIComponent(id)}/replies`, { method: "POST", body: JSON.stringify(input) }),
-  moderateDiscussionThread: (id: string, input: Record<string, unknown>) => apiRequest<DiscussionThread>(`/discussions/${encodeURIComponent(id)}/moderation`, { method: "PATCH", body: JSON.stringify(input) }),
-  reportDiscussionThread: (id: string, input: Record<string, unknown>) => apiRequest(`/discussions/${encodeURIComponent(id)}/report`, { method: "POST", body: JSON.stringify(input) }),
-  discussionReports: (courseId?: string) => apiRequest<DiscussionReport[]>(`/discussions/moderation/reports${courseId ? `?courseId=${encodeURIComponent(courseId)}` : ""}`),
-  resolveDiscussionReport: (id: string, input: Record<string, unknown>) => apiRequest(`/discussions/moderation/reports/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(input) }),
-  liveClasses: (courseId?: string) => apiRequest<LiveClass[]>(`/live-classes${courseId ? `?courseId=${encodeURIComponent(courseId)}` : ""}`),
-  createLiveClass: (input: Record<string, unknown>) => apiRequest<LiveClass>("/live-classes", { method: "POST", body: JSON.stringify(input) }),
-  updateLiveClass: (id: string, input: Record<string, unknown>) => apiRequest<LiveClass>(`/live-classes/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(input) }),
-  cancelLiveClass: (id: string) => apiRequest<LiveClass>(`/live-classes/${encodeURIComponent(id)}/cancel`, { method: "POST" }),
-  joinLiveClass: (id: string) => apiRequest<{ meetingUrl: string }>(`/live-classes/${encodeURIComponent(id)}/join`, { method: "POST" }),
+  discussionThread: (id: string) =>
+    apiRequest<DiscussionThread>(`/discussions/${encodeURIComponent(id)}`),
+  createDiscussionThread: (input: Record<string, unknown>) =>
+    apiRequest<DiscussionThread>("/discussions", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  createDiscussionReply: (id: string, input: Record<string, unknown>) =>
+    apiRequest(`/discussions/${encodeURIComponent(id)}/replies`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  moderateDiscussionThread: (id: string, input: Record<string, unknown>) =>
+    apiRequest<DiscussionThread>(
+      `/discussions/${encodeURIComponent(id)}/moderation`,
+      { method: "PATCH", body: JSON.stringify(input) },
+    ),
+  reportDiscussionThread: (id: string, input: Record<string, unknown>) =>
+    apiRequest(`/discussions/${encodeURIComponent(id)}/report`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  discussionReports: (courseId?: string) =>
+    apiRequest<DiscussionReport[]>(
+      `/discussions/moderation/reports${courseId ? `?courseId=${encodeURIComponent(courseId)}` : ""}`,
+    ),
+  resolveDiscussionReport: (id: string, input: Record<string, unknown>) =>
+    apiRequest(`/discussions/moderation/reports/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  liveClasses: (courseId?: string) =>
+    apiRequest<LiveClass[]>(
+      `/live-classes${courseId ? `?courseId=${encodeURIComponent(courseId)}` : ""}`,
+    ),
+  createLiveClass: (input: Record<string, unknown>) =>
+    apiRequest<LiveClass>("/live-classes", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateLiveClass: (id: string, input: Record<string, unknown>) =>
+    apiRequest<LiveClass>(`/live-classes/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  cancelLiveClass: (id: string) =>
+    apiRequest<LiveClass>(`/live-classes/${encodeURIComponent(id)}/cancel`, {
+      method: "POST",
+    }),
+  joinLiveClass: (id: string) =>
+    apiRequest<{ meetingUrl: string }>(
+      `/live-classes/${encodeURIComponent(id)}/join`,
+      { method: "POST" },
+    ),
   notifications: () => apiRequest<InAppNotification[]>("/notifications"),
-  unreadNotificationCount: () => apiRequest<{ count: number }>("/notifications/unread-count"),
-  markNotificationRead: (id: string) => apiRequest(`/notifications/${encodeURIComponent(id)}/read`, { method: "PATCH" }),
-  markAllNotificationsRead: () => apiRequest<{ updated: number }>("/notifications/read-all", { method: "POST" }),
-  notificationPreferences: () => apiRequest<NotificationPreference>("/notifications/preferences"),
-  updateNotificationPreferences: (input: Record<string, unknown>) => apiRequest<NotificationPreference>("/notifications/preferences", { method: "PATCH", body: JSON.stringify(input) }),
-  calendarEvents: (input: { from: string; to: string; courseId?: string; type?: string }) => {
+  unreadNotificationCount: () =>
+    apiRequest<{ count: number }>("/notifications/unread-count"),
+  markNotificationRead: (id: string) =>
+    apiRequest(`/notifications/${encodeURIComponent(id)}/read`, {
+      method: "PATCH",
+    }),
+  markAllNotificationsRead: () =>
+    apiRequest<{ updated: number }>("/notifications/read-all", {
+      method: "POST",
+    }),
+  notificationPreferences: () =>
+    apiRequest<NotificationPreference>("/notifications/preferences"),
+  updateNotificationPreferences: (input: Record<string, unknown>) =>
+    apiRequest<NotificationPreference>("/notifications/preferences", {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  calendarEvents: (input: {
+    from: string;
+    to: string;
+    courseId?: string;
+    type?: string;
+  }) => {
     const query = new URLSearchParams({ from: input.from, to: input.to });
     if (input.courseId) query.set("courseId", input.courseId);
     if (input.type) query.set("type", input.type);
     return apiRequest<CalendarEvent[]>(`/calendar/events?${query}`);
   },
-  createCalendarEvent: (input: Record<string, unknown>) => apiRequest<CalendarEvent>("/calendar/events", { method: "POST", body: JSON.stringify(input) }),
-  updateCalendarEvent: (id: string, input: Record<string, unknown>) => apiRequest<CalendarEvent>(`/calendar/events/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(input) }),
-  deleteCalendarEvent: (id: string) => apiRequest(`/calendar/events/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  createCalendarEvent: (input: Record<string, unknown>) =>
+    apiRequest<CalendarEvent>("/calendar/events", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateCalendarEvent: (id: string, input: Record<string, unknown>) =>
+    apiRequest<CalendarEvent>(`/calendar/events/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  deleteCalendarEvent: (id: string) =>
+    apiRequest(`/calendar/events/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    }),
 
   // Analytics
-  learnerDashboard: () => apiRequest<LearnerDashboard>("/analytics/learner/dashboard"),
-  learnerCourseProgress: (courseId: string) => apiRequest<LearnerCourseProgress>("/analytics/learner/progress/" + encodeURIComponent(courseId)),
+  learnerDashboard: () =>
+    apiRequest<LearnerDashboard>("/analytics/learner/dashboard"),
+  learnerCourseProgress: (courseId: string) =>
+    apiRequest<LearnerCourseProgress>(
+      "/analytics/learner/progress/" + encodeURIComponent(courseId),
+    ),
   learnerGrades: (courseId?: string) => {
     const params = courseId ? `?courseId=${encodeURIComponent(courseId)}` : "";
     return apiRequest<LearnerGrades>("/learn/grades" + params);
   },
   learnerStreak: () => apiRequest<LearnerStreak>("/learn/streak"),
-  startStudySession: (input: { courseId?: string; goalId?: string; targetSeconds?: number }) =>
-    apiRequest<StudySession>("/learn/study-sessions", { method: "POST", body: JSON.stringify(input) }),
-  listStudySessions: (params?: { status?: string; from?: string; to?: string; limit?: number }) => {
+  startStudySession: (input: {
+    courseId?: string;
+    goalId?: string;
+    targetSeconds?: number;
+  }) =>
+    apiRequest<StudySession>("/learn/study-sessions", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  listStudySessions: (params?: {
+    status?: string;
+    from?: string;
+    to?: string;
+    limit?: number;
+  }) => {
     const q = new URLSearchParams();
     if (params?.status) q.set("status", params.status);
     if (params?.from) q.set("from", params.from);
@@ -1651,115 +2009,370 @@ export const api = {
     if (params?.limit) q.set("limit", String(params.limit));
     return apiRequest<StudySession[]>(`/learn/study-sessions?${q.toString()}`);
   },
-  getStudySession: (id: string) => apiRequest<StudySession>(`/learn/study-sessions/${encodeURIComponent(id)}`),
-  updateStudySession: (id: string, input: { status?: string; elapsedSeconds?: number }) =>
-    apiRequest<StudySession>(`/learn/study-sessions/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(input) }),
+  getStudySession: (id: string) =>
+    apiRequest<StudySession>(`/learn/study-sessions/${encodeURIComponent(id)}`),
+  updateStudySession: (
+    id: string,
+    input: { status?: string; elapsedSeconds?: number },
+  ) =>
+    apiRequest<StudySession>(
+      `/learn/study-sessions/${encodeURIComponent(id)}`,
+      { method: "PATCH", body: JSON.stringify(input) },
+    ),
   cancelStudySession: (id: string) =>
-    apiRequest<StudySession>(`/learn/study-sessions/${encodeURIComponent(id)}`, { method: "DELETE" }),
-  instructorDashboard: () => apiRequest<InstructorDashboard>("/analytics/instructor/dashboard"),
-  instructorCourseRoster: (courseId: string, query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiRequest<InstructorRosterResponse>("/analytics/instructor/course/" + encodeURIComponent(courseId) + "/roster?" + q.toString()); },
-  instructorCourseGradebook: (courseId: string, query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiRequest<InstructorGradebookRow[]>("/instructor/courses/" + encodeURIComponent(courseId) + "/gradebook?" + q.toString()); },
-  reviewLateSubmission: (submissionId: string, input: Record<string, unknown>) => apiRequest<AssignmentSubmission>(`/instructor/submissions/${encodeURIComponent(submissionId)}/late-review`, { method: "PATCH", body: JSON.stringify(input) }),
-  instructorGradebook: (courseId: string) => apiRequest<InstructorGradebookRow[]>(`/instructor/courses/${encodeURIComponent(courseId)}/gradebook`),
-  instructorRoster: (courseId: string) => apiRequest<InstructorRosterResponse>(`/instructor/courses/${encodeURIComponent(courseId)}/roster`),
-  instructorCourseEngagement: (courseId: string, query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiRequest<{ daily: { date: string; events: number }[]; totalActiveLearners: number }>("/analytics/instructor/course/" + encodeURIComponent(courseId) + "/engagement?" + q.toString()); },
+    apiRequest<StudySession>(
+      `/learn/study-sessions/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+    ),
+  instructorDashboard: () =>
+    apiRequest<InstructorDashboard>("/analytics/instructor/dashboard"),
+  instructorCourseRoster: (
+    courseId: string,
+    query?: Record<string, string>,
+  ) => {
+    const q = new URLSearchParams(query);
+    return apiRequest<InstructorRosterResponse>(
+      "/analytics/instructor/course/" +
+        encodeURIComponent(courseId) +
+        "/roster?" +
+        q.toString(),
+    );
+  },
+  instructorCourseGradebook: (
+    courseId: string,
+    query?: Record<string, string>,
+  ) => {
+    const q = new URLSearchParams(query);
+    return apiRequest<InstructorGradebookRow[]>(
+      "/instructor/courses/" +
+        encodeURIComponent(courseId) +
+        "/gradebook?" +
+        q.toString(),
+    );
+  },
+  reviewLateSubmission: (
+    submissionId: string,
+    input: Record<string, unknown>,
+  ) =>
+    apiRequest<AssignmentSubmission>(
+      `/instructor/submissions/${encodeURIComponent(submissionId)}/late-review`,
+      { method: "PATCH", body: JSON.stringify(input) },
+    ),
+  instructorGradebook: (courseId: string) =>
+    apiRequest<InstructorGradebookRow[]>(
+      `/instructor/courses/${encodeURIComponent(courseId)}/gradebook`,
+    ),
+  instructorRoster: (courseId: string) =>
+    apiRequest<InstructorRosterResponse>(
+      `/instructor/courses/${encodeURIComponent(courseId)}/roster`,
+    ),
+  instructorCourseEngagement: (
+    courseId: string,
+    query?: Record<string, string>,
+  ) => {
+    const q = new URLSearchParams(query);
+    return apiRequest<{
+      daily: { date: string; events: number }[];
+      totalActiveLearners: number;
+    }>(
+      "/analytics/instructor/course/" +
+        encodeURIComponent(courseId) +
+        "/engagement?" +
+        q.toString(),
+    );
+  },
   adminOverview: () => apiRequest<AdminOverview>("/analytics/admin/overview"),
-  adminCourseMetrics: (query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiRequest("/analytics/admin/courses?" + q.toString()); },
-  adminTrends: (query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiRequest<DailyTrend[]>("/analytics/admin/trends?" + q.toString()); },
-  auditLogs: (query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiList<AuditLogEntry>("/analytics/audit-logs?" + q.toString()); },
-  recordEvent: (input: Record<string, unknown>) => apiRequest("/analytics/events", { method: "POST", body: JSON.stringify(input) }),
-  triggerAggregation: () => apiRequest("/analytics/aggregate", { method: "POST" }),
-  requestExport: (input: Record<string, unknown>) => apiRequest("/analytics/reports/export", { method: "POST", body: JSON.stringify(input) }),
+  adminCourseMetrics: (query?: Record<string, string>) => {
+    const q = new URLSearchParams(query);
+    return apiRequest("/analytics/admin/courses?" + q.toString());
+  },
+  adminTrends: (query?: Record<string, string>) => {
+    const q = new URLSearchParams(query);
+    return apiRequest<DailyTrend[]>("/analytics/admin/trends?" + q.toString());
+  },
+  auditLogs: (query?: Record<string, string>) => {
+    const q = new URLSearchParams(query);
+    return apiList<AuditLogEntry>("/analytics/audit-logs?" + q.toString());
+  },
+  recordEvent: (input: Record<string, unknown>) =>
+    apiRequest("/analytics/events", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  triggerAggregation: () =>
+    apiRequest("/analytics/aggregate", { method: "POST" }),
+  requestExport: (input: Record<string, unknown>) =>
+    apiRequest("/analytics/reports/export", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
 
   // Learning Paths
-  createLearningPath: (input: Record<string, unknown>) => apiRequest<LearningPath>("/learning-paths", { method: "POST", body: JSON.stringify(input) }),
-  learningPaths: (query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiList<LearningPath>("/learning-paths?" + q.toString()); },
-  learningPath: (idOrSlug: string) => apiRequest<LearningPath>("/learning-paths/" + encodeURIComponent(idOrSlug)),
-  updateLearningPath: (id: string, input: Record<string, unknown>) => apiRequest<LearningPath>("/learning-paths/" + encodeURIComponent(id), { method: "PATCH", body: JSON.stringify(input) }),
-  deleteLearningPath: (id: string) => apiRequest("/learning-paths/" + encodeURIComponent(id), { method: "DELETE" }),
-  addCourseToPath: (id: string, input: Record<string, unknown>) => apiRequest("/learning-paths/" + encodeURIComponent(id) + "/courses", { method: "POST", body: JSON.stringify(input) }),
-  removeCourseFromPath: (id: string, courseId: string) => apiRequest("/learning-paths/" + encodeURIComponent(id) + "/courses/" + encodeURIComponent(courseId), { method: "DELETE" }),
-  enrollLearningPath: (id: string) => apiRequest<LearningPathEnrollment>("/learning-paths/" + encodeURIComponent(id) + "/enroll", { method: "POST" }),
-  myLearningPathEnrollments: () => apiRequest<LearningPathEnrollment[]>("/learning-paths/enrollments/mine"),
+  createLearningPath: (input: Record<string, unknown>) =>
+    apiRequest<LearningPath>("/learning-paths", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  learningPaths: (query?: Record<string, string>) => {
+    const q = new URLSearchParams(query);
+    return apiList<LearningPath>("/learning-paths?" + q.toString());
+  },
+  learningPath: (idOrSlug: string) =>
+    apiRequest<LearningPath>("/learning-paths/" + encodeURIComponent(idOrSlug)),
+  updateLearningPath: (id: string, input: Record<string, unknown>) =>
+    apiRequest<LearningPath>("/learning-paths/" + encodeURIComponent(id), {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  deleteLearningPath: (id: string) =>
+    apiRequest("/learning-paths/" + encodeURIComponent(id), {
+      method: "DELETE",
+    }),
+  addCourseToPath: (id: string, input: Record<string, unknown>) =>
+    apiRequest("/learning-paths/" + encodeURIComponent(id) + "/courses", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  removeCourseFromPath: (id: string, courseId: string) =>
+    apiRequest(
+      "/learning-paths/" +
+        encodeURIComponent(id) +
+        "/courses/" +
+        encodeURIComponent(courseId),
+      { method: "DELETE" },
+    ),
+  enrollLearningPath: (id: string) =>
+    apiRequest<LearningPathEnrollment>(
+      "/learning-paths/" + encodeURIComponent(id) + "/enroll",
+      { method: "POST" },
+    ),
+  myLearningPathEnrollments: () =>
+    apiRequest<LearningPathEnrollment[]>("/learning-paths/enrollments/mine"),
 
   // Skills
-  createSkill: (input: Record<string, unknown>) => apiRequest<Skill>("/skills", { method: "POST", body: JSON.stringify(input) }),
-  skills: (category?: string) => apiRequest<Skill[]>("/skills" + (category ? "?category=" + encodeURIComponent(category) : "")),
-  setCourseSkills: (courseId: string, input: Record<string, unknown>[]) => apiRequest<CourseSkill[]>("/courses/" + encodeURIComponent(courseId) + "/skills", { method: "POST", body: JSON.stringify(input) }),
-  courseSkills: (courseId: string) => apiRequest<CourseSkill[]>("/courses/" + encodeURIComponent(courseId) + "/skills"),
+  createSkill: (input: Record<string, unknown>) =>
+    apiRequest<Skill>("/skills", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  skills: (category?: string) =>
+    apiRequest<Skill[]>(
+      "/skills" + (category ? "?category=" + encodeURIComponent(category) : ""),
+    ),
+  setCourseSkills: (courseId: string, input: Record<string, unknown>[]) =>
+    apiRequest<CourseSkill[]>(
+      "/courses/" + encodeURIComponent(courseId) + "/skills",
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+  courseSkills: (courseId: string) =>
+    apiRequest<CourseSkill[]>(
+      "/courses/" + encodeURIComponent(courseId) + "/skills",
+    ),
   mySkills: () => apiRequest<UserSkill[]>("/skills/mine"),
 
   // XP & Leaderboard
-  myXpHistory: (query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiRequest("/xp/mine?" + q.toString()); },
-  leaderboard: (query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiRequest<LeaderboardEntry[]>("/leaderboard?" + q.toString()); },
+  myXpHistory: (query?: Record<string, string>) => {
+    const q = new URLSearchParams(query);
+    return apiRequest("/xp/mine?" + q.toString());
+  },
+  leaderboard: (query?: Record<string, string>) => {
+    const q = new URLSearchParams(query);
+    return apiRequest<LeaderboardEntry[]>("/leaderboard?" + q.toString());
+  },
 
   // Achievements
   achievements: () => apiRequest<Achievement[]>("/achievements"),
   myAchievements: () => apiRequest<UserAchievement[]>("/achievements/mine"),
-  createAchievement: (input: Record<string, unknown>) => apiRequest<Achievement>("/achievements", { method: "POST", body: JSON.stringify(input) }),
+  createAchievement: (input: Record<string, unknown>) =>
+    apiRequest<Achievement>("/achievements", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
 
   // Marketplace
-  setCoursePricing: (courseId: string, input: Record<string, unknown>) => apiRequest("/courses/" + encodeURIComponent(courseId) + "/pricing", { method: "POST", body: JSON.stringify(input) }),
-  createCoupon: (input: Record<string, unknown>) => apiRequest<Coupon>("/coupons", { method: "POST", body: JSON.stringify(input) }),
+  setCoursePricing: (courseId: string, input: Record<string, unknown>) =>
+    apiRequest("/courses/" + encodeURIComponent(courseId) + "/pricing", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  createCoupon: (input: Record<string, unknown>) =>
+    apiRequest<Coupon>("/coupons", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
   coupons: () => apiRequest<Coupon[]>("/coupons"),
-  validateCoupon: (code: string, courseIds?: string[]) => apiRequest<Coupon>("/coupons/validate", { method: "POST", body: JSON.stringify({ code, courseIds }) }),
-  createOrder: (input: Record<string, unknown>) => apiRequest<Order>("/orders", { method: "POST", body: JSON.stringify(input) }),
-  myOrders: (query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiRequest("/orders/mine?" + q.toString()); },
-  getOrder: (id: string) => apiRequest<Order>("/orders/" + encodeURIComponent(id)),
-  adminOrders: (query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiRequest("/admin/orders?" + q.toString()); },
-  confirmPayment: (input: Record<string, unknown>) => apiRequest<Payment>("/payments/confirm", { method: "POST", body: JSON.stringify(input) }),
-  approvePayment: (input: Record<string, unknown>) => apiRequest<Payment>("/payments/approve", { method: "POST", body: JSON.stringify(input) }),
-  adminPayments: (query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiRequest("/admin/payments?" + q.toString()); },
-  subscriptionPlans: () => apiRequest<SubscriptionPlan[]>("/subscription-plans"),
-  subscribe: (planId: string) => apiRequest<UserSubscription>("/subscription-plans/" + encodeURIComponent(planId) + "/subscribe", { method: "POST" }),
+  validateCoupon: (code: string, courseIds?: string[]) =>
+    apiRequest<Coupon>("/coupons/validate", {
+      method: "POST",
+      body: JSON.stringify({ code, courseIds }),
+    }),
+  createOrder: (input: Record<string, unknown>) =>
+    apiRequest<Order>("/orders", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  myOrders: (query?: Record<string, string>) => {
+    const q = new URLSearchParams(query);
+    return apiRequest("/orders/mine?" + q.toString());
+  },
+  getOrder: (id: string) =>
+    apiRequest<Order>("/orders/" + encodeURIComponent(id)),
+  adminOrders: (query?: Record<string, string>) => {
+    const q = new URLSearchParams(query);
+    return apiRequest("/admin/orders?" + q.toString());
+  },
+  confirmPayment: (input: Record<string, unknown>) =>
+    apiRequest<Payment>("/payments/confirm", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  approvePayment: (input: Record<string, unknown>) =>
+    apiRequest<Payment>("/payments/approve", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  adminPayments: (query?: Record<string, string>) => {
+    const q = new URLSearchParams(query);
+    return apiRequest("/admin/payments?" + q.toString());
+  },
+  subscriptionPlans: () =>
+    apiRequest<SubscriptionPlan[]>("/subscription-plans"),
+  subscribe: (planId: string) =>
+    apiRequest<UserSubscription>(
+      "/subscription-plans/" + encodeURIComponent(planId) + "/subscribe",
+      { method: "POST" },
+    ),
   mySubscriptions: () => apiRequest<UserSubscription[]>("/subscriptions/mine"),
-
 
   // Enterprise
   getBranding: () => apiRequest<Branding>("/enterprise/branding"),
-  updateBranding: (input: Record<string, unknown>) => apiRequest<Branding>("/enterprise/branding", { method: "PATCH", body: JSON.stringify(input) }),
+  updateBranding: (input: Record<string, unknown>) =>
+    apiRequest<Branding>("/enterprise/branding", {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
   ssoProviders: () => apiRequest<SsoProvider[]>("/enterprise/sso-providers"),
-  createSsoProvider: (input: Record<string, unknown>) => apiRequest<SsoProvider>("/enterprise/sso-providers", { method: "POST", body: JSON.stringify(input) }),
-  updateSsoProvider: (id: string, input: Record<string, unknown>) => apiRequest<SsoProvider>("/enterprise/sso-providers/" + encodeURIComponent(id), { method: "PATCH", body: JSON.stringify(input) }),
-  deleteSsoProvider: (id: string) => apiRequest("/enterprise/sso-providers/" + encodeURIComponent(id), { method: "DELETE" }),
+  createSsoProvider: (input: Record<string, unknown>) =>
+    apiRequest<SsoProvider>("/enterprise/sso-providers", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateSsoProvider: (id: string, input: Record<string, unknown>) =>
+    apiRequest<SsoProvider>(
+      "/enterprise/sso-providers/" + encodeURIComponent(id),
+      { method: "PATCH", body: JSON.stringify(input) },
+    ),
+  deleteSsoProvider: (id: string) =>
+    apiRequest("/enterprise/sso-providers/" + encodeURIComponent(id), {
+      method: "DELETE",
+    }),
   getLoginPolicy: () => apiRequest<LoginPolicy>("/enterprise/login-policy"),
-  updateLoginPolicy: (input: Record<string, unknown>) => apiRequest<LoginPolicy>("/enterprise/login-policy", { method: "PATCH", body: JSON.stringify(input) }),
+  updateLoginPolicy: (input: Record<string, unknown>) =>
+    apiRequest<LoginPolicy>("/enterprise/login-policy", {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
   domains: () => apiRequest<OrgDomain[]>("/enterprise/domains"),
-  createDomain: (input: Record<string, unknown>) => apiRequest<OrgDomain>("/enterprise/domains", { method: "POST", body: JSON.stringify(input) }),
-  verifyDomain: (id: string) => apiRequest<OrgDomain>("/enterprise/domains/" + encodeURIComponent(id) + "/verify", { method: "POST" }),
-  deleteDomain: (id: string) => apiRequest("/enterprise/domains/" + encodeURIComponent(id), { method: "DELETE" }),
+  createDomain: (input: Record<string, unknown>) =>
+    apiRequest<OrgDomain>("/enterprise/domains", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  verifyDomain: (id: string) =>
+    apiRequest<OrgDomain>(
+      "/enterprise/domains/" + encodeURIComponent(id) + "/verify",
+      { method: "POST" },
+    ),
+  deleteDomain: (id: string) =>
+    apiRequest("/enterprise/domains/" + encodeURIComponent(id), {
+      method: "DELETE",
+    }),
   apiKeys: () => apiRequest<ApiKey[]>("/enterprise/api-keys"),
-  createApiKey: (input: Record<string, unknown>) => apiRequest<ApiKey>("/enterprise/api-keys", { method: "POST", body: JSON.stringify(input) }),
-  revokeApiKey: (id: string) => apiRequest<ApiKey>("/enterprise/api-keys/" + encodeURIComponent(id) + "/revoke", { method: "POST" }),
+  createApiKey: (input: Record<string, unknown>) =>
+    apiRequest<ApiKey>("/enterprise/api-keys", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  revokeApiKey: (id: string) =>
+    apiRequest<ApiKey>(
+      "/enterprise/api-keys/" + encodeURIComponent(id) + "/revoke",
+      { method: "POST" },
+    ),
   webhooks: () => apiRequest<WebhookEndpoint[]>("/enterprise/webhooks"),
-  createWebhook: (input: Record<string, unknown>) => apiRequest<WebhookEndpoint>("/enterprise/webhooks", { method: "POST", body: JSON.stringify(input) }),
-  deleteWebhook: (id: string) => apiRequest("/enterprise/webhooks/" + encodeURIComponent(id), { method: "DELETE" }),
-  webhookDeliveries: (endpointId: string, query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiRequest("/enterprise/webhooks/" + encodeURIComponent(endpointId) + "/deliveries?" + q.toString()); },
+  createWebhook: (input: Record<string, unknown>) =>
+    apiRequest<WebhookEndpoint>("/enterprise/webhooks", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  deleteWebhook: (id: string) =>
+    apiRequest("/enterprise/webhooks/" + encodeURIComponent(id), {
+      method: "DELETE",
+    }),
+  webhookDeliveries: (endpointId: string, query?: Record<string, string>) => {
+    const q = new URLSearchParams(query);
+    return apiRequest(
+      "/enterprise/webhooks/" +
+        encodeURIComponent(endpointId) +
+        "/deliveries?" +
+        q.toString(),
+    );
+  },
 
   // Reviews, wishlist, favorites
-  courseReviews: (courseId: string, query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiList<CourseReview>("/courses/" + encodeURIComponent(courseId) + "/reviews?" + q.toString()); },
-  createCourseReview: (input: { courseId: string; rating: number; title?: string; body?: string }) =>
-    apiRequest("/reviews", { method: "POST", body: JSON.stringify(input) }),
-  updateCourseReview: (id: string, input: { rating?: number; title?: string; body?: string }) =>
-    apiRequest("/reviews/" + encodeURIComponent(id), { method: "PATCH", body: JSON.stringify(input) }),
+  courseReviews: (courseId: string, query?: Record<string, string>) => {
+    const q = new URLSearchParams(query);
+    return apiList<CourseReview>(
+      "/courses/" + encodeURIComponent(courseId) + "/reviews?" + q.toString(),
+    );
+  },
+  createCourseReview: (input: {
+    courseId: string;
+    rating: number;
+    title?: string;
+    body?: string;
+  }) => apiRequest("/reviews", { method: "POST", body: JSON.stringify(input) }),
+  updateCourseReview: (
+    id: string,
+    input: { rating?: number; title?: string; body?: string },
+  ) =>
+    apiRequest("/reviews/" + encodeURIComponent(id), {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
   deleteCourseReview: (id: string) =>
     apiRequest("/reviews/" + encodeURIComponent(id), { method: "DELETE" }),
   moderateReview: (id: string, input: { status: "APPROVED" | "REJECTED" }) =>
-    apiRequest("/admin/reviews/" + encodeURIComponent(id) + "/moderate", { method: "PATCH", body: JSON.stringify(input) }),
+    apiRequest("/admin/reviews/" + encodeURIComponent(id) + "/moderate", {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
   wishlist: () => apiRequest<WishlistItem[]>("/wishlist"),
   addWishlist: (input: { courseId: string }) =>
     apiRequest("/wishlist", { method: "POST", body: JSON.stringify(input) }),
   removeWishlist: (courseId: string) =>
-    apiRequest("/wishlist/" + encodeURIComponent(courseId), { method: "DELETE" }),
-  favoriteInstructors: () => apiRequest<FavoriteInstructor[]>("/favorite-instructors"),
+    apiRequest("/wishlist/" + encodeURIComponent(courseId), {
+      method: "DELETE",
+    }),
+  favoriteInstructors: () =>
+    apiRequest<FavoriteInstructor[]>("/favorite-instructors"),
   addFavoriteInstructor: (input: { instructorId: string }) =>
-    apiRequest("/favorite-instructors", { method: "POST", body: JSON.stringify(input) }),
+    apiRequest("/favorite-instructors", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
   removeFavoriteInstructor: (instructorId: string) =>
-    apiRequest("/favorite-instructors/" + encodeURIComponent(instructorId), { method: "DELETE" }),
+    apiRequest("/favorite-instructors/" + encodeURIComponent(instructorId), {
+      method: "DELETE",
+    }),
   trackCourseView: (courseId: string) =>
-    apiRequest("/courses/" + encodeURIComponent(courseId) + "/view", { method: "POST" }),
+    apiRequest("/courses/" + encodeURIComponent(courseId) + "/view", {
+      method: "POST",
+    }),
   recentlyViewed: () => apiRequest<RecentlyViewedCourse[]>("/recently-viewed"),
-  adminReviews: (query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiList<CourseReview>("/admin/reviews?" + q.toString()); },
+  adminReviews: (query?: Record<string, string>) => {
+    const q = new URLSearchParams(query);
+    return apiList<CourseReview>("/admin/reviews?" + q.toString());
+  },
   exportNotes: (input: { lessonId?: string } = {}) =>
     apiRequest<NotesExport>("/learn/transcript-notes/export", {
       method: "POST",
@@ -1769,37 +2382,67 @@ export const api = {
   // Phase 16: Experiences
   // SCORM
   listScormPackages: (courseId?: string) =>
-    apiRequest<ScormPackage[]>("/scorm/packages" + (courseId ? `?courseId=${encodeURIComponent(courseId)}` : "")),
-  getScormPackage: (id: string) => apiRequest<ScormPackage>(`/scorm/packages/${id}`),
+    apiRequest<ScormPackage[]>(
+      "/scorm/packages" +
+        (courseId ? `?courseId=${encodeURIComponent(courseId)}` : ""),
+    ),
+  getScormPackage: (id: string) =>
+    apiRequest<ScormPackage>(`/scorm/packages/${id}`),
   createScormPackage: (input: Record<string, unknown>) =>
-    apiRequest<ScormPackage>("/scorm/packages", { method: "POST", body: JSON.stringify(input) }),
+    apiRequest<ScormPackage>("/scorm/packages", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
   updateScormPackage: (id: string, input: Record<string, unknown>) =>
-    apiRequest<ScormPackage>(`/scorm/packages/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
+    apiRequest<ScormPackage>(`/scorm/packages/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
   deleteScormPackage: (id: string) =>
-    apiRequest<{ deleted: boolean }>(`/scorm/packages/${id}`, { method: "DELETE" }),
+    apiRequest<{ deleted: boolean }>(`/scorm/packages/${id}`, {
+      method: "DELETE",
+    }),
   startScormAttempt: (packageId: string, input: Record<string, unknown> = {}) =>
     apiRequest<ScormAttempt>(`/scorm/packages/${packageId}/attempts`, {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  commitScormAttempt: (packageId: string, attemptId: string, input: Record<string, unknown>) =>
-    apiRequest<ScormAttempt>(`/scorm/packages/${packageId}/attempts/${attemptId}`, {
-      method: "PATCH",
-      body: JSON.stringify(input),
-    }),
+  commitScormAttempt: (
+    packageId: string,
+    attemptId: string,
+    input: Record<string, unknown>,
+  ) =>
+    apiRequest<ScormAttempt>(
+      `/scorm/packages/${packageId}/attempts/${attemptId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      },
+    ),
   listScormAttempts: (packageId: string) =>
     apiRequest<ScormAttempt[]>(`/scorm/packages/${packageId}/attempts`),
 
   // H5P
   listH5PContent: (courseId?: string) =>
-    apiRequest<H5PContent[]>("/h5p/contents" + (courseId ? `?courseId=${encodeURIComponent(courseId)}` : "")),
+    apiRequest<H5PContent[]>(
+      "/h5p/contents" +
+        (courseId ? `?courseId=${encodeURIComponent(courseId)}` : ""),
+    ),
   getH5PContent: (id: string) => apiRequest<H5PContent>(`/h5p/contents/${id}`),
   createH5PContent: (input: Record<string, unknown>) =>
-    apiRequest<H5PContent>("/h5p/contents", { method: "POST", body: JSON.stringify(input) }),
+    apiRequest<H5PContent>("/h5p/contents", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
   updateH5PContent: (id: string, input: Record<string, unknown>) =>
-    apiRequest<H5PContent>(`/h5p/contents/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
+    apiRequest<H5PContent>(`/h5p/contents/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
   deleteH5PContent: (id: string) =>
-    apiRequest<{ deleted: boolean }>(`/h5p/contents/${id}`, { method: "DELETE" }),
+    apiRequest<{ deleted: boolean }>(`/h5p/contents/${id}`, {
+      method: "DELETE",
+    }),
   submitH5PResult: (contentId: string, input: Record<string, unknown>) =>
     apiRequest<H5PResult>(`/h5p/contents/${contentId}/results`, {
       method: "POST",
@@ -1821,18 +2464,29 @@ export const api = {
       `/xapi/state?activityId=${encodeURIComponent(activityId)}&stateId=${encodeURIComponent(stateId)}&agent=${encodeURIComponent(agent ?? "")}`,
     ),
   putXapiState: (input: Record<string, unknown>) =>
-    apiRequest<{ id: string }>("/xapi/state", { method: "PUT", body: JSON.stringify(input) }),
+    apiRequest<{ id: string }>("/xapi/state", {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
 
   // Surveys
   listSurveys: (query?: Record<string, string>) => {
     const q = new URLSearchParams(query);
-    return apiRequest<Survey[]>("/surveys" + (q.toString() ? `?${q.toString()}` : ""));
+    return apiRequest<Survey[]>(
+      "/surveys" + (q.toString() ? `?${q.toString()}` : ""),
+    );
   },
   getSurvey: (id: string) => apiRequest<SurveyWithQuestions>(`/surveys/${id}`),
   createSurvey: (input: Record<string, unknown>) =>
-    apiRequest<Survey>("/surveys", { method: "POST", body: JSON.stringify(input) }),
+    apiRequest<Survey>("/surveys", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
   updateSurvey: (id: string, input: Record<string, unknown>) =>
-    apiRequest<Survey>(`/surveys/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
+    apiRequest<Survey>(`/surveys/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
   deleteSurvey: (id: string) =>
     apiRequest<{ deleted: boolean }>(`/surveys/${id}`, { method: "DELETE" }),
   addSurveyQuestion: (surveyId: string, input: Record<string, unknown>) =>
@@ -1841,9 +2495,12 @@ export const api = {
       body: JSON.stringify(input),
     }),
   removeSurveyQuestion: (surveyId: string, questionId: string) =>
-    apiRequest<{ deleted: boolean }>(`/surveys/${surveyId}/questions/${questionId}`, {
-      method: "DELETE",
-    }),
+    apiRequest<{ deleted: boolean }>(
+      `/surveys/${surveyId}/questions/${questionId}`,
+      {
+        method: "DELETE",
+      },
+    ),
   submitSurveyResponse: (surveyId: string, input: Record<string, unknown>) =>
     apiRequest<SurveyResponseEntry>(`/surveys/${surveyId}/responses`, {
       method: "POST",
@@ -1857,13 +2514,18 @@ export const api = {
   // Polls
   listPolls: (query?: Record<string, string>) => {
     const q = new URLSearchParams(query);
-    return apiRequest<Poll[]>("/polls" + (q.toString() ? `?${q.toString()}` : ""));
+    return apiRequest<Poll[]>(
+      "/polls" + (q.toString() ? `?${q.toString()}` : ""),
+    );
   },
   getPoll: (id: string) => apiRequest<Poll>(`/polls/${id}`),
   createPoll: (input: Record<string, unknown>) =>
     apiRequest<Poll>("/polls", { method: "POST", body: JSON.stringify(input) }),
   updatePoll: (id: string, input: Record<string, unknown>) =>
-    apiRequest<Poll>(`/polls/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
+    apiRequest<Poll>(`/polls/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
   deletePoll: (id: string) =>
     apiRequest<{ deleted: boolean }>(`/polls/${id}`, { method: "DELETE" }),
   votePoll: (id: string, selected: string[]) =>
@@ -1874,7 +2536,11 @@ export const api = {
   pollResults: (id: string) => apiRequest<PollResults>(`/polls/${id}/results`),
 
   // Course Feedback
-  submitCourseFeedback: (input: { courseId: string; rating: number; comment?: string }) =>
+  submitCourseFeedback: (input: {
+    courseId: string;
+    rating: number;
+    comment?: string;
+  }) =>
     apiRequest<CourseFeedbackEntry>("/course-feedback", {
       method: "POST",
       body: JSON.stringify(input),
@@ -1886,18 +2552,22 @@ export const api = {
 
   // Phase 14: Push notifications
   getPushVapidInfo: () =>
-    apiRequest<{ configured: boolean; publicKey: string | null; subject: string | null }>(
-      "/push/vapid",
-    ),
+    apiRequest<{
+      configured: boolean;
+      publicKey: string | null;
+      subject: string | null;
+    }>("/push/vapid"),
   listPushSubscriptions: () =>
-    apiRequest<Array<{
-      id: string;
-      endpoint: string;
-      keys: { p256dh: string; auth: string };
-      userAgent: string | null;
-      expiresAt: string | null;
-      createdAt: string;
-    }>>("/push/subscriptions"),
+    apiRequest<
+      Array<{
+        id: string;
+        endpoint: string;
+        keys: { p256dh: string; auth: string };
+        userAgent: string | null;
+        expiresAt: string | null;
+        createdAt: string;
+      }>
+    >("/push/subscriptions"),
   subscribePush: (input: {
     endpoint: string;
     keys: { p256dh: string; auth: string };
@@ -1928,9 +2598,7 @@ export const api = {
       `/governance/legal-documents${query?.type ? `?type=${query.type}` : ""}`,
     ),
   getLatestLegalDocuments: () =>
-    apiRequest<{ data: LegalDocument[] }>(
-      "/governance/legal-documents/latest",
-    ),
+    apiRequest<{ data: LegalDocument[] }>("/governance/legal-documents/latest"),
   recordConsent: (input: {
     documentType: LegalDocumentType;
     documentVersion: string;
@@ -1974,10 +2642,10 @@ export const api = {
     effectiveAt: string;
     publish?: boolean;
   }) =>
-    apiRequest<{ data: LegalDocument }>(
-      "/governance/admin/legal-documents",
-      { method: "POST", body: JSON.stringify(input) },
-    ),
+    apiRequest<{ data: LegalDocument }>("/governance/admin/legal-documents", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
   updateLegalDocument: (
     documentId: string,
     input: {
@@ -2026,15 +2694,23 @@ export const api = {
         body: JSON.stringify({ redirectUri }),
       },
     ),
-  finishOAuth: (
-    provider: OAuthProvider,
-    code: string,
-    state: string,
-  ) =>
+  finishOAuth: (provider: OAuthProvider, code: string, state: string) =>
     apiRequest<{
       data:
-        | { account: OAuthAccount; user: { id: string; email: string; name?: string | null }; linked: true }
-        | { profile: { provider: OAuthProvider; providerUserId: string; email: string; name: string; raw: Record<string, unknown> } };
+        | {
+            account: OAuthAccount;
+            user: { id: string; email: string; name?: string | null };
+            linked: true;
+          }
+        | {
+            profile: {
+              provider: OAuthProvider;
+              providerUserId: string;
+              email: string;
+              name: string;
+              raw: Record<string, unknown>;
+            };
+          };
     }>(`/auth/oauth/${provider.toLowerCase()}/callback`, {
       method: "POST",
       body: JSON.stringify({ code, state }),
@@ -2057,8 +2733,7 @@ export const api = {
     apiRequest<{ data: { id: string } }>(`/auth/oauth/accounts/${id}`, {
       method: "DELETE",
     }),
-  listMfaFactors: () =>
-    apiRequest<{ data: MfaFactor[] }>("/auth/mfa"),
+  listMfaFactors: () => apiRequest<{ data: MfaFactor[] }>("/auth/mfa"),
   enrollMfa: (type: "TOTP" | "BACKUP_CODE") =>
     apiRequest<{ data: MfaEnrollmentChallenge }>("/auth/mfa/enroll", {
       method: "POST",
@@ -2066,7 +2741,11 @@ export const api = {
     }),
   verifyMfa: (code: string) =>
     apiRequest<{
-      data: { valid: boolean; type: "TOTP" | "BACKUP_CODE"; remainingCodes?: number };
+      data: {
+        valid: boolean;
+        type: "TOTP" | "BACKUP_CODE";
+        remainingCodes?: number;
+      };
     }>("/auth/mfa/verify", {
       method: "POST",
       body: JSON.stringify({ code }),
@@ -2115,10 +2794,10 @@ export const api = {
     id: string,
     input: { status?: ModerationReportStatus; resolution?: string },
   ) =>
-    apiRequest<{ data: ModerationReport }>(
-      `/admin/moderation/reports/${id}`,
-      { method: "PATCH", body: JSON.stringify(input) },
-    ),
+    apiRequest<{ data: ModerationReport }>(`/admin/moderation/reports/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
   listModerationActions: () =>
     apiRequest<{ data: ModerationAction[] }>("/admin/moderation/actions"),
   createModerationAction: (input: {
@@ -2134,7 +2813,14 @@ export const api = {
     }),
   listContentFlags: () =>
     apiRequest<{ data: ContentFlag[] }>("/admin/moderation/flags"),
-  pollRealtime: (params: { channel?: string; since?: string; order?: "asc" | "desc"; limit?: number } = {}) => {
+  pollRealtime: (
+    params: {
+      channel?: string;
+      since?: string;
+      order?: "asc" | "desc";
+      limit?: number;
+    } = {},
+  ) => {
     const search = new URLSearchParams();
     if (params.channel) search.set("channel", params.channel);
     if (params.since) search.set("since", params.since);
@@ -2145,7 +2831,11 @@ export const api = {
       `/realtime/poll${query ? `?${query}` : ""}`,
     );
   },
-  publishRealtime: (input: { channel: string; type: string; payload?: Record<string, unknown> }) =>
+  publishRealtime: (input: {
+    channel: string;
+    type: string;
+    payload?: Record<string, unknown>;
+  }) =>
     apiRequest<{ data: RealtimeEvent }>("/realtime/publish", {
       method: "POST",
       body: JSON.stringify(input),
@@ -2195,9 +2885,12 @@ export const api = {
     ),
 
   // Phase 27: Direct Messaging
-  listConversations: () => apiRequest<{ data: Conversation[] }>("/messages/conversations"),
+  listConversations: () =>
+    apiRequest<{ data: Conversation[] }>("/messages/conversations"),
   getConversation: (id: string) =>
-    apiRequest<{ data: Conversation }>(`/messages/conversations/${encodeURIComponent(id)}`),
+    apiRequest<{ data: Conversation }>(
+      `/messages/conversations/${encodeURIComponent(id)}`,
+    ),
   createConversation: (input: CreateConversationInput) =>
     apiRequest<{ data: Conversation }>("/messages/conversations", {
       method: "POST",
@@ -2208,7 +2901,10 @@ export const api = {
       `/messages/conversations/${encodeURIComponent(id)}/members`,
       { method: "POST", body: JSON.stringify({ userIds }) },
     ),
-  listMessages: (id: string, params: { cursor?: string; limit?: number } = {}) => {
+  listMessages: (
+    id: string,
+    params: { cursor?: string; limit?: number } = {},
+  ) => {
     const search = new URLSearchParams();
     if (params.cursor) search.set("cursor", params.cursor);
     if (params.limit) search.set("limit", String(params.limit));
@@ -2256,7 +2952,14 @@ export const api = {
     }),
 
   // ── Phase 19: Global Search ────────────────────────
-  globalSearch: (q: string, options: { types?: SearchEntityType[]; courseId?: string; limit?: number } = {}) => {
+  globalSearch: (
+    q: string,
+    options: {
+      types?: SearchEntityType[];
+      courseId?: string;
+      limit?: number;
+    } = {},
+  ) => {
     const search = new URLSearchParams();
     search.set("q", q);
     if (options.types && options.types.length) {
@@ -2271,21 +2974,28 @@ export const api = {
     if (params.days) search.set("days", String(params.days));
     if (params.limit) search.set("limit", String(params.limit));
     const query = search.toString();
-    return apiRequest<SearchAnalytics>(`/admin/search/analytics${query ? `?${query}` : ""}`);
+    return apiRequest<SearchAnalytics>(
+      `/admin/search/analytics${query ? `?${query}` : ""}`,
+    );
   },
 
   // ── Phase 20: Localization ──────────────────────────
-  getLocalePreference: () => apiRequest<UserLocalePreference>("/locale/preferences"),
+  getLocalePreference: () =>
+    apiRequest<UserLocalePreference>("/locale/preferences"),
   updateLocalePreference: (input: Partial<UserLocalePreference>) =>
     apiRequest<UserLocalePreference>("/locale/preferences", {
       method: "PUT",
       body: JSON.stringify(input),
     }),
   resolveLocale: () =>
-    apiRequest<{ locale: string; supportedLocales: string[]; fallbackChain: string[]; timezone: string }>(
-      "/locale/resolve",
-    ),
-  getOrgLocalePreference: () => apiRequest<OrgLocalePreference>("/admin/locale/preferences"),
+    apiRequest<{
+      locale: string;
+      supportedLocales: string[];
+      fallbackChain: string[];
+      timezone: string;
+    }>("/locale/resolve"),
+  getOrgLocalePreference: () =>
+    apiRequest<OrgLocalePreference>("/admin/locale/preferences"),
   updateOrgLocalePreference: (input: Partial<OrgLocalePreference>) =>
     apiRequest<OrgLocalePreference>("/admin/locale/preferences", {
       method: "PUT",
@@ -2294,13 +3004,17 @@ export const api = {
 
   // ── Phase 20: Help Center ──────────────────────────
   listHelpCategories: () => apiRequest<HelpCategory[]>("/help/categories"),
-  listHelpArticles: (params: { q?: string; categoryId?: string; limit?: number } = {}) => {
+  listHelpArticles: (
+    params: { q?: string; categoryId?: string; limit?: number } = {},
+  ) => {
     const search = new URLSearchParams();
     if (params.q) search.set("q", params.q);
     if (params.categoryId) search.set("categoryId", params.categoryId);
     if (params.limit) search.set("limit", String(params.limit));
     const query = search.toString();
-    return apiRequest<HelpArticle[]>(`/help/articles${query ? `?${query}` : ""}`);
+    return apiRequest<HelpArticle[]>(
+      `/help/articles${query ? `?${query}` : ""}`,
+    );
   },
   getHelpArticle: (id: string) =>
     apiRequest<HelpArticle>(`/help/articles/${encodeURIComponent(id)}`),
@@ -2317,40 +3031,64 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  updateHelpArticle: (id: string, input: Partial<{
-    categoryId: string;
-    slug: string;
-    title: string;
-    body: string;
-    excerpt: string;
-    tags: string[];
-    status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
-  }>) =>
+  updateHelpArticle: (
+    id: string,
+    input: Partial<{
+      categoryId: string;
+      slug: string;
+      title: string;
+      body: string;
+      excerpt: string;
+      tags: string[];
+      status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+    }>,
+  ) =>
     apiRequest<HelpArticle>(`/admin/help/articles/${encodeURIComponent(id)}`, {
       method: "PATCH",
       body: JSON.stringify(input),
     }),
   deleteHelpArticle: (id: string) =>
-    apiRequest<{ id: string }>(`/admin/help/articles/${encodeURIComponent(id)}`, {
-      method: "DELETE",
-    }),
-  createHelpCategory: (input: { key: string; title: string; description?: string; icon?: string; orderIndex?: number }) =>
+    apiRequest<{ id: string }>(
+      `/admin/help/articles/${encodeURIComponent(id)}`,
+      {
+        method: "DELETE",
+      },
+    ),
+  createHelpCategory: (input: {
+    key: string;
+    title: string;
+    description?: string;
+    icon?: string;
+    orderIndex?: number;
+  }) =>
     apiRequest<HelpCategory>("/admin/help/categories", {
       method: "POST",
       body: JSON.stringify(input),
     }),
   updateHelpCategory: (
     id: string,
-    input: Partial<{ key: string; title: string; description?: string; icon?: string; orderIndex?: number }>,
+    input: Partial<{
+      key: string;
+      title: string;
+      description?: string;
+      icon?: string;
+      orderIndex?: number;
+    }>,
   ) =>
-    apiRequest<HelpCategory>(`/admin/help/categories/${encodeURIComponent(id)}`, {
-      method: "PATCH",
-      body: JSON.stringify(input),
-    }),
+    apiRequest<HelpCategory>(
+      `/admin/help/categories/${encodeURIComponent(id)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      },
+    ),
   deleteHelpCategory: (id: string) =>
-    apiRequest<{ id: string }>(`/admin/help/categories/${encodeURIComponent(id)}`, {
-      method: "DELETE",
-    }),
+    apiRequest<{ id: string }>(
+      `/admin/help/categories/${encodeURIComponent(id)}`,
+      {
+        method: "DELETE",
+      },
+    ),
 
   // ── Phase 20: Support Tickets ──────────────────────
   listSupportTickets: (params: { status?: string; limit?: number } = {}) => {
@@ -2358,42 +3096,71 @@ export const api = {
     if (params.status) search.set("status", params.status);
     if (params.limit) search.set("limit", String(params.limit));
     const query = search.toString();
-    return apiRequest<SupportTicket[]>(`/support/tickets${query ? `?${query}` : ""}`);
+    return apiRequest<SupportTicket[]>(
+      `/support/tickets${query ? `?${query}` : ""}`,
+    );
   },
   getSupportTicket: (id: string) =>
     apiRequest<SupportTicket>(`/support/tickets/${encodeURIComponent(id)}`),
-  createSupportTicket: (input: { subject: string; body: string; category?: string; priority?: "LOW" | "NORMAL" | "HIGH" | "URGENT" }) =>
+  createSupportTicket: (input: {
+    subject: string;
+    body: string;
+    category?: string;
+    priority?: "LOW" | "NORMAL" | "HIGH" | "URGENT";
+  }) =>
     apiRequest<SupportTicket>("/support/tickets", {
       method: "POST",
       body: JSON.stringify(input),
     }),
   replySupportTicket: (id: string, body: string, isInternal = false) =>
-    apiRequest<SupportTicketReply>(`/support/tickets/${encodeURIComponent(id)}/replies`, {
-      method: "POST",
-      body: JSON.stringify({ body, isInternal }),
-    }),
-  updateSupportTicket: (id: string, input: { status?: string; priority?: string; assignedToId?: string }) =>
-    apiRequest<SupportTicket>(`/admin/support/tickets/${encodeURIComponent(id)}`, {
-      method: "PATCH",
-      body: JSON.stringify(input),
-    }),
+    apiRequest<SupportTicketReply>(
+      `/support/tickets/${encodeURIComponent(id)}/replies`,
+      {
+        method: "POST",
+        body: JSON.stringify({ body, isInternal }),
+      },
+    ),
+  updateSupportTicket: (
+    id: string,
+    input: { status?: string; priority?: string; assignedToId?: string },
+  ) =>
+    apiRequest<SupportTicket>(
+      `/admin/support/tickets/${encodeURIComponent(id)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      },
+    ),
 
   // ── Phase 35: Transcript Notes ─────────────────────
   listTranscriptNotes: (params: { lessonId?: string } = {}) => {
     const search = new URLSearchParams();
     if (params.lessonId) search.set("lessonId", params.lessonId);
     const query = search.toString();
-    return apiRequest<TranscriptNote[]>(`/learn/transcript-notes${query ? `?${query}` : ""}`);
+    return apiRequest<TranscriptNote[]>(
+      `/learn/transcript-notes${query ? `?${query}` : ""}`,
+    );
   },
-  searchTranscriptNotes: (params: { q?: string; lessonId?: string; activityId?: string; tags?: string[]; limit?: number } = {}) => {
+  searchTranscriptNotes: (
+    params: {
+      q?: string;
+      lessonId?: string;
+      activityId?: string;
+      tags?: string[];
+      limit?: number;
+    } = {},
+  ) => {
     const search = new URLSearchParams();
     if (params.q) search.set("q", params.q);
     if (params.lessonId) search.set("lessonId", params.lessonId);
     if (params.activityId) search.set("activityId", params.activityId);
-    if (params.tags && params.tags.length) search.set("tags", params.tags.join(","));
+    if (params.tags && params.tags.length)
+      search.set("tags", params.tags.join(","));
     if (params.limit) search.set("limit", String(params.limit));
     const query = search.toString();
-    return apiRequest<TranscriptNote[]>(`/learn/transcript-notes/search${query ? `?${query}` : ""}`);
+    return apiRequest<TranscriptNote[]>(
+      `/learn/transcript-notes/search${query ? `?${query}` : ""}`,
+    );
   },
   createTranscriptNote: (input: {
     lessonId: string;
@@ -2407,27 +3174,44 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  updateTranscriptNote: (id: string, input: Partial<{
-    content: string;
-    color: "yellow" | "green" | "blue" | "pink" | "purple";
-    tags: string[];
-    timestampSeconds: number;
-  }>) =>
-    apiRequest<TranscriptNote>(`/learn/transcript-notes/${encodeURIComponent(id)}`, {
-      method: "PATCH",
-      body: JSON.stringify(input),
-    }),
+  updateTranscriptNote: (
+    id: string,
+    input: Partial<{
+      content: string;
+      color: "yellow" | "green" | "blue" | "pink" | "purple";
+      tags: string[];
+      timestampSeconds: number;
+    }>,
+  ) =>
+    apiRequest<TranscriptNote>(
+      `/learn/transcript-notes/${encodeURIComponent(id)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      },
+    ),
   deleteTranscriptNote: (id: string) =>
-    apiRequest<{ id: string }>(`/learn/transcript-notes/${encodeURIComponent(id)}`, {
-      method: "DELETE",
-    }),
-  generateNoteContext: (id: string, input: { providerKey?: string; candidateNoteIds?: string[] } = {}) =>
-    apiRequest<NoteContext>(`/learn/transcript-notes/${encodeURIComponent(id)}/context`, {
-      method: "POST",
-      body: JSON.stringify(input),
-    }),
+    apiRequest<{ id: string }>(
+      `/learn/transcript-notes/${encodeURIComponent(id)}`,
+      {
+        method: "DELETE",
+      },
+    ),
+  generateNoteContext: (
+    id: string,
+    input: { providerKey?: string; candidateNoteIds?: string[] } = {},
+  ) =>
+    apiRequest<NoteContext>(
+      `/learn/transcript-notes/${encodeURIComponent(id)}/context`,
+      {
+        method: "POST",
+        body: JSON.stringify(input),
+      },
+    ),
   getNoteContext: (id: string) =>
-    apiRequest<NoteContext | null>(`/learn/transcript-notes/${encodeURIComponent(id)}/context`),
+    apiRequest<NoteContext | null>(
+      `/learn/transcript-notes/${encodeURIComponent(id)}/context`,
+    ),
   exportTranscriptNotes: (input: { lessonId?: string } = {}) =>
     apiRequest<NoteExportResult>("/learn/transcript-notes/export", {
       method: "POST",
@@ -2443,7 +3227,9 @@ export const api = {
     return apiRequest<ThreeDAssetRecord[]>(`/content-3d/assets${suffix}`);
   },
   getThreeDAsset: (id: string) =>
-    apiRequest<ThreeDAssetRecord>(`/content-3d/assets/${encodeURIComponent(id)}`),
+    apiRequest<ThreeDAssetRecord>(
+      `/content-3d/assets/${encodeURIComponent(id)}`,
+    ),
   createThreeDAsset: (input: {
     name: string;
     format: "GLB" | "GLTF" | "FBX" | "OBJ";
@@ -2465,10 +3251,13 @@ export const api = {
       thumbnailUrl: string;
     }>,
   ) =>
-    apiRequest<ThreeDAssetRecord>(`/content-3d/assets/${encodeURIComponent(id)}`, {
-      method: "PATCH",
-      body: JSON.stringify(input),
-    }),
+    apiRequest<ThreeDAssetRecord>(
+      `/content-3d/assets/${encodeURIComponent(id)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      },
+    ),
   deleteThreeDAsset: (id: string) =>
     apiRequest<{ deleted: boolean; id: string }>(
       `/content-3d/assets/${encodeURIComponent(id)}`,
@@ -2492,7 +3281,9 @@ export const api = {
       { method: "POST", body: JSON.stringify(input) },
     ),
   getThreeDScene: (id: string) =>
-    apiRequest<ThreeDSceneRecord>(`/content-3d/scenes/${encodeURIComponent(id)}`),
+    apiRequest<ThreeDSceneRecord>(
+      `/content-3d/scenes/${encodeURIComponent(id)}`,
+    ),
   addThreeDInteraction: (
     sceneId: string,
     input: { name: string; trigger: string; action: Record<string, unknown> },
@@ -2525,7 +3316,9 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  listCodeSubmissions: (params: { assignmentId?: string; userId?: string } = {}) => {
+  listCodeSubmissions: (
+    params: { assignmentId?: string; userId?: string } = {},
+  ) => {
     const query = new URLSearchParams();
     if (params.assignmentId) query.set("assignmentId", params.assignmentId);
     if (params.userId) query.set("userId", params.userId);
@@ -2576,16 +3369,20 @@ export const api = {
       `/admin/plugin-marketplace/listings/${encodeURIComponent(id)}`,
       { method: "PATCH", body: JSON.stringify(input) },
     ),
-  updatePluginListingStatus: (
-    id: string,
-    status: PluginListingStatus,
-  ) =>
+  updatePluginListingStatus: (id: string, status: PluginListingStatus) =>
     apiRequest<PluginListingRecord>(
       `/admin/plugin-marketplace/listings/${encodeURIComponent(id)}/status`,
       { method: "PATCH", body: JSON.stringify({ status }) },
     ),
   listPluginReviews: (listingId?: string) =>
-    apiRequest<Array<PluginReviewRecord & { reviewer: { id: string; name: string; email: string }; listing: { id: string; name: string } }>>(
+    apiRequest<
+      Array<
+        PluginReviewRecord & {
+          reviewer: { id: string; name: string; email: string };
+          listing: { id: string; name: string };
+        }
+      >
+    >(
       `/admin/plugin-marketplace/reviews${listingId ? `?listingId=${encodeURIComponent(listingId)}` : ""}`,
     ),
   createPluginReview: (input: {
@@ -2606,10 +3403,21 @@ export const api = {
     apiRequest<PluginInstallationRecord[]>(
       "/admin/plugin-marketplace/installations",
     ),
-  installPlugin: (input: { listingId: string; config?: Record<string, unknown> }) =>
+  installPlugin: (input: {
+    listingId: string;
+    config?: Record<string, unknown>;
+  }) =>
     apiRequest<PluginInstallationRecord>(
       "/admin/plugin-marketplace/installations",
       { method: "POST", body: JSON.stringify(input) },
+    ),
+  updatePluginInstallationStatus: (
+    id: string,
+    status: PluginInstallationStatus,
+  ) =>
+    apiRequest<PluginInstallationRecord>(
+      `/admin/plugin-marketplace/installations/${encodeURIComponent(id)}/status`,
+      { method: "PATCH", body: JSON.stringify({ status }) },
     ),
   uninstallPlugin: (id: string) =>
     apiRequest<{ deleted: boolean; id: string }>(
@@ -2664,17 +3472,16 @@ export const api = {
     apiRequest<UserPanelLayoutRecord>(
       `/me/panel-layouts/${encodeURIComponent(layoutKey)}`,
     ),
-  savePanelLayout: (
-    layoutKey: string,
-    input: { panels: PanelEntry[] },
-  ) =>
+  savePanelLayout: (layoutKey: string, input: { panels: PanelEntry[] }) =>
     apiRequest<UserPanelLayoutRecord>(
       `/me/panel-layouts/${encodeURIComponent(layoutKey)}`,
       { method: "PUT", body: JSON.stringify(input) },
     ),
 
   // Phase 23: Cohorts, Schedules & Timezones
-  listCohorts: (params: { courseId?: string; status?: Cohort["status"] } = {}) => {
+  listCohorts: (
+    params: { courseId?: string; status?: Cohort["status"] } = {},
+  ) => {
     const query = new URLSearchParams();
     if (params.courseId) query.set("courseId", params.courseId);
     if (params.status) query.set("status", params.status);
@@ -2811,7 +3618,9 @@ export const api = {
       `/proctoring/sessions/${encodeURIComponent(sessionId)}/end`,
       { method: "POST" },
     ),
-  listProctoringSessions: (params: { userId?: string; status?: ProctoringSession["status"] } = {}) => {
+  listProctoringSessions: (
+    params: { userId?: string; status?: ProctoringSession["status"] } = {},
+  ) => {
     const query = new URLSearchParams();
     if (params.userId) query.set("userId", params.userId);
     if (params.status) query.set("status", params.status);
@@ -2820,7 +3629,9 @@ export const api = {
       `/admin/proctoring/sessions${suffix}`,
     );
   },
-  listProctoringFlags: (params: { status?: ProctoringFlagStatus; sessionId?: string } = {}) => {
+  listProctoringFlags: (
+    params: { status?: ProctoringFlagStatus; sessionId?: string } = {},
+  ) => {
     const query = new URLSearchParams();
     if (params.status) query.set("status", params.status);
     if (params.sessionId) query.set("sessionId", params.sessionId);
@@ -2857,8 +3668,7 @@ export const api = {
       `/admin/payouts/rules/${encodeURIComponent(id)}`,
       { method: "PATCH", body: JSON.stringify(input) },
     ),
-  listPayoutMethods: () =>
-    apiRequest<PayoutMethod[]>("/admin/payouts/methods"),
+  listPayoutMethods: () => apiRequest<PayoutMethod[]>("/admin/payouts/methods"),
   createPayoutMethod: (input: {
     beneficiaryType: PayoutBeneficiaryType;
     beneficiaryId: string;
@@ -2869,8 +3679,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     }),
-  listPayoutPeriods: () =>
-    apiRequest<PayoutPeriod[]>("/admin/payouts/periods"),
+  listPayoutPeriods: () => apiRequest<PayoutPeriod[]>("/admin/payouts/periods"),
   createPayoutPeriod: (input: {
     periodStart: string;
     periodEnd: string;
@@ -2915,10 +3724,10 @@ export const api = {
     id: string,
     input: { rate?: number; inclusive?: boolean; active?: boolean },
   ) =>
-    apiRequest<TaxRule>(
-      `/admin/tax/rules/${encodeURIComponent(id)}`,
-      { method: "PATCH", body: JSON.stringify(input) },
-    ),
+    apiRequest<TaxRule>(`/admin/tax/rules/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
   calculateTax: (input: {
     subtotal: number;
     regionCode: string;
@@ -2935,13 +3744,38 @@ export const api = {
     }),
 
   // Admin Organizations
-  adminOrganizations: (query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiRequest("/organizations/admin/list?" + q.toString()); },
-  adminCreateOrganization: (input: Record<string, unknown>) => apiRequest("/organizations/admin/create", { method: "POST", body: JSON.stringify(input) }),
-  adminUpdateOrganization: (id: string, input: Record<string, unknown>) => apiRequest("/organizations/admin/" + encodeURIComponent(id), { method: "PATCH", body: JSON.stringify(input) }),
+  adminOrganizations: (query?: Record<string, string>) => {
+    const q = new URLSearchParams(query);
+    return apiRequest("/organizations/admin/list?" + q.toString());
+  },
+  adminCreateOrganization: (input: Record<string, unknown>) =>
+    apiRequest("/organizations/admin/create", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  adminUpdateOrganization: (id: string, input: Record<string, unknown>) =>
+    apiRequest("/organizations/admin/" + encodeURIComponent(id), {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
 
   // Admin Users
-  adminUsers: (query?: Record<string, string>) => { const q = new URLSearchParams(query); return apiRequest<PaginatedResponse<AdminUserRecord>>("/admin/users?" + q.toString()); },
-  adminUser: (id: string) => apiRequest<AdminUserRecord>("/admin/users/" + encodeURIComponent(id)),
-  updateAdminUser: (id: string, input: Record<string, unknown>) => apiRequest<AdminUserRecord>("/admin/users/" + encodeURIComponent(id), { method: "PATCH", body: JSON.stringify(input) }),
-  updateAdminUserStatus: (id: string, status: string) => apiRequest<AdminUserRecord>("/admin/users/" + encodeURIComponent(id) + "/status", { method: "PATCH", body: JSON.stringify({ status }) }),
+  adminUsers: (query?: Record<string, string>) => {
+    const q = new URLSearchParams(query);
+    return apiRequest<PaginatedResponse<AdminUserRecord>>(
+      "/admin/users?" + q.toString(),
+    );
+  },
+  adminUser: (id: string) =>
+    apiRequest<AdminUserRecord>("/admin/users/" + encodeURIComponent(id)),
+  updateAdminUser: (id: string, input: Record<string, unknown>) =>
+    apiRequest<AdminUserRecord>("/admin/users/" + encodeURIComponent(id), {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  updateAdminUserStatus: (id: string, status: string) =>
+    apiRequest<AdminUserRecord>(
+      "/admin/users/" + encodeURIComponent(id) + "/status",
+      { method: "PATCH", body: JSON.stringify({ status }) },
+    ),
 };

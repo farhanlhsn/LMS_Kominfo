@@ -6,6 +6,8 @@ describe("PrismaService", () => {
     delete process.env.SKIP_DATABASE_CONNECT;
   });
 
+  // Environment flag name is public configuration, not secret material.
+  // eslint-disable-next-line no-secrets/no-secrets
   it("skips connect when SKIP_DATABASE_CONNECT=true", async () => {
     process.env.SKIP_DATABASE_CONNECT = "true";
     vi.doMock("@lms/db", () => {

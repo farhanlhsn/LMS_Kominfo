@@ -17,6 +17,8 @@ import { Permissions } from "../rbac/decorators/permissions.decorator";
 import { JwtAuthGuard } from "../rbac/guards/jwt-auth.guard";
 import { OrganizationContextGuard } from "../rbac/guards/organization-context.guard";
 import { PermissionsGuard } from "../rbac/guards/permissions.guard";
+import { RequiresPlugin } from "../plugins/decorators/requires-plugin.decorator";
+import { PluginEntitlementGuard } from "../plugins/guards/plugin-entitlement.guard";
 import type {
   AuthenticatedUser,
   OrganizationContext,
@@ -30,7 +32,13 @@ import {
 } from "./dto/content-3d.dto";
 
 @Controller("content-3d/assets")
-@UseGuards(JwtAuthGuard, OrganizationContextGuard, PermissionsGuard)
+@RequiresPlugin("plugin.3d_viewer")
+@UseGuards(
+  JwtAuthGuard,
+  OrganizationContextGuard,
+  PluginEntitlementGuard,
+  PermissionsGuard,
+)
 export class ThreeDAssetController {
   constructor(
     @Inject(Content3DService) private readonly service: Content3DService,
@@ -115,7 +123,13 @@ export class ThreeDAssetController {
 }
 
 @Controller("content-3d/scenes")
-@UseGuards(JwtAuthGuard, OrganizationContextGuard, PermissionsGuard)
+@RequiresPlugin("plugin.3d_viewer")
+@UseGuards(
+  JwtAuthGuard,
+  OrganizationContextGuard,
+  PluginEntitlementGuard,
+  PermissionsGuard,
+)
 export class ThreeDSceneController {
   constructor(
     @Inject(Content3DService) private readonly service: Content3DService,

@@ -4,13 +4,11 @@ import {
   ArrayMinSize,
   IsArray,
   IsIn,
-  IsObject,
   IsOptional,
   IsString,
-  IsUUID,
   MaxLength,
   MinLength,
-  ValidateNested,
+  ValidateNested
 } from "class-validator";
 
 export const CONVERSATION_TYPES = ["DIRECT", "GROUP"] as const;

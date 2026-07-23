@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { BadRequestException, NotFoundException } from "@nestjs/common";
+import { BadRequestException,NotFoundException } from "@nestjs/common";
+import { describe,expect,it,vi } from "vitest";
 import { MarketplaceController } from "./marketplace.controller";
 
 const org = { id: "org-a", slug: "a", name: "A", memberId: "m1", roleKeys: ["admin"], permissionKeys: [], isPlatformAdmin: false };
@@ -120,14 +120,14 @@ describe("MarketplaceController", () => {
   });
 
   it("propagates a not found error from the service", async () => {
-    const { controller, marketplace } = setup({
+    const { controller } = setup({
       getOrder: vi.fn().mockRejectedValue(new NotFoundException("Order not found")),
     });
     await expect(controller.getOrder(createRequest(), "missing")).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it("propagates a bad request error from the service", async () => {
-    const { controller, marketplace } = setup({
+    const { controller } = setup({
       confirmPayment: vi.fn().mockRejectedValue(new BadRequestException("Payment is not pending")),
     });
     await expect(controller.confirmPayment(createRequest(), { paymentId: "pay-1" } as any)).rejects.toBeInstanceOf(BadRequestException);

@@ -1,21 +1,21 @@
+import { Prisma } from "@lms/db";
 import {
-  BadRequestException,
   Inject,
   Injectable,
   NotFoundException,
-  UnauthorizedException,
+  UnauthorizedException
 } from "@nestjs/common";
-import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { Prisma } from "@lms/db";
+import { createHash,createHmac,randomBytes } from "node:crypto";
+import type { AuthenticatedUser,OrganizationContext } from "../auth/types/authenticated-request";
 import { PrismaService } from "../prisma/prisma.service";
-import type { AuthenticatedUser } from "../auth/types/authenticated-request";
-import type { OrganizationContext } from "../auth/types/authenticated-request";
 
 // Length of a TOTP secret in bytes (Base32 encoded by the authenticator app).
 const TOTP_SECRET_BYTES = 20;
 const BACKUP_CODE_COUNT = 8;
 
 function base32Encode(buffer: Buffer): string {
+  // RFC 4648 Base32 alphabet, not secret material.
+  // eslint-disable-next-line no-secrets/no-secrets
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
   let bits = 0;
   let value = 0;
@@ -68,7 +68,7 @@ export class MfaService {
       const secretBase32 = base32Encode(secret);
       const otpauthUrl = `otpauth://totp/LMS:${encodeURIComponent(
         user.email,
-      )}?secret=${secretBase32}&issuer=LMS&algorithm=SHA1&digits=6&period=30`;
+      )}?secret=${secretBase32}&issuer=LMS&algorithm=SHA1&digits=6&period=30`; // eslint-disable-line no-secrets/no-secrets -- Public otpauth parameters.
       const factor = await this.prisma.mfaFactor.create({
         data: {
           userId: user.id,

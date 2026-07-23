@@ -18,7 +18,8 @@ export default function ResetPasswordPage() {
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (password !== confirm) {
+    const passwordsMatch = password === confirm;
+    if (!passwordsMatch) {
       setError("Passwords do not match");
       return;
     }

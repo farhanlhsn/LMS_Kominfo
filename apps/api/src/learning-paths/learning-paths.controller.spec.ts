@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { BadRequestException,NotFoundException } from "@nestjs/common";
+import { describe,expect,it,vi } from "vitest";
 import { LearningPathsController } from "./learning-paths.controller";
-import { BadRequestException, NotFoundException } from "@nestjs/common";
 
 const org = { id: "org-a", slug: "a", name: "A", memberId: "m1", roleKeys: ["instructor"], permissionKeys: [], isPlatformAdmin: false };
 const user = { id: "user-1", email: "u@e.c", role: "instructor", isPlatformAdmin: false, activeOrganizationId: "org-a" };
@@ -49,14 +49,14 @@ describe("LearningPathsController", () => {
   });
 
   it("propagates not found when path is missing", async () => {
-    const { controller, service } = setup({
+    const { controller } = setup({
       findOne: vi.fn().mockRejectedValue(new NotFoundException("Path not found")),
     });
     await expect(controller.findOne(createRequest(), "missing")).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it("rejects adding duplicate course to path", async () => {
-    const { controller, service } = setup({
+    const { controller } = setup({
       addCourse: vi.fn().mockRejectedValue(new BadRequestException("Course already in this learning path")),
     });
     await expect(controller.addCourse(createRequest(), "lp-1", { courseId: "c-1" } as any)).rejects.toBeInstanceOf(BadRequestException);

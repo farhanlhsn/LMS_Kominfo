@@ -4,11 +4,13 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
 import { Prisma } from "@lms/db";
 import { PrismaService } from "../prisma/prisma.service";
 import { ensureEnrollment } from "../common/enrollment/ensure-enrollment";
 import { AiIndexingService } from "../ai/ai-indexing.service";
+import { PluginRegistry } from "../plugins/plugin-registry.service";
 import type { OrganizationContext } from "../auth/types/authenticated-request";
 import type {
   CreateCaptionCueDto,
@@ -49,6 +51,9 @@ export class LearningWorkspaceService {
   constructor(
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(AiIndexingService) private readonly aiIndexing: AiIndexingService,
+    @Optional()
+    @Inject(PluginRegistry)
+    private readonly pluginRegistry?: PluginRegistry,
   ) {}
 
   getPreferences(organizationId: string, userId: string) {
@@ -370,13 +375,19 @@ export class LearningWorkspaceService {
     });
     if (!activity) throw new NotFoundException("Activity not found");
     await this.ensureEnrollment(organizationId, userId, activity.courseId);
-    const [notesCount, bookmarksCount] = await Promise.all([
+    const [notesCount, bookmarksCount, aiTutorEnabled] = await Promise.all([
       this.prisma.learnerNote.count({
         where: { organizationId, userId, activityId, deletedAt: null },
       }),
       this.prisma.learnerBookmark.count({
         where: { organizationId, userId, activityId, deletedAt: null },
       }),
+      this.pluginRegistry
+        ? this.pluginRegistry.isEnabledForOrganization(
+            organizationId,
+            "plugin.ai_tutor",
+          )
+        : Promise.resolve(true),
     ]);
     const assessmentDisplayPolicy = this.assessmentPolicy(
       activity.assessmentDisplayPolicy,
@@ -396,7 +407,7 @@ export class LearningWorkspaceService {
       assessmentDisplayPolicy.allowNotes ? "notes" : null,
       assessmentDisplayPolicy.allowTranscript ? "transcript" : null,
       "resources",
-      assessmentDisplayPolicy.allowAIAssistant ? "ai" : null,
+      assessmentDisplayPolicy.allowAIAssistant && aiTutorEnabled ? "ai" : null,
       "bookmarks",
       "discussion",
       "upcoming",

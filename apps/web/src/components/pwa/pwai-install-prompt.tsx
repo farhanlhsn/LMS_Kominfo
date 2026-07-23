@@ -1,9 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Download, Smartphone, X } from "lucide-react";
 import { usePwaInstall, type InstallState } from "../../lib/pwa-hooks";
 import { cn } from "../../lib/utils";
+
+const PWA_DISMISS_KEY = "lms.pwa.install.dismissed.v1";
+const PWA_DISMISS_DAYS = 30;
+
+export function isPwaInstallDismissed(now = Date.now()) {
+  if (typeof window === "undefined") return false;
+  const raw = window.localStorage.getItem(PWA_DISMISS_KEY);
+  const dismissedAt = raw ? Number(raw) : 0;
+  return (
+    Number.isFinite(dismissedAt) &&
+    dismissedAt > 0 &&
+    now - dismissedAt < PWA_DISMISS_DAYS * 24 * 60 * 60 * 1000
+  );
+}
 
 /**
  * Dismissible floating card that prompts the user to install the PWA.
@@ -19,7 +33,11 @@ export function PwaInstallPrompt({
 }) {
   const { state, install, reset } = usePwaInstall();
   const [busy, setBusy] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissed, setDismissed] = useState(true);
+
+  useEffect(() => {
+    setDismissed(isPwaInstallDismissed());
+  }, []);
 
   if (state !== "available" || dismissed) {
     return null;
@@ -30,6 +48,9 @@ export function PwaInstallPrompt({
     try {
       const result = await install();
       if (result?.outcome === "accepted") {
+        window.localStorage.setItem(PWA_DISMISS_KEY, String(Date.now()));
+        setDismissed(true);
+        reset();
         onAccepted?.();
       }
     } finally {
@@ -74,6 +95,7 @@ export function PwaInstallPrompt({
           <button
             className="inline-flex min-h-9 items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
             onClick={() => {
+              window.localStorage.setItem(PWA_DISMISS_KEY, String(Date.now()));
               setDismissed(true);
               reset();
             }}

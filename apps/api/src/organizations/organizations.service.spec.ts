@@ -3,7 +3,7 @@ import {
   ConflictException,
   NotFoundException,
 } from "@nestjs/common";
-import { describe, expect, it, vi } from "vitest";
+import { describe,expect,it,vi } from "vitest";
 import { OrganizationsService } from "./organizations.service";
 
 function memberRow(overrides: Record<string, unknown> = {}) {
@@ -88,8 +88,22 @@ describe("OrganizationsService", () => {
         name: "Learner",
         description: null,
         isSystem: true,
+        archetype: "learner",
+        assignableContextTypes: ["ORGANIZATION", "COURSE"],
+        isActive: true,
         rolePermissions: [
-          { permission: { key: "courses:read", description: null } },
+          {
+            permission: {
+              key: "courses:read",
+              description: null,
+              component: "core",
+              capabilityType: "READ",
+              riskBitmask: 0,
+              contextTypes: ["ORGANIZATION", "COURSE"],
+              sourcePluginKey: null,
+              isActive: true,
+            },
+          },
         ],
       },
     ]);
@@ -110,7 +124,21 @@ describe("OrganizationsService", () => {
         name: "Learner",
         description: null,
         isSystem: true,
-        permissions: [{ key: "courses:read", description: null }],
+        archetype: "learner",
+        assignableContextTypes: ["ORGANIZATION", "COURSE"],
+        isActive: true,
+        permissions: [
+          {
+            key: "courses:read",
+            description: null,
+            component: "core",
+            capabilityType: "READ",
+            riskBitmask: 0,
+            contextTypes: ["ORGANIZATION", "COURSE"],
+            sourcePluginKey: null,
+            isActive: true,
+          },
+        ],
       },
     ]);
     expect(await service.listPermissions()).toEqual([{ key: "courses:read" }]);
@@ -166,7 +194,7 @@ describe("OrganizationsService", () => {
   });
 
   it("inviteMember rejects active members and invites new", async () => {
-    const { service, prisma, tx, notifications, emailService } = setup();
+    const { service, prisma, tx } = setup();
     prisma.role.findMany.mockResolvedValue([{ id: "r1", key: "learner" }]);
     prisma.user.findUnique.mockResolvedValue({ id: "u1", email: "u@e.c" });
     prisma.organizationMember.findUnique.mockResolvedValue({

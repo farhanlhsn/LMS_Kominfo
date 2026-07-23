@@ -14,12 +14,15 @@ export class EnterpriseService {
   private keyPrefix() { return "lms_" + crypto.randomBytes(4).toString("hex"); }
 
   private encryptionKey() {
-    const secret = process.env.ENTERPRISE_SECRET_KEY;
+    const secret =
+      process.env.ENTERPRISE_SECRET_KEY || process.env.JWT_ACCESS_SECRET;
     if (!secret) {
       if (process.env.NODE_ENV === "production") {
-        throw new Error("ENTERPRISE_SECRET_KEY is required in production");
+        throw new BadRequestException(
+          "Enterprise secret encryption is not configured; set ENTERPRISE_SECRET_KEY",
+        );
       }
-      // ponytail: dev-only fallback; set ENTERPRISE_SECRET_KEY before prod
+      // Development-only fallback.
       return crypto.createHash("sha256").update("dev-enterprise-secret").digest();
     }
     return crypto.createHash("sha256").update(secret).digest();
@@ -271,6 +274,29 @@ export class EnterpriseService {
   // ── Webhooks ─────────────────────────────────────────
 
   async createWebhook(org: OrganizationContext, userId: string, dto: CreateWebhookDto) {
+    const allowedEvents = new Set([
+      "COURSE_CREATED",
+      "COURSE_UPDATED",
+      "COURSE_PUBLISHED",
+      "ENROLLMENT_CREATED",
+      "ENROLLMENT_COMPLETED",
+      "USER_REGISTERED",
+      "PAYMENT_RECEIVED",
+      "ORDER_PAID",
+      "ORDER_COMPLETED",
+      "CERTIFICATE_ISSUED",
+      "QUIZ_ATTEMPTED",
+      "ASSIGNMENT_SUBMITTED",
+    ]);
+    const events = dto.events.map((event) =>
+      event.trim().toUpperCase().replace(/[.\s-]+/g, "_"),
+    );
+    const invalidEvents = events.filter((event) => !allowedEvents.has(event));
+    if (invalidEvents.length) {
+      throw new BadRequestException(
+        `Unsupported webhook events: ${invalidEvents.join(", ")}`,
+      );
+    }
     const rawSecret = crypto.randomBytes(24).toString("hex");
     const record = await this.prisma.webhookEndpoint.create({
       data: {
@@ -278,7 +304,7 @@ export class EnterpriseService {
         name: dto.name,
         url: dto.url,
         secret: this.encryptSecret(rawSecret),
-        events: dto.events as any,
+        events: events as any,
         retryCount: dto.retryCount ?? 3,
         timeoutMs: dto.timeoutMs ?? 5000,
         description: dto.description,

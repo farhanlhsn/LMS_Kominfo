@@ -1,5 +1,5 @@
-﻿import { NotFoundException, BadRequestException } from "@nestjs/common";
-import { describe, expect, it, vi } from "vitest";
+﻿import { BadRequestException,NotFoundException } from "@nestjs/common";
+import { describe,expect,it,vi } from "vitest";
 import { LearningPathsService } from "./learning-paths.service";
 
 const org = { id: "org-a", slug: "a", name: "A", memberId: "m1", roleKeys: ["org_admin"], permissionKeys: [], isPlatformAdmin: false };
@@ -21,12 +21,12 @@ describe("LearningPathsService", () => {
     it("creates a learning path with slugified title", async () => {
       const { service, prisma } = setup();
       prisma.learningPath.create = vi.fn().mockResolvedValue({ id: "path-a", title: "New Path", slug: "new-path" });
-      const result = await service.create(org, { title: "New Path" });
+      await service.create(org, { title: "New Path" });
       expect(prisma.learningPath.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ title: "New Path", slug: "new-path" }) }));
     });
 
     it("rejects duplicate title", async () => {
-      const { service, prisma } = setup({ learningPath: { findUnique: vi.fn().mockResolvedValue({ id: "existing" }) } });
+      const { service } = setup({ learningPath: { findUnique: vi.fn().mockResolvedValue({ id: "existing" }) } });
       await expect(service.create(org, { title: "Existing" })).rejects.toBeInstanceOf(BadRequestException);
     });
   });
@@ -39,7 +39,7 @@ describe("LearningPathsService", () => {
     });
 
     it("rejects cross-tenant", async () => {
-      const { service, prisma } = setup({ learningPath: { findFirst: vi.fn().mockResolvedValue(null) } });
+      const { service } = setup({ learningPath: { findFirst: vi.fn().mockResolvedValue(null) } });
       await expect(service.findOne(org, "path-org-b")).rejects.toBeInstanceOf(NotFoundException);
     });
   });

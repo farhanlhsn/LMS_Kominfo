@@ -7,9 +7,9 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  Max,
   Min,
-  MinLength,
-  ValidateNested,
+  MinLength
 } from "class-validator";
 
 export const SUPPORT_TICKET_STATUSES = [
@@ -190,8 +190,10 @@ export class HelpListQueryDto {
   categoryId?: string;
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(100)
   limit?: number;
 }
 
@@ -201,8 +203,10 @@ export class SupportTicketListQueryDto {
   status?: "OPEN" | "PENDING" | "RESOLVED" | "CLOSED" | "REJECTED";
 
   @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(100)
   limit?: number;
 }
 

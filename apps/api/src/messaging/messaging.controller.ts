@@ -1,3 +1,4 @@
+import { PERMISSIONS } from "@lms/shared";
 import {
   Body,
   Controller,
@@ -10,8 +11,7 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
-import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
-import { PERMISSIONS } from "@lms/shared";
+import { ApiBearerAuth,ApiOperation,ApiTags } from "@nestjs/swagger";
 import type {
   AuthenticatedUser,
   OrganizationContext,
@@ -167,6 +167,6 @@ export class MessagingController {
   ) {
     return this.service
       .unblockUser(org.id, user.id, targetId)
-      .then((data) => ({ data: { removed: true, userId: targetId } }));
+      .then(() => ({ data: { removed: true, userId: targetId } }));
   }
 }

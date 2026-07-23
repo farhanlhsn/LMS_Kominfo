@@ -1,3 +1,4 @@
+import { Prisma } from "@lms/db";
 import {
   BadRequestException,
   ConflictException,
@@ -7,14 +8,12 @@ import {
   NotFoundException,
   Optional,
 } from "@nestjs/common";
-import { randomBytes, randomInt } from "node:crypto";
-import { Prisma } from "@lms/db";
-import { PrismaService } from "../prisma/prisma.service";
+import { randomBytes,randomInt } from "node:crypto";
 import type { OrganizationContext } from "../auth/types/authenticated-request";
+import { PrismaService } from "../prisma/prisma.service";
 import {
   CreateAssignmentGroupDto,
   CreatePeerReviewConfigDto,
-  CreatePortfolioDto,
   CreatePortfolioEntryDto,
   CreateProjectShowcaseDto,
   CreateSubmissionAnnotationDto,
@@ -26,7 +25,7 @@ import {
   UpdatePortfolioDto,
   UpdatePortfolioEntryDto,
   UpdateProjectShowcaseDto,
-  UpdateSubmissionAnnotationDto,
+  UpdateSubmissionAnnotationDto
 } from "./dto/advanced-assignment.dto";
 import {
   PLAGIARISM_PROVIDER,
@@ -562,7 +561,6 @@ export class AdvancedAssignmentService {
     const annotation = await this.getAnnotation(organization.id, annotationId);
     await this.getSubmissionForGrader(organization, userId, annotation.submissionId);
     const isAuthor = annotation.authorId === userId;
-    const isResolver = dto.resolved === true;
     if (dto.comment !== undefined && !isAuthor) {
       throw new ForbiddenException("Only the author can edit the comment");
     }

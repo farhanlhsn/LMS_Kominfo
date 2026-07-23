@@ -8,6 +8,7 @@ import {
   type AdminReviewRow,
 } from "./lists";
 import { ReviewList, ReviewSummary } from "./review-list";
+import { WishlistButton } from "./wishlist-button";
 import type { CourseReview } from "../../lib/lms-types";
 
 function makeReview(overrides: Partial<CourseReview> = {}): CourseReview {
@@ -250,5 +251,18 @@ describe("ReviewList", () => {
       }),
     );
     expect(html).toContain("Learner");
+  });
+});
+
+describe("WishlistButton", () => {
+  it("renders persisted wishlist state", () => {
+    const html = renderToStaticMarkup(
+      createElement(WishlistButton, {
+        courseId: "course_1",
+        initialActive: true,
+      }),
+    );
+    expect(html).toContain('aria-pressed="true"');
+    expect(html).toContain("Remove from wishlist");
   });
 });

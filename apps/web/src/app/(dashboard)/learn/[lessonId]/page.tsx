@@ -1,12 +1,11 @@
 'use client';
 
-import React, { use, useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api-client';
-import { useAuth } from '@/lib/auth';
-import { LessonSidebar } from '@/components/learn/lesson-sidebar';
-import { LessonContent } from '@/components/learn/lesson-content';
 import { AiPanel } from '@/components/learn/ai-panel';
+import { LessonContent } from '@/components/learn/lesson-content';
+import { LessonSidebar } from '@/components/learn/lesson-sidebar';
+import { api } from '@/lib/api-client';
+import { useMutation,useQuery,useQueryClient } from '@tanstack/react-query';
+import React,{ use } from 'react';
 
 interface LessonContentData {
   markdown?: string | null;
@@ -58,7 +57,6 @@ interface CourseDetails {
 
 export default function LearnPage(props: { params: Promise<{ lessonId: string }> }): React.ReactElement {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
   const { lessonId } = use(props.params);
 
   // 1. Fetch current lesson details (endpoint langsung /lessons/:id per API Contract)
@@ -74,20 +72,14 @@ export default function LearnPage(props: { params: Promise<{ lessonId: string }>
   const courseId = lesson?.module.courseId;
 
   // 2. Fetch full course details for sidebar navigation
-  const {
-    data: course,
-    isLoading: isLoadingCourse,
-  } = useQuery<CourseDetails>({
+  const { data: course } = useQuery<CourseDetails>({
     queryKey: ['course-curriculum', courseId],
     queryFn: () => api.get(`/courses/${courseId}`),
     enabled: !!courseId,
   });
 
   // 3. Fetch progress details
-  const {
-    data: progressData,
-    isLoading: isLoadingProgress,
-  } = useQuery<CourseProgress>({
+  const { data: progressData } = useQuery<CourseProgress>({
     queryKey: ['course-progress', courseId],
     queryFn: () => api.get(`/courses/${courseId}/progress`),
     enabled: !!courseId,
@@ -136,7 +128,6 @@ export default function LearnPage(props: { params: Promise<{ lessonId: string }>
       {course && progressData && (
         <LessonSidebar
           courseTitle={course.title}
-          courseId={course.id}
           modules={course.modules}
           currentLessonId={lessonId}
           completedLessonIds={progressData.completedLessons}

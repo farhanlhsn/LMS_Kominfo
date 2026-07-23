@@ -1,16 +1,12 @@
-import { Type } from "class-transformer";
 import {
-  IsArray,
   IsBoolean,
   IsDateString,
   IsIn,
   IsInt,
-  IsObject,
   IsOptional,
   IsString,
   Min,
-  MinLength,
-  ValidateNested,
+  MinLength
 } from "class-validator";
 
 export const LEGAL_DOCUMENT_TYPES = [

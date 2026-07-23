@@ -1,13 +1,13 @@
 'use client';
 
+import { Award,Bell,BookOpen,Brain,GraduationCap,Home,Settings,Trophy } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Award, BarChart3, BookOpen, Brain, GraduationCap, Home, Settings, Trophy, Search, Bell } from 'lucide-react';
 
-import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { NotificationsBell } from './notifications-bell';
+import { cn } from '@/lib/utils';
 import { GlobalSearch } from './global-search';
+import { NotificationsBell } from './notifications-bell';
 import { ThemeToggle } from './theme-toggle';
 
 const studentNav = [

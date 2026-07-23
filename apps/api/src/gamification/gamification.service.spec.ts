@@ -1,5 +1,5 @@
 import { NotFoundException } from "@nestjs/common";
-import { describe, expect, it, vi } from "vitest";
+import { describe,expect,it,vi } from "vitest";
 import { GamificationService } from "./gamification.service";
 
 const org = { id: "org-a", slug: "a", name: "A", memberId: "m1", roleKeys: ["org_admin"], permissionKeys: [], isPlatformAdmin: false };
@@ -42,7 +42,7 @@ describe("GamificationService", () => {
     });
 
     it("rejects delete for cross-tenant skill", async () => {
-      const { service, prisma } = setup({ skill: { findFirst: vi.fn().mockResolvedValue(null) } });
+      const { service } = setup({ skill: { findFirst: vi.fn().mockResolvedValue(null) } });
       await expect(service.deleteSkill(org, "skill-org-b")).rejects.toBeInstanceOf(NotFoundException);
     });
   });

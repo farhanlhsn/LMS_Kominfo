@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
 import { Prisma } from "@lms/db";
 import type { OrganizationContext } from "../auth/types/authenticated-request";
@@ -11,6 +12,7 @@ import { AiChunkerService } from "./ai-chunker.service";
 import { AiEmbeddingProviderFactory } from "./ai-provider.factories";
 import type { LocalEmbeddingProvider } from "./ai-provider.types";
 import { AiTextExtractorService } from "./ai-text-extractor.service";
+import { AiTenantRuntimeService } from "./ai-tenant-runtime.service";
 
 interface IndexableDocument {
   sourceType: string;
@@ -44,6 +46,8 @@ export class AiIndexingService {
     private readonly extractor: AiTextExtractorService,
     private readonly chunker: AiChunkerService,
     private readonly embeddingFactory: AiEmbeddingProviderFactory,
+    @Optional()
+    private readonly tenantRuntime?: AiTenantRuntimeService,
   ) {}
 
   async indexCourse(
@@ -239,6 +243,41 @@ export class AiIndexingService {
     };
   }
 
+  async courseSources(
+    organization: OrganizationContext,
+    userId: string,
+    courseId: string,
+  ) {
+    await this.ensureCanManageCourse(organization, userId, courseId);
+    const sources = await this.prisma.aiDocument.findMany({
+      where: {
+        organizationId: organization.id,
+        courseId,
+        status: "READY",
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        title: true,
+        sourceType: true,
+        lessonId: true,
+        activityId: true,
+        fileId: true,
+        indexedAt: true,
+        _count: { select: { chunks: true } },
+      },
+      orderBy: [
+        { lessonId: "asc" },
+        { activityId: "asc" },
+        { title: "asc" },
+      ],
+    });
+    return sources.map(({ _count, ...source }) => ({
+      ...source,
+      chunkCount: _count.chunks,
+    }));
+  }
+
   private async persistDocument(
     input: {
       organizationId: string;
@@ -309,7 +348,10 @@ export class AiIndexingService {
 
     try {
       const chunks = this.chunker.chunk(input.rawText);
-      const provider = this.embeddingFactory.create();
+      const tenantConfig = await this.tenantRuntime?.assertReady(
+        input.organizationId,
+      );
+      const provider = this.embeddingFactory.create(tenantConfig);
       const vectors = await provider.embedBatch(
         chunks.map((chunk) => chunk.content),
       );

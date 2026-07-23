@@ -3,6 +3,8 @@ import "./globals.css";
 import { PwaOverlay } from "../components/pwa/pwa-overlay";
 import { ThemeModeProvider, themeModeBootstrapScript } from "../components/theme/theme-mode";
 import { CookieBanner } from "../components/governance/CookieBanner";
+import { AuthProvider } from "../lib/auth";
+import { QueryProvider } from "../providers/query-provider";
 
 const serviceWorkerScript =
   process.env.NODE_ENV === "production"
@@ -76,9 +78,13 @@ export default function RootLayout({
       </head>
       <body>
         <ThemeModeProvider>
-          {children}
-          <CookieBanner />
-          <PwaOverlay />
+          <QueryProvider>
+            <AuthProvider>
+              {children}
+              <CookieBanner />
+              <PwaOverlay />
+            </AuthProvider>
+          </QueryProvider>
         </ThemeModeProvider>
         <script
           dangerouslySetInnerHTML={{

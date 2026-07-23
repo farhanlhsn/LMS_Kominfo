@@ -2,9 +2,11 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
 import { AiEmbeddingProviderFactory } from "./ai-provider.factories";
 import { PrismaService } from "../prisma/prisma.service";
+import { AiTenantRuntimeService } from "./ai-tenant-runtime.service";
 
 export interface RetrievedChunk {
   chunkId: string;
@@ -39,6 +41,8 @@ export class AiRetrieverService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly embeddingFactory: AiEmbeddingProviderFactory,
+    @Optional()
+    private readonly tenantRuntime?: AiTenantRuntimeService,
   ) {}
 
   async retrieve(input: {
@@ -88,7 +92,10 @@ export class AiRetrieverService {
     const activityIds = allowedActivities.map((activity) => activity.id);
     if (!activityIds.length) return [];
 
-    const provider = this.embeddingFactory.create();
+    const tenantConfig = await this.tenantRuntime?.assertReady(
+      input.organizationId,
+    );
+    const provider = this.embeddingFactory.create(tenantConfig);
     const queryVector = await provider.embedText(input.question);
     const chunks = await this.prisma.aiDocumentChunk.findMany({
       where: {

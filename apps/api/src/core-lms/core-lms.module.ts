@@ -3,13 +3,20 @@ import { CertificatesModule } from "../certificates/certificates.module";
 import { EngagementModule } from "../engagement/engagement.module";
 import { RbacModule } from "../rbac/rbac.module";
 import { RedisModule } from "../redis/redis.module";
+import { PluginsModule } from "../plugins/plugins.module";
 import { CoreLmsService } from "./core-lms.service";
 import { CoursesController } from "./courses.controller";
 import { InstructorController } from "./instructor.controller";
 import { LearningController } from "./learning.controller";
 
 @Module({
-  imports: [RbacModule, CertificatesModule, RedisModule, EngagementModule],
+  imports: [
+    RbacModule,
+    CertificatesModule,
+    RedisModule,
+    EngagementModule,
+    PluginsModule,
+  ],
   controllers: [CoursesController, InstructorController, LearningController],
   providers: [CoreLmsService],
   exports: [CoreLmsService],

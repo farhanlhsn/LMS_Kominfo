@@ -8,6 +8,7 @@ import {
   Matches,
   MinLength,
 } from "class-validator";
+import { ACCESS_CONTEXT_TYPES, type AccessContextType } from "@lms/shared";
 
 export class CreateOrganizationMemberDto {
   @IsEmail()
@@ -57,6 +58,11 @@ export class CreateOrganizationRoleDto {
   @IsArray()
   @IsString({ each: true })
   permissionKeys?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsIn(ACCESS_CONTEXT_TYPES, { each: true })
+  assignableContextTypes?: AccessContextType[];
 }
 
 export class InviteOrganizationMemberDto {
@@ -112,4 +118,9 @@ export class UpdateOrganizationRoleDto {
   @IsArray()
   @IsString({ each: true })
   permissionKeys?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsIn(ACCESS_CONTEXT_TYPES, { each: true })
+  assignableContextTypes?: AccessContextType[];
 }

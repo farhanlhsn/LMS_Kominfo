@@ -1,7 +1,5 @@
-import { BadRequestException, ForbiddenException, NotFoundException } from "@nestjs/common";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { PrismaService } from "../prisma/prisma.service";
-import { RealtimeService } from "../realtime/realtime.service";
+import { BadRequestException,ForbiddenException,NotFoundException } from "@nestjs/common";
+import { beforeEach,describe,expect,it,vi } from "vitest";
 import { MessagingService } from "./messaging.service";
 
 describe("MessagingService", () => {

@@ -26,7 +26,7 @@ export default function AdminPaymentsPage() {
 
   const payments = payload?.data ?? [];
   const total = payments.reduce((sum, payment) => sum + (payment.amount ?? 0), 0);
-  const currency = payments[0]?.currency ?? "USD";
+  const currency = payments[0]?.currency ?? "IDR";
 
   return (
     <AuthGate>

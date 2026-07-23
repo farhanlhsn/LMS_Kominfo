@@ -2,8 +2,17 @@
 
 import { useState } from "react";
 import { Plus } from "lucide-react";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../../../../components/ui/select";
-import { AuthGate, PermissionGate } from "../../../../components/auth/auth-gate";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "../../../../components/ui/select";
+import {
+  AuthGate,
+  PermissionGate,
+} from "../../../../components/auth/auth-gate";
 import { AppShell } from "../../../../components/layout/shells";
 import { SsoProviderList } from "../../../../components/enterprise/sso-provider-list";
 import { PageHeader } from "../../../../components/ui/core";
@@ -17,7 +26,7 @@ export default function EnterpriseSsoPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [name, setName] = useState("");
-  const [type, setType] = useState("oidc");
+  const [type, setType] = useState("OIDC");
   const [issuer, setIssuer] = useState("");
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
@@ -82,10 +91,14 @@ export default function EnterpriseSsoPage() {
                       <SelectValue placeholder="OIDC" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="oidc">OIDC</SelectItem>
-                      <SelectItem value="saml">SAML</SelectItem>
-                      <SelectItem value="google">Google</SelectItem>
-                      <SelectItem value="azure">Azure AD</SelectItem>
+                      <SelectItem value="OIDC">OIDC</SelectItem>
+                      <SelectItem value="SAML">SAML</SelectItem>
+                      <SelectItem value="GOOGLE_WORKSPACE">
+                        Google Workspace
+                      </SelectItem>
+                      <SelectItem value="MICROSOFT_ENTRA">
+                        Microsoft Entra ID
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -111,7 +124,9 @@ export default function EnterpriseSsoPage() {
                 />
               </label>
               <label className="text-sm">
-                <span className="block text-muted-foreground">Client secret</span>
+                <span className="block text-muted-foreground">
+                  Client secret
+                </span>
                 <input
                   className="mt-1 min-h-10 w-full rounded-md border border-input bg-card px-3 text-sm text-foreground"
                   onChange={(event) => setClientSecret(event.target.value)}

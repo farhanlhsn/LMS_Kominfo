@@ -84,8 +84,14 @@ export default function EnterpriseDomainsPage() {
           <PageHeader
             eyebrow="Enterprise"
             title="Verified domains"
-            description="Domains linked to this organization for SSO and auto-join."
+            description="Email domains establish who may auto-join and which SSO provider applies; SSO providers hold the identity-provider connection itself."
           />
+
+          <div className="mb-5 border-l-4 border-primary bg-muted px-4 py-3 text-sm text-muted-foreground">
+            Confirmation records that an administrator checked domain ownership.
+            Enforce SSO routes matching confirmed email domains through selected
+            provider; auto-join creates membership after successful login.
+          </div>
 
           <section className="mb-5 rounded-lg border border-border bg-card p-5 shadow-subtle">
             <h2 className="text-base font-semibold">Add domain</h2>

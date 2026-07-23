@@ -399,6 +399,29 @@ enum DiscussionReportStatus {
   DISMISSED
 }
 
+enum AccessContextType {
+  SYSTEM
+  ORGANIZATION
+  USER
+  COURSE_CATEGORY
+  COURSE
+  MODULE
+  ACTIVITY
+  PLUGIN
+}
+
+enum CapabilityEffect {
+  INHERIT
+  ALLOW
+  PREVENT
+  PROHIBIT
+}
+
+enum CapabilityType {
+  READ
+  WRITE
+}
+
 model User {
   id                           String                        @id @default(cuid())
   email                        String                        @unique
@@ -520,6 +543,10 @@ model User {
   pluginReviews                PluginReview[]                @relation("PluginReviewReviewer")
   popoutSessions               PopoutSession[]               @relation("PopoutSessionUser")
   passwordResetTokens          PasswordResetToken[]
+  accessRoleAssignments        ContextRoleAssignment[]       @relation("AccessAssignmentUser")
+  accessRoleAssignmentsMade    ContextRoleAssignment[]       @relation("AccessAssignmentActor")
+  capabilityOverridesMade      RoleCapabilityOverride[]      @relation("CapabilityOverrideActor")
+  roleSwitches                 RoleSwitch[]                  @relation("RoleSwitchUser")
 
   @@index([status])
   @@index([createdAt])
@@ -556,6 +583,7 @@ model Organization {
   folders                    Folder[]
   contentItems               ContentLibraryItem[]
   organizationPlugins        OrganizationPlugin[]
+  pluginSecrets              PluginSecret[]
   pluginLogs                 PluginExecutionLog[]
   workspacePreferences       LearningWorkspacePreference[]
   lessonWorkspaceStates      LessonWorkspaceState[]
@@ -682,6 +710,11 @@ model Organization {
   transcriptNotes            TranscriptNote[]
   noteContexts               NoteContext[]
   notesExports               NotesExport[]                 @relation("NotesExportOrg")
+  accessContexts             AccessContext[]
+  accessRoleAssignments      ContextRoleAssignment[]
+  capabilityOverrides        RoleCapabilityOverride[]
+  roleDelegations            RoleDelegation[]
+  roleSwitches               RoleSwitch[]
 
   @@index([status])
   @@index([createdAt])
@@ -706,18 +739,28 @@ model OrganizationMember {
 }
 
 model Role {
-  id                     String           @id @default(cuid())
+  id                     String                   @id @default(cuid())
   organizationId         String?
   key                    String
   name                   String
   description            String?
-  isSystem               Boolean          @default(false)
-  createdAt              DateTime         @default(now())
-  updatedAt              DateTime         @updatedAt
-  organization           Organization?    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  isSystem               Boolean                  @default(false)
+  archetype              String?
+  sortOrder              Int                      @default(0)
+  assignableContextTypes Json                     @default("[]")
+  isActive               Boolean                  @default(true)
+  deletedAt              DateTime?
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+  organization           Organization?            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   rolePermissions        RolePermission[]
   memberRoles            MemberRole[]
-  defaultForSsoProviders SsoProvider[]    @relation("SsoProviderDefaultRole")
+  defaultForSsoProviders SsoProvider[]            @relation("SsoProviderDefaultRole")
+  contextAssignments     ContextRoleAssignment[]
+  capabilityOverrides    RoleCapabilityOverride[]
+  delegationsAsActor     RoleDelegation[]         @relation("RoleDelegationActor")
+  delegationsAsTarget    RoleDelegation[]         @relation("RoleDelegationTarget")
+  roleSwitches           RoleSwitch[]
 
   @@unique([organizationId, key])
   @@index([key])
@@ -725,11 +768,21 @@ model Role {
 }
 
 model Permission {
-  id              String           @id @default(cuid())
-  key             String           @unique
-  description     String?
-  createdAt       DateTime         @default(now())
-  rolePermissions RolePermission[]
+  id                  String                   @id @default(cuid())
+  key                 String                   @unique
+  description         String?
+  component           String                   @default("core")
+  capabilityType      CapabilityType           @default(WRITE)
+  riskBitmask         Int                      @default(0)
+  contextTypes        Json                     @default("[]")
+  sourcePluginKey     String?
+  isActive            Boolean                  @default(true)
+  createdAt           DateTime                 @default(now())
+  rolePermissions     RolePermission[]
+  capabilityOverrides RoleCapabilityOverride[]
+
+  @@index([component, isActive])
+  @@index([sourcePluginKey])
 }
 
 model RolePermission {
@@ -754,6 +807,121 @@ model MemberRole {
   @@index([roleId])
 }
 
+model AccessContext {
+  id                  String                   @id @default(cuid())
+  organizationId      String?
+  type                AccessContextType
+  instanceId          String
+  key                 String                   @unique
+  parentId            String?
+  path                String
+  depth               Int
+  component           String                   @default("core")
+  isActive            Boolean                  @default(true)
+  missingReason       String?
+  locked              Boolean                  @default(false)
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+  organization        Organization?            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  parent              AccessContext?           @relation("AccessContextTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children            AccessContext[]          @relation("AccessContextTree")
+  roleAssignments     ContextRoleAssignment[]
+  capabilityOverrides RoleCapabilityOverride[]
+  roleSwitches        RoleSwitch[]
+
+  @@unique([organizationId, type, instanceId])
+  @@index([organizationId, type, isActive])
+  @@index([parentId])
+  @@index([path])
+}
+
+model ContextRoleAssignment {
+  id              String        @id @default(cuid())
+  organizationId  String
+  contextId       String
+  roleId          String
+  userId          String
+  assignedById    String?
+  sourceComponent String        @default("core")
+  sourceId        String        @default("")
+  startsAt        DateTime?
+  expiresAt       DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  context         AccessContext @relation(fields: [contextId], references: [id], onDelete: Cascade)
+  role            Role          @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user            User          @relation("AccessAssignmentUser", fields: [userId], references: [id], onDelete: Cascade)
+  assignedBy      User?         @relation("AccessAssignmentActor", fields: [assignedById], references: [id], onDelete: SetNull)
+
+  @@unique([contextId, roleId, userId, sourceComponent, sourceId])
+  @@index([organizationId, userId])
+  @@index([roleId])
+  @@index([expiresAt])
+}
+
+model RoleCapabilityOverride {
+  id             String           @id @default(cuid())
+  organizationId String?
+  contextId      String
+  roleId         String
+  permissionId   String
+  effect         CapabilityEffect
+  createdById    String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  organization   Organization?    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  context        AccessContext    @relation(fields: [contextId], references: [id], onDelete: Cascade)
+  role           Role             @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission     Permission       @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdBy      User?            @relation("CapabilityOverrideActor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([contextId, roleId, permissionId])
+  @@index([organizationId, roleId])
+  @@index([permissionId])
+}
+
+model RoleDelegation {
+  id             String       @id @default(cuid())
+  organizationId String
+  actorRoleId    String
+  targetRoleId   String
+  canView        Boolean      @default(true)
+  canAssign      Boolean      @default(false)
+  canOverride    Boolean      @default(false)
+  canSwitch      Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actorRole      Role         @relation("RoleDelegationActor", fields: [actorRoleId], references: [id], onDelete: Cascade)
+  targetRole     Role         @relation("RoleDelegationTarget", fields: [targetRoleId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, actorRoleId, targetRoleId])
+  @@index([targetRoleId])
+}
+
+model RoleSwitch {
+  id             String        @id @default(cuid())
+  organizationId String
+  sessionId      String
+  userId         String
+  contextId      String
+  roleId         String
+  expiresAt      DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  session        UserSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user           User          @relation("RoleSwitchUser", fields: [userId], references: [id], onDelete: Cascade)
+  context        AccessContext @relation(fields: [contextId], references: [id], onDelete: Cascade)
+  role           Role          @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, contextId])
+  @@index([organizationId, userId])
+  @@index([roleId])
+  @@index([expiresAt])
+}
+
 model UserSession {
   id                   String        @id @default(cuid())
   userId               String
@@ -769,6 +937,7 @@ model UserSession {
   updatedAt            DateTime      @updatedAt
   user                 User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   activeOrganization   Organization? @relation(fields: [activeOrganizationId], references: [id], onDelete: SetNull)
+  roleSwitches         RoleSwitch[]
 
   @@index([userId])
   @@index([activeOrganizationId])
@@ -1202,6 +1371,7 @@ model Plugin {
   executionLogs       PluginExecutionLog[]
   eventSubscriptions  PluginEventSubscription[]
   pluginPermissions   PluginPermission[]
+  secrets             PluginSecret[]
 
   @@index([category, status])
 }
@@ -1223,6 +1393,22 @@ model OrganizationPlugin {
   @@index([organizationId, enabled])
   @@index([pluginId])
   @@index([installedById])
+}
+
+model PluginSecret {
+  id             String       @id @default(cuid())
+  organizationId String
+  pluginId       String
+  key            String
+  encryptedValue String
+  lastFour       String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plugin         Plugin       @relation(fields: [pluginId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, pluginId, key])
+  @@index([organizationId, pluginId])
 }
 
 model PluginExecutionLog {
@@ -4236,13 +4422,13 @@ model LegalAcceptanceLog {
 }
 
 model PasswordResetToken {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
-  token     String   @unique
+  token     String    @unique
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([token])

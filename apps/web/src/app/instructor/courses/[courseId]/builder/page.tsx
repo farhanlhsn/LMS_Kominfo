@@ -1,34 +1,44 @@
 "use client";
 
-import type { FormEvent } from "react";
-import { useCallback, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
-import {
-  BookOpen, ChevronDown, ChevronRight,
-  FilePlus, FolderPlus, Save, Send, Sparkles,
-  Trash2, Video,
-} from "lucide-react";
 import { PERMISSIONS } from "@lms/shared";
+import {
+  BookOpen,ChevronDown,ChevronRight,
+  FilePlus,FolderPlus,Save,Send,Sparkles,
+  Trash2,Video,
+} from "lucide-react";
+import { useParams } from "next/navigation";
+import type { FormEvent } from "react";
+import { useCallback,useMemo,useState } from "react";
+import { AiApprovalQueue } from "../../../../../components/advanced-assignment/ai-approval-queue";
+import { AiQuestionScopeDialog } from "../../../../../components/advanced-assignment/ai-question-scope-dialog";
+import { CaptionCueEditor } from "../../../../../components/advanced-assignment/caption-cue-editor";
 import { AuthGate } from "../../../../../components/auth/auth-gate";
 import { RichTextEditor } from "../../../../../components/content/content";
+import { CoursePhaseNavigation } from "../../../../../components/engagement/engagement";
 import { AppShell } from "../../../../../components/layout/shells";
 import { PluginActivityEditor } from "../../../../../components/plugins/plugin-activity";
-import { AiApprovalQueue } from "../../../../../components/advanced-assignment/ai-approval-queue";
-import { CaptionCueEditor } from "../../../../../components/advanced-assignment/caption-cue-editor";
-import { ButtonLink, StatusBadge } from "../../../../../components/ui/core";
-import { ApiErrorState, EmptyState, LoadingState } from "../../../../../components/ui/states";
-import { CoursePhaseNavigation } from "../../../../../components/engagement/engagement";
+import { ButtonLink,StatusBadge } from "../../../../../components/ui/core";
+import { ApiErrorState,EmptyState,LoadingState } from "../../../../../components/ui/states";
 import { api } from "../../../../../lib/api-client";
 import {
-  useContentLibrary, useCreateInstructorCaptionTrack,
-  useDeleteInstructorCaptionTrack, useFiles,
-  useGenerateInstructorVideoQuiz, useGenerateInstructorVideoSummary,
-  useInstructorAiGeneratedItems, useInstructorCaptionTracks,
-  useInstructorCourse, useInstructorQuizzes, usePluginActivityTypes,
-  useSession, useUpdateInstructorCaptionTrack,
+  useAiStatus,
+  useContentLibrary,useCreateInstructorCaptionTrack,
+  useDeleteInstructorCaptionTrack,useFiles,
+  useGenerateInstructorVideoQuiz,useGenerateInstructorVideoSummary,
+  useInstructorAiGeneratedItems,useInstructorCaptionTracks,
+  useInstructorCourse,useInstructorQuizzes,usePluginActivityTypes,
+  useSession,useUpdateInstructorCaptionTrack,
 } from "../../../../../lib/api-hooks";
 import { hasPermission } from "../../../../../lib/authz";
-import type { Activity, Course, CourseModule, Lesson, VideoCaptionTrack } from "../../../../../lib/lms-types";
+import type {
+  Activity,
+  AiIndexedSource,
+  Course,
+  CourseModule,
+  GenerateCourseAiQuestionsInput,
+  Lesson,
+  VideoCaptionTrack,
+} from "../../../../../lib/lms-types";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -144,8 +154,8 @@ const TEXTAREA = "w-full rounded-md border border-input bg-card px-3 py-2 text-s
 
 // ─── Course overview panel ────────────────────────────────────────────────────
 
-function CourseOverviewPanel({ course, canUpdate, canPublish, onAction }: {
-  course: Course; canUpdate: boolean; canPublish: boolean;
+function CourseOverviewPanel({ course, canPublish, onAction }: {
+  course: Course; canPublish: boolean;
   onAction: (action: () => Promise<unknown>, msg: string) => void;
 }) {
   const totalActivities = course.modules?.flatMap((m) => m.lessons.flatMap((l) => l.activities)).length ?? 0;
@@ -423,6 +433,7 @@ function ActivityEditPanel({
 // ─── Video enhancements panel ─────────────────────────────────────────────────
 
 function VideoEnhancementsPanel({ activity }: { activity: Activity }) {
+  const aiStatus = useAiStatus();
   const captionTracks = useInstructorCaptionTracks(activity.id);
   const generatedItems = useInstructorAiGeneratedItems(activity.id);
   const createCaption = useCreateInstructorCaptionTrack();
@@ -457,6 +468,10 @@ function VideoEnhancementsPanel({ activity }: { activity: Activity }) {
 
   const defaultLang = captionTracks.data?.find((t) => t.isDefault)?.language
     ?? captionTracks.data?.[0]?.language ?? captionLang;
+  const contentStudioEnabled =
+    aiStatus.data?.features["plugin.ai_content_studio"] ?? false;
+  const questionGeneratorEnabled =
+    aiStatus.data?.features["plugin.ai_question_generator"] ?? false;
 
   return (
     <div className="flex flex-col gap-4 rounded-xl border border-border bg-muted/20 p-5">
@@ -515,16 +530,20 @@ function VideoEnhancementsPanel({ activity }: { activity: Activity }) {
         <div className="flex flex-col gap-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">AI drafts</p>
           <div className="flex gap-2">
+            {contentStudioEnabled ? (
             <button type="button" disabled={busy !== null}
               onClick={() => void doRun("summary", () => generateSummary(activity.id, { language: defaultLang }), "Summary drafted.")}
               className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-semibold disabled:opacity-50">
               <Sparkles className="h-3.5 w-3.5" /> Summary
             </button>
+            ) : null}
+            {questionGeneratorEnabled ? (
             <button type="button" disabled={busy !== null}
               onClick={() => void doRun("quiz", () => generateQuiz(activity.id, { language: defaultLang, questionCount: 5 }), "Quiz drafted.")}
               className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-semibold disabled:opacity-50">
               <Sparkles className="h-3.5 w-3.5" /> Quiz
             </button>
+            ) : null}
           </div>
           {generatedItems.data?.length ? <AiApprovalQueue activityId={activity.id} /> : <p className="text-xs text-muted-foreground">No drafts yet.</p>}
         </div>
@@ -703,6 +722,7 @@ export default function BuilderPage() {
   const libraryQuery = useContentLibrary();
   const activityTypesQuery = usePluginActivityTypes();
   const quizzesQuery = useInstructorQuizzes();
+  const aiStatus = useAiStatus();
   const session = useSession();
   const course = courseQuery.data;
   const canUpdate = hasPermission(session, PERMISSIONS.coursesUpdate);
@@ -710,6 +730,11 @@ export default function BuilderPage() {
   const canCreate = hasPermission(session, PERMISSIONS.coursesCreate);
   const [selection, setSelection] = useState<Selection>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [showAiDrafts, setShowAiDrafts] = useState(false);
+  const [showAiQuestionScope, setShowAiQuestionScope] = useState(false);
+  const [aiSources, setAiSources] = useState<AiIndexedSource[]>([]);
+  const [aiSourcesLoading, setAiSourcesLoading] = useState(false);
+  const [aiGenerating, setAiGenerating] = useState(false);
 
   const showToast = useCallback((msg: string, ok = true) => {
     setToast({ msg, ok });
@@ -726,6 +751,38 @@ export default function BuilderPage() {
     }
   }
 
+  async function openAiQuestionScope() {
+    if (!course) return;
+    setShowAiQuestionScope(true);
+    setAiSourcesLoading(true);
+    try {
+      setAiSources(await api.instructorAiSources(course.id));
+    } catch (err) {
+      setAiSources([]);
+      showToast(err instanceof Error ? err.message : String(err), false);
+    } finally {
+      setAiSourcesLoading(false);
+    }
+  }
+
+  async function generateAiQuestions(
+    input: GenerateCourseAiQuestionsInput,
+  ) {
+    if (!course) return false;
+    setAiGenerating(true);
+    try {
+      await api.generateCourseAiQuestions(course.id, input);
+      showToast("Question draft generated. Review before publishing.");
+      setShowAiDrafts(true);
+      return true;
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : String(err), false);
+      return false;
+    } finally {
+      setAiGenerating(false);
+    }
+  }
+
   const activities = useMemo(
     () => course?.modules?.flatMap((m) => m.lessons.flatMap((l) => l.activities)) ?? [],
     [course],
@@ -733,6 +790,11 @@ export default function BuilderPage() {
   const selectedActivity = selection?.type === "activity"
     ? (activities.find((a) => a.id === selection.id) ?? null)
     : null;
+  const aiReady = aiStatus.data?.enabled ?? false;
+  const courseIndexerEnabled =
+    aiStatus.data?.features["plugin.ai_course_indexer"] ?? false;
+  const questionGeneratorEnabled =
+    aiStatus.data?.features["plugin.ai_question_generator"] ?? false;
 
   return (
     <AuthGate>
@@ -765,13 +827,27 @@ export default function BuilderPage() {
                     Duplicate
                   </button>
                 )}
-                {canUpdate && (
+                {canUpdate && courseIndexerEnabled && (
                   <button type="button"
+                    disabled={!aiReady}
+                    title="Build retrieval index from published course text, files, and transcripts"
                     onClick={() => void run(() => api.instructorAiIndexCourse(course.id), "Course indexed for AI.")}
-                    className="rounded-md border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted">
-                    <Sparkles className="mr-1.5 inline h-3.5 w-3.5" /> Index AI
+                    className="rounded-md border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50">
+                    <Sparkles className="mr-1.5 inline h-3.5 w-3.5" /> Index course knowledge
                   </button>
                 )}
+                {canUpdate && questionGeneratorEnabled ? (
+                  <button
+                    className="rounded-md border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={!aiReady}
+                    onClick={() => void openAiQuestionScope()}
+                    title="Choose a knowledge scope and generate a reviewable question-bank draft"
+                    type="button"
+                  >
+                    <Sparkles className="mr-1.5 inline h-3.5 w-3.5" />
+                    Generate questions
+                  </button>
+                ) : null}
                 {canPublish && (
                   <button type="button"
                     disabled={course.status === "PUBLISHED"}
@@ -784,7 +860,35 @@ export default function BuilderPage() {
               </div>
             </div>
 
+            <AiQuestionScopeDialog
+              course={course}
+              generating={aiGenerating}
+              onGenerate={generateAiQuestions}
+              onOpenChange={setShowAiQuestionScope}
+              open={showAiQuestionScope}
+              sources={aiSources}
+              sourcesLoading={aiSourcesLoading}
+            />
+
             <CoursePhaseNavigation courseId={params.courseId} active="overview" instructor />
+
+            {showAiDrafts && questionGeneratorEnabled ? (
+              <section className="border-b border-border bg-background px-5 py-5">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <h2 className="text-sm font-semibold">
+                    Course AI drafts
+                  </h2>
+                  <button
+                    className="text-xs font-semibold text-muted-foreground"
+                    onClick={() => setShowAiDrafts(false)}
+                    type="button"
+                  >
+                    Close
+                  </button>
+                </div>
+                <AiApprovalQueue courseId={course.id} />
+              </section>
+            ) : null}
 
             {/* 2-column layout */}
             <div className="flex min-h-[calc(100vh-10rem)]">
@@ -819,7 +923,7 @@ export default function BuilderPage() {
 
               {/* Right — edit panel */}
               <main className="flex-1 overflow-y-auto bg-background p-6">
-                {!selection && <CourseOverviewPanel course={course} canUpdate={canUpdate} canPublish={canPublish} onAction={run} />}
+                {!selection && <CourseOverviewPanel course={course} canPublish={canPublish} onAction={run} />}
                 {selection?.type === "module" && (
                   <ModuleEditPanel course={course} moduleId={selection.id}
                     onSave={(id, d) => run(() => api.updateModule(id, d), "Module saved.")}

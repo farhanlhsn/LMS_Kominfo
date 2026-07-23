@@ -1,11 +1,11 @@
 "use client";
 
+import { Medal,Trophy } from "lucide-react";
 import { useState } from "react";
-import { Trophy, Medal, Users } from "lucide-react";
 import { AuthGate } from "../../components/auth/auth-gate";
 import { AppShell } from "../../components/layout/shells";
-import { PageHeader, StatusBadge } from "../../components/ui/core";
-import { ApiErrorState, EmptyState, LoadingState } from "../../components/ui/states";
+import { PageHeader } from "../../components/ui/core";
+import { ApiErrorState,EmptyState,LoadingState } from "../../components/ui/states";
 import { useLeaderboard } from "../../lib/api-hooks";
 
 const periods = [
@@ -24,8 +24,8 @@ export default function LeaderboardPage() {
       <AppShell currentPath="/leaderboard">
         <PageHeader
           eyebrow="Gamification"
-          title="Leaderboard Nasional"
-          description="Peserta teratas di organisasi Anda berdasarkan poin pengalaman."
+          title="Leaderboard"
+          description="Top learners in your active organization, ranked by experience points."
         />
 
         <div className="mb-6 flex flex-wrap gap-2">
@@ -46,7 +46,7 @@ export default function LeaderboardPage() {
         ) : query.error ? (
           <ApiErrorState error={query.error} fallbackTitle="Could not load leaderboard" />
         ) : !entries?.length ? (
-          <EmptyState title="No rankings yet" description="Complete activities to earn XP and appear on the leaderboard." icon={Trophy} />
+          <EmptyState title="No rankings yet" description={`No XP was earned during ${period === "WEEKLY" ? "this week" : period === "MONTHLY" ? "this month" : "this period"}.`} icon={Trophy} />
         ) : (
           <div className="rounded-lg border border-border bg-card">
             <div className="hidden border-b border-border bg-muted/50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground md:grid md:grid-cols-[60px_1fr_120px]">

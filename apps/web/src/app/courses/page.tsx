@@ -12,7 +12,7 @@ export default function CoursesPage() {
   const [search, setSearch] = useState("");
   const [level, setLevel] = useState("");
   const query = useCourses();
-  const courses = query.data?.data ?? [];
+  const courses = useMemo(() => query.data?.data ?? [], [query.data?.data]);
   const totalPages = Number(query.data?.meta?.totalPages ?? 1);
 
   const publishedCourses = useMemo(

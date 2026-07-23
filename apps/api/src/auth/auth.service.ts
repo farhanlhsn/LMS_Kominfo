@@ -1,3 +1,5 @@
+import { Prisma } from "@lms/db";
+import { SYSTEM_ROLES } from "@lms/shared";
 import {
   BadRequestException,
   ConflictException,
@@ -10,20 +12,18 @@ import {
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import bcrypt from "bcryptjs";
-import { randomUUID, randomBytes } from "node:crypto";
-import { Prisma } from "@lms/db";
-import { PERMISSIONS, SYSTEM_ROLES } from "@lms/shared";
+import { randomBytes,randomUUID } from "node:crypto";
+import { jwtAccessSecret,jwtRefreshSecret } from "../common/security/jwt-secrets";
+import { EmailService } from "../email/email.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { RbacService } from "../rbac/rbac.service";
-import { EmailService } from "../email/email.service";
-import { jwtAccessSecret, jwtRefreshSecret } from "../common/security/jwt-secrets";
 import type {
   AccessTokenPayload,
   RefreshTokenPayload
 } from "../rbac/types/jwt-payload";
-import type { AuthenticatedUser } from "./types/authenticated-request";
 import type { LoginDto } from "./dto/login.dto";
 import type { RegisterDto } from "./dto/register.dto";
+import type { AuthenticatedUser } from "./types/authenticated-request";
 
 interface RequestMetadata {
   [key: string]: unknown;
@@ -388,7 +388,8 @@ export class AuthService {
     const activeOrganization = user.activeOrganizationId
       ? await this.rbacService.getOrganizationContext(
           user.id,
-          user.activeOrganizationId
+          user.activeOrganizationId,
+          user.sessionId,
         )
       : null;
 
@@ -439,7 +440,8 @@ export class AuthService {
   }> {
     const context = await this.rbacService.getOrganizationContext(
       user.id,
-      organizationId
+      organizationId,
+      user.sessionId,
     );
 
     await this.prisma.userSession.update({

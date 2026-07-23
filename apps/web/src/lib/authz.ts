@@ -68,11 +68,29 @@ export function canConfigurePlugins(session: AuthSession | null) {
   return hasPermission(session, PERMISSIONS.pluginsConfigure);
 }
 
+export function defaultRouteForSession(session: AuthSession | null) {
+  if (
+    session?.activeOrganization.isPlatformAdmin ||
+    hasPermission(session, PERMISSIONS.rolesView)
+  ) {
+    return "/admin";
+  }
+  if (canUseInstructorWorkspace(session)) {
+    return "/instructor";
+  }
+  return "/";
+}
+
 export function visibleNavigationKeys(session: AuthSession | null) {
   const keys: NavigationKey[] = ["dashboard", "catalog", "my-learning"];
   const canAccessAdminArea = Boolean(
     session?.activeOrganization.isPlatformAdmin ||
-      session?.activeOrganization.roleKeys?.includes("org_admin"),
+      hasAnyPermission(session, [
+        PERMISSIONS.rolesView,
+        PERMISSIONS.membershipsManage,
+        PERMISSIONS.organizationsManage,
+        PERMISSIONS.auditRead,
+      ]),
   );
 
   if (canUseInstructorWorkspace(session)) keys.push("instructor");

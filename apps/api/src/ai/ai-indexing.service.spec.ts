@@ -440,5 +440,59 @@ describe("AiIndexingService", () => {
       "c1",
     );
   });
+
+  it("lists ready indexed sources within organization and course", async () => {
+    const prisma = {
+      course: { findFirst: vi.fn().mockResolvedValue({ id: "course-1" }) },
+      courseInstructor: { findFirst: vi.fn() },
+      aiDocument: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: "document-1",
+            title: "Lesson notes",
+            sourceType: "ACTIVITY_CONTENT",
+            lessonId: "lesson-1",
+            activityId: "activity-1",
+            fileId: null,
+            indexedAt: new Date("2026-07-23T00:00:00.000Z"),
+            _count: { chunks: 3 },
+          },
+        ]),
+      },
+    };
+    const service = new AiIndexingService(
+      prisma as never,
+      { fromRichContent: vi.fn(), fromFile: vi.fn() } as never,
+      { chunk: vi.fn() } as never,
+      { create: vi.fn() } as never,
+    );
+    const result = await service.courseSources(
+      {
+        id: "org-1",
+        slug: "org",
+        name: "Org",
+        memberId: "member-1",
+        roleKeys: ["instructor"],
+        permissionKeys: ["courses:update"],
+        isPlatformAdmin: false,
+      },
+      "user-1",
+      "course-1",
+    );
+
+    expect(prisma.aiDocument.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          organizationId: "org-1",
+          courseId: "course-1",
+          status: "READY",
+          deletedAt: null,
+        },
+      }),
+    );
+    expect(result).toEqual([
+      expect.objectContaining({ id: "document-1", chunkCount: 3 }),
+    ]);
+  });
 });
 

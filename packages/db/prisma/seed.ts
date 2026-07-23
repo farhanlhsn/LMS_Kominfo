@@ -3,7 +3,8 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import bcrypt from "bcryptjs";
 import { Prisma, PrismaClient } from "@prisma/client";
-import { INTERNAL_PLUGIN_MANIFESTS } from "../../shared/src/plugins";
+import { CAPABILITY_RISKS } from "../../shared/src/permissions";
+import { PLUGIN_CATALOG_MANIFESTS } from "../../shared/src/plugins";
 
 const envCandidates = [
   resolve(process.cwd(), ".env"),
@@ -22,6 +23,10 @@ const permissions = [
   ["organizations:manage", "Manage organizations"],
   ["memberships:manage", "Manage organization memberships"],
   ["roles:manage", "Manage roles and permissions"],
+  ["roles:view", "View roles and effective access"],
+  ["roles:assign", "Assign roles within delegated contexts"],
+  ["roles:override", "Override role capabilities within delegated contexts"],
+  ["roles:switch", "Switch to delegated roles for access testing"],
   ["audit:read", "Read audit logs"],
   ["users:read", "Read organization users"],
   ["users:update", "Update organization users"],
@@ -60,6 +65,81 @@ const organizationRoles = [
   ["finance_admin", "Finance Admin", "Manage organization finance workflows"],
 ] as const;
 
+function permissionRiskBitmask(key: string) {
+  let risk = 0;
+  if (
+    key.startsWith("users:") ||
+    key.startsWith("memberships:") ||
+    key === "audit:read"
+  ) {
+    risk |= CAPABILITY_RISKS.personalData;
+  }
+  if (
+    key === "platform:admin" ||
+    key.startsWith("organizations:") ||
+    key.startsWith("roles:") ||
+    key.startsWith("plugins:")
+  ) {
+    risk |= CAPABILITY_RISKS.configuration;
+  }
+  if (
+    key === "platform:admin" ||
+    key.endsWith(":delete") ||
+    key === "roles:override"
+  ) {
+    risk |= CAPABILITY_RISKS.dataLoss;
+  }
+  if (key === "files:create" || key === "content:process") {
+    risk |= CAPABILITY_RISKS.xss;
+  }
+  return risk;
+}
+
+function pluginCapabilityRiskBitmask(capability: string) {
+  let risk = 0;
+  if (capability.startsWith("render_")) risk |= CAPABILITY_RISKS.xss;
+  if (
+    capability.startsWith("manage_") ||
+    capability.startsWith("edit_") ||
+    capability.startsWith("grade_")
+  ) {
+    risk |= CAPABILITY_RISKS.configuration;
+  }
+  if (capability.includes("execute") || capability.includes("delete")) {
+    risk |= CAPABILITY_RISKS.dataLoss;
+  }
+  return risk;
+}
+
+function permissionContextTypes(key: string) {
+  if (key === "platform:admin") return ["SYSTEM"];
+  if (key === "plugins:configure") return ["ORGANIZATION", "PLUGIN"];
+  if (key.startsWith("roles:")) {
+    return [
+      "ORGANIZATION",
+      "USER",
+      "COURSE_CATEGORY",
+      "COURSE",
+      "MODULE",
+      "ACTIVITY",
+      "PLUGIN",
+    ];
+  }
+  if (key.startsWith("users:") || key.startsWith("memberships:")) {
+    return ["ORGANIZATION", "USER"];
+  }
+  if (key.startsWith("organizations:")) {
+    return ["SYSTEM", "ORGANIZATION"];
+  }
+  return [
+    "ORGANIZATION",
+    "COURSE_CATEGORY",
+    "COURSE",
+    "MODULE",
+    "ACTIVITY",
+  ];
+}
+
 async function main() {
   const email = process.env.SEED_SUPER_ADMIN_EMAIL ?? "super.admin@example.com";
   const password = process.env.SEED_SUPER_ADMIN_PASSWORD ?? "ChangeMe123!";
@@ -73,8 +153,24 @@ async function main() {
     permissions.map(([key, description]) =>
       prisma.permission.upsert({
         where: { key },
-        update: { description },
-        create: { key, description },
+        update: {
+          description,
+          component: "core",
+          capabilityType:
+            key.endsWith(":read") || key.endsWith(":view") ? "READ" : "WRITE",
+          riskBitmask: permissionRiskBitmask(key),
+          contextTypes: permissionContextTypes(key),
+          isActive: true,
+        },
+        create: {
+          key,
+          description,
+          component: "core",
+          capabilityType:
+            key.endsWith(":read") || key.endsWith(":view") ? "READ" : "WRITE",
+          riskBitmask: permissionRiskBitmask(key),
+          contextTypes: permissionContextTypes(key),
+        },
       }),
     ),
   );
@@ -93,6 +189,10 @@ async function main() {
           name: "Super Admin",
           description: "Platform-wide administrator",
           isSystem: true,
+          archetype: "super_admin",
+          assignableContextTypes: ["SYSTEM", "ORGANIZATION"],
+          isActive: true,
+          deletedAt: null,
         },
       })
     : await prisma.role.create({
@@ -101,6 +201,8 @@ async function main() {
           name: "Super Admin",
           description: "Platform-wide administrator",
           isSystem: true,
+          archetype: "super_admin",
+          assignableContextTypes: ["SYSTEM", "ORGANIZATION"],
         },
       });
 
@@ -198,6 +300,10 @@ async function main() {
     "organizations:manage",
     "memberships:manage",
     "roles:manage",
+    "roles:view",
+    "roles:assign",
+    "roles:override",
+    "roles:switch",
     "audit:read",
     "users:read",
     "users:update",
@@ -261,6 +367,62 @@ async function main() {
   }
 
   await seedRolePermissions(roleRecords, permissionRecords);
+
+  await Promise.all(
+    roleRecords.map((role, sortOrder) =>
+      prisma.role.update({
+        where: { id: role.id },
+        data: {
+          archetype: role.key,
+          sortOrder,
+          assignableContextTypes:
+            role.key === "learner"
+              ? ["ORGANIZATION", "COURSE_CATEGORY", "COURSE"]
+              : [
+                  "ORGANIZATION",
+                  "COURSE_CATEGORY",
+                  "COURSE",
+                  "MODULE",
+                  "ACTIVITY",
+                ],
+          isActive: true,
+          deletedAt: null,
+        },
+      }),
+    ),
+  );
+
+  const orgAdmin = roleRecords.find((role) => role.key === "org_admin");
+  if (orgAdmin) {
+    await Promise.all(
+      roleRecords.map((targetRole) =>
+        prisma.roleDelegation.upsert({
+          where: {
+            organizationId_actorRoleId_targetRoleId: {
+              organizationId: organization.id,
+              actorRoleId: orgAdmin.id,
+              targetRoleId: targetRole.id,
+            },
+          },
+          update: {
+            canView: true,
+            canAssign: true,
+            canOverride: true,
+            canSwitch: true,
+          },
+          create: {
+            organizationId: organization.id,
+            actorRoleId: orgAdmin.id,
+            targetRoleId: targetRole.id,
+            canView: true,
+            canAssign: true,
+            canOverride: true,
+            canSwitch: true,
+          },
+        }),
+      ),
+    );
+  }
 
   const user = await prisma.user.upsert({
     where: { email },
@@ -355,6 +517,7 @@ async function main() {
   await seedPluginFoundation({
     organizationId: organization.id,
     installedById: user.id,
+    adminRoleIds: [superAdminRole.id, orgAdminRole.id],
   });
 
   await prisma.auditLog.create({
@@ -397,15 +560,29 @@ async function main() {
         const count = Math.floor(Math.random() * 5) + 1;
         for (let i = 0; i < count; i++) {
           const d = new Date(now10);
-          d.setDate(d.getDate() - day); d.setHours(Math.floor(Math.random() * 12) + 8, Math.floor(Math.random() * 60));
+          d.setDate(d.getDate() - day);
+          d.setHours(
+            Math.floor(Math.random() * 12) + 8,
+            Math.floor(Math.random() * 60),
+          );
           await prisma.learningEvent.create({
-            data: { organizationId: organization.id, userId: enrollment.userId, courseId: demoCourse10.id,
-              eventType: eventTypes[Math.floor(Math.random() * eventTypes.length)] ?? "activity.started", metadata: { source: 'seed' }, createdAt: d },
+            data: {
+              organizationId: organization.id,
+              userId: enrollment.userId,
+              courseId: demoCourse10.id,
+              eventType:
+                eventTypes[Math.floor(Math.random() * eventTypes.length)] ??
+                "activity.started",
+              metadata: { source: "seed" },
+              createdAt: d,
+            },
           });
         }
       }
     }
-    console.log('Seeded ' + learners10.length * 14 + ' sample learning events.');
+    console.log(
+      "Seeded " + learners10.length * 14 + " sample learning events.",
+    );
   }
 
   // Phase 11: Seed skills, learning paths, achievements, XP
@@ -414,26 +591,133 @@ async function main() {
     take: 3,
   });
   if (courses11.length > 0) {
-    const skillData = [{name:'JavaScript',category:'Programming'},{name:'Python',category:'Programming'},{name:'Data Analysis',category:'Data Science'},{name:'Machine Learning',category:'Data Science'},{name:'UI Design',category:'Design'},{name:'Project Management',category:'Professional'}];
+    const skillData = [
+      { name: "JavaScript", category: "Programming" },
+      { name: "Python", category: "Programming" },
+      { name: "Data Analysis", category: "Data Science" },
+      { name: "Machine Learning", category: "Data Science" },
+      { name: "UI Design", category: "Design" },
+      { name: "Project Management", category: "Professional" },
+    ];
     for (const s of skillData) {
-      await prisma.skill.upsert({ where: { organizationId_slug: { organizationId: organization.id, slug: s.name.toLowerCase().replace(/[^a-z0-9]+/g,'-') } }, update: { name: s.name, category: s.category }, create: { organizationId: organization.id, name: s.name, slug: s.name.toLowerCase().replace(/[^a-z0-9]+/g,'-'), category: s.category } });
+      await prisma.skill.upsert({
+        where: {
+          organizationId_slug: {
+            organizationId: organization.id,
+            slug: s.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+          },
+        },
+        update: { name: s.name, category: s.category },
+        create: {
+          organizationId: organization.id,
+          name: s.name,
+          slug: s.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+          category: s.category,
+        },
+      });
     }
-    console.log('Seeded ' + skillData.length + ' skills.');
+    console.log("Seeded " + skillData.length + " skills.");
 
-    await prisma.learningPath.upsert({ where: { organizationId_slug: { organizationId: organization.id, slug: 'full-stack-development' } }, update: {}, create: { organizationId: organization.id, title: 'Full Stack Development', slug: 'full-stack-development', description: 'Become a full-stack developer with this comprehensive program.', status: 'PUBLISHED', durationHours: 120 } });
-    const lp = await prisma.learningPath.findFirst({ where: { organizationId: organization.id, slug: 'full-stack-development' } });
-    if (lp) { for (let i = 0; i < courses11.length; i++) { const course = courses11[i]; if (!course) continue; await prisma.learningPathCourse.upsert({ where: { learningPathId_courseId: { learningPathId: lp.id, courseId: course.id } }, update: {}, create: { learningPathId: lp.id, courseId: course.id, orderIndex: i } }); } }
-    console.log('Seeded learning path with ' + courses11.length + ' courses.');
+    await prisma.learningPath.upsert({
+      where: {
+        organizationId_slug: {
+          organizationId: organization.id,
+          slug: "full-stack-development",
+        },
+      },
+      update: {},
+      create: {
+        organizationId: organization.id,
+        title: "Full Stack Development",
+        slug: "full-stack-development",
+        description:
+          "Become a full-stack developer with this comprehensive program.",
+        status: "PUBLISHED",
+        durationHours: 120,
+      },
+    });
+    const lp = await prisma.learningPath.findFirst({
+      where: {
+        organizationId: organization.id,
+        slug: "full-stack-development",
+      },
+    });
+    if (lp) {
+      for (let i = 0; i < courses11.length; i++) {
+        const course = courses11[i];
+        if (!course) continue;
+        await prisma.learningPathCourse.upsert({
+          where: {
+            learningPathId_courseId: {
+              learningPathId: lp.id,
+              courseId: course.id,
+            },
+          },
+          update: {},
+          create: { learningPathId: lp.id, courseId: course.id, orderIndex: i },
+        });
+      }
+    }
+    console.log("Seeded learning path with " + courses11.length + " courses.");
 
-    const aDefs = [{key:'first_course',name:'First Steps',description:'Complete your first course',xpReward:100,criteria:{}},{key:'xp_collector',name:'XP Collector',description:'Earn 500 XP',xpReward:200,criteria:{minXp:500}},{key:'xp_master',name:'XP Master',description:'Earn 2000 XP',xpReward:500,criteria:{minXp:2000}}];
+    const aDefs = [
+      {
+        key: "first_course",
+        name: "First Steps",
+        description: "Complete your first course",
+        xpReward: 100,
+        criteria: {},
+      },
+      {
+        key: "xp_collector",
+        name: "XP Collector",
+        description: "Earn 500 XP",
+        xpReward: 200,
+        criteria: { minXp: 500 },
+      },
+      {
+        key: "xp_master",
+        name: "XP Master",
+        description: "Earn 2000 XP",
+        xpReward: 500,
+        criteria: { minXp: 2000 },
+      },
+    ];
     for (const a of aDefs) {
-      await prisma.achievement.upsert({ where: { organizationId_key: { organizationId: organization.id, key: a.key } }, update: { name: a.name, xpReward: a.xpReward }, create: { organizationId: organization.id, key: a.key, name: a.name, description: a.description, xpReward: a.xpReward, criteria: a.criteria } });
+      await prisma.achievement.upsert({
+        where: {
+          organizationId_key: { organizationId: organization.id, key: a.key },
+        },
+        update: { name: a.name, xpReward: a.xpReward },
+        create: {
+          organizationId: organization.id,
+          key: a.key,
+          name: a.name,
+          description: a.description,
+          xpReward: a.xpReward,
+          criteria: a.criteria,
+        },
+      });
     }
-    console.log('Seeded ' + aDefs.length + ' achievements.');
+    console.log("Seeded " + aDefs.length + " achievements.");
 
-    const eu = await prisma.enrollment.findMany({ where: { organizationId: organization.id }, select: { userId: true }, distinct: ['userId'] });
-    for (const u of eu.slice(0,5)) { await prisma.xpTransaction.create({ data: { organizationId: organization.id, userId: u.userId, amount: Math.floor(Math.random() * 500) + 100, reason: 'Seed XP', sourceType: 'seed' } }); }
-    console.log('Seeded XP for ' + Math.min(eu.length, 5) + ' learners.');
+    const eu = await prisma.enrollment.findMany({
+      where: { organizationId: organization.id },
+      select: { userId: true },
+      distinct: ["userId"],
+    });
+    for (const u of eu.slice(0, 5)) {
+      await prisma.xpTransaction.create({
+        data: {
+          organizationId: organization.id,
+          userId: u.userId,
+          amount: Math.floor(Math.random() * 500) + 100,
+          reason: "Seed XP",
+          sourceType: "seed",
+        },
+      });
+    }
+    console.log("Seeded XP for " + Math.min(eu.length, 5) + " learners.");
   }
 
   // Demo course: Full Plugin Showcase
@@ -441,8 +725,7 @@ async function main() {
     organizationId: organization.id,
     adminUserId: user.id,
   });
-  console.log('Seeded plugin showcase demo course.');
-
+  console.log("Seeded plugin showcase demo course.");
 }
 
 async function seedPluginShowcaseCourse(input: {
@@ -450,34 +733,44 @@ async function seedPluginShowcaseCourse(input: {
   adminUserId: string;
 }) {
   const existing = await prisma.course.findFirst({
-    where: { organizationId: input.organizationId, slug: 'plugin-showcase-demo' },
+    where: {
+      organizationId: input.organizationId,
+      slug: "plugin-showcase-demo",
+    },
   });
   if (existing) return;
 
   const course = await prisma.course.create({
     data: {
       organizationId: input.organizationId,
-      title: 'Plugin Showcase: 3D, Code Runner & Interactive Content',
-      slug: 'plugin-showcase-demo',
-      subtitle: 'Experience all LMS plugins in one comprehensive course',
-      description: 'A hands-on course demonstrating every plugin capability: interactive 3D models, code exercises with test cases, H5P content, SCORM packages, video with captions, quizzes, and assignments.',
-      level: 'BEGINNER',
-      language: 'en',
+      title: "Plugin Showcase: 3D, Code Runner & Interactive Content",
+      slug: "plugin-showcase-demo",
+      subtitle: "Experience all LMS plugins in one comprehensive course",
+      description:
+        "A hands-on course demonstrating every plugin capability: interactive 3D models, code exercises with test cases, H5P content, SCORM packages, video with captions, quizzes, and assignments.",
+      level: "BEGINNER",
+      language: "en",
       durationMinutes: 90,
-      status: 'PUBLISHED',
-      visibility: 'PUBLIC',
+      status: "PUBLISHED",
+      visibility: "PUBLIC",
       publishedAt: new Date(),
       learningObjectives: [
-        'Explore and interact with 3D models directly in the browser',
-        'Write and run code exercises with automated test case grading',
-        'Experience H5P and SCORM interactive content',
-        'Complete quizzes and graded assignments',
+        "Explore and interact with 3D models directly in the browser",
+        "Write and run code exercises with automated test case grading",
+        "Experience H5P and SCORM interactive content",
+        "Complete quizzes and graded assignments",
       ],
-      requirements: ['A modern web browser', 'Basic programming curiosity'],
-      targetAudience: ['Learners', 'Instructors', 'Platform admins'],
-      tags: ['demo', 'plugins', '3d', 'code-runner', 'showcase'],
+      requirements: ["A modern web browser", "Basic programming curiosity"],
+      targetAudience: ["Learners", "Instructors", "Platform admins"],
+      tags: ["demo", "plugins", "3d", "code-runner", "showcase"],
       instructors: {
-        create: [{ organizationId: input.organizationId, userId: input.adminUserId, role: 'OWNER' }],
+        create: [
+          {
+            organizationId: input.organizationId,
+            userId: input.adminUserId,
+            role: "OWNER",
+          },
+        ],
       },
     },
   });
@@ -487,8 +780,8 @@ async function seedPluginShowcaseCourse(input: {
     data: {
       organizationId: input.organizationId,
       courseId: course.id,
-      title: '3D Interactive Content',
-      description: 'Explore 3D models and interactive scenes',
+      title: "3D Interactive Content",
+      description: "Explore 3D models and interactive scenes",
       orderIndex: 0,
       isPublished: true,
     },
@@ -499,9 +792,9 @@ async function seedPluginShowcaseCourse(input: {
       organizationId: input.organizationId,
       courseId: course.id,
       moduleId: mod1.id,
-      title: 'Exploring 3D Models',
-      slug: slugify('3d-interactive-exploring-3d-models'),
-      summary: 'Learn how to interact with 3D assets in the browser',
+      title: "Exploring 3D Models",
+      slug: slugify("3d-interactive-exploring-3d-models"),
+      summary: "Learn how to interact with 3D assets in the browser",
       orderIndex: 0,
       isPublished: true,
       estimatedMinutes: 15,
@@ -513,8 +806,8 @@ async function seedPluginShowcaseCourse(input: {
       organizationId: input.organizationId,
       courseId: course.id,
       lessonId: lesson1.id,
-      title: 'Interactive 3D Viewer',
-      activityTypeKey: 'plugin.3d_viewer',
+      title: "Interactive 3D Viewer",
+      activityTypeKey: "plugin.3d_viewer",
       orderIndex: 0,
       isRequired: true,
       isPublished: true,
@@ -523,14 +816,15 @@ async function seedPluginShowcaseCourse(input: {
           organizationId: input.organizationId,
           body: {
             asset: {
-              name: 'Sample 3D Model',
-              format: 'GLB',
-              url: 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Box/glTF-Binary/Box.glb',
+              name: "Sample 3D Model",
+              format: "GLB",
+              url: "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/Box/glTF-Binary/Box.glb",
               thumbnailUrl: null,
               sizeBytes: 1024,
             },
           } as Prisma.InputJsonObject,
-          textContent: 'Rotate, zoom, and explore this 3D model using mouse or touch controls.',
+          textContent:
+            "Rotate, zoom, and explore this 3D model using mouse or touch controls.",
         },
       },
     },
@@ -541,8 +835,8 @@ async function seedPluginShowcaseCourse(input: {
     data: {
       organizationId: input.organizationId,
       courseId: course.id,
-      title: 'Code Exercises',
-      description: 'Practice coding with automated test case grading',
+      title: "Code Exercises",
+      description: "Practice coding with automated test case grading",
       orderIndex: 1,
       isPublished: true,
     },
@@ -553,9 +847,9 @@ async function seedPluginShowcaseCourse(input: {
       organizationId: input.organizationId,
       courseId: course.id,
       moduleId: mod2.id,
-      title: 'Python Basics Exercise',
-      slug: slugify('code-exercises-python-basics-exercise'),
-      summary: 'Write Python code and check it against test cases',
+      title: "Python Basics Exercise",
+      slug: slugify("code-exercises-python-basics-exercise"),
+      summary: "Write Python code and check it against test cases",
       orderIndex: 0,
       isPublished: true,
       estimatedMinutes: 20,
@@ -567,10 +861,11 @@ async function seedPluginShowcaseCourse(input: {
     data: {
       organizationId: input.organizationId,
       courseId: course.id,
-      title: 'FizzBuzz Challenge',
-      description: 'Classic FizzBuzz: print numbers 1-20, replace multiples of 3 with Fizz, 5 with Buzz, both with FizzBuzz.',
-      type: 'CODE',
-      gradingType: 'AUTOMATIC',
+      title: "FizzBuzz Challenge",
+      description:
+        "Classic FizzBuzz: print numbers 1-20, replace multiples of 3 with Fizz, 5 with Buzz, both with FizzBuzz.",
+      type: "CODE",
+      gradingType: "AUTOMATIC",
       maxScore: 100,
       isPublished: true,
     },
@@ -581,8 +876,8 @@ async function seedPluginShowcaseCourse(input: {
       organizationId: input.organizationId,
       courseId: course.id,
       lessonId: lesson2.id,
-      title: 'FizzBuzz Challenge',
-      activityTypeKey: 'plugin.code_runner',
+      title: "FizzBuzz Challenge",
+      activityTypeKey: "plugin.code_runner",
       orderIndex: 0,
       isRequired: true,
       isPublished: true,
@@ -592,10 +887,10 @@ async function seedPluginShowcaseCourse(input: {
           body: {
             instructions: `Write a Python function that implements FizzBuzz:\n- Print numbers from 1 to 20\n- For multiples of 3, print "Fizz" instead of the number\n- For multiples of 5, print "Buzz" instead of the number\n- For multiples of both 3 and 5, print "FizzBuzz"`,
             starterCode: `# FizzBuzz challenge\nfor i in range(1, 21):\n    # Your code here\n    pass`,
-            language: 'PYTHON',
+            language: "PYTHON",
             assignmentId: assignment.id,
           } as Prisma.InputJsonObject,
-          textContent: 'Implement FizzBuzz in Python with automated grading.',
+          textContent: "Implement FizzBuzz in Python with automated grading.",
         },
       },
     },
@@ -606,8 +901,8 @@ async function seedPluginShowcaseCourse(input: {
     data: {
       organizationId: input.organizationId,
       courseId: course.id,
-      title: 'Video & Assessment',
-      description: 'Video lessons with quizzes',
+      title: "Video & Assessment",
+      description: "Video lessons with quizzes",
       orderIndex: 2,
       isPublished: true,
     },
@@ -618,9 +913,9 @@ async function seedPluginShowcaseCourse(input: {
       organizationId: input.organizationId,
       courseId: course.id,
       moduleId: mod3.id,
-      title: 'Introduction Video',
-      slug: slugify('video-assessment-introduction-video'),
-      summary: 'Watch the intro and complete the quiz',
+      title: "Introduction Video",
+      slug: slugify("video-assessment-introduction-video"),
+      summary: "Watch the intro and complete the quiz",
       orderIndex: 0,
       isPublished: true,
       estimatedMinutes: 10,
@@ -632,17 +927,17 @@ async function seedPluginShowcaseCourse(input: {
       organizationId: input.organizationId,
       courseId: course.id,
       lessonId: lesson3.id,
-      title: 'Platform Overview Video',
-      activityTypeKey: 'core.video',
+      title: "Platform Overview Video",
+      activityTypeKey: "core.video",
       orderIndex: 0,
       isRequired: true,
       isPublished: true,
       activityContent: {
         create: {
           organizationId: input.organizationId,
-          body: { format: 'video' } as Prisma.InputJsonObject,
-          externalUrl: 'https://www.w3schools.com/html/mov_bbb.mp4',
-          textContent: 'Watch this overview of the LMS platform features.',
+          body: { format: "video" } as Prisma.InputJsonObject,
+          externalUrl: "https://www.w3schools.com/html/mov_bbb.mp4",
+          textContent: "Watch this overview of the LMS platform features.",
         },
       },
     },
@@ -653,8 +948,8 @@ async function seedPluginShowcaseCourse(input: {
       organizationId: input.organizationId,
       courseId: course.id,
       lessonId: lesson3.id,
-      title: 'Rich Text Reading',
-      activityTypeKey: 'core.text',
+      title: "Rich Text Reading",
+      activityTypeKey: "core.text",
       orderIndex: 1,
       isRequired: true,
       isPublished: true,
@@ -662,10 +957,10 @@ async function seedPluginShowcaseCourse(input: {
         create: {
           organizationId: input.organizationId,
           body: {
-            format: 'rich_text_html',
-            html: '<h2>Welcome to the Plugin Showcase</h2><p>This course demonstrates all major plugin capabilities including <strong>3D viewers</strong>, <strong>code runners</strong>, <strong>interactive content</strong>, and more.</p><p>Complete each activity to earn XP and a certificate.</p>',
+            format: "rich_text_html",
+            html: "<h2>Welcome to the Plugin Showcase</h2><p>This course demonstrates all major plugin capabilities including <strong>3D viewers</strong>, <strong>code runners</strong>, <strong>interactive content</strong>, and more.</p><p>Complete each activity to earn XP and a certificate.</p>",
           } as Prisma.InputJsonObject,
-          textContent: 'Welcome to the Plugin Showcase course.',
+          textContent: "Welcome to the Plugin Showcase course.",
         },
       },
     },
@@ -675,8 +970,15 @@ async function seedPluginShowcaseCourse(input: {
 async function seedPluginFoundation(input: {
   organizationId: string;
   installedById: string;
+  adminRoleIds: string[];
 }) {
-  for (const manifest of INTERNAL_PLUGIN_MANIFESTS) {
+  const demoMarketplacePlugins = new Set([
+    "plugin.3d_viewer",
+    "plugin.code_runner",
+    "plugin.h5p",
+    "plugin.scorm",
+  ]);
+  for (const manifest of PLUGIN_CATALOG_MANIFESTS) {
     const plugin = await prisma.plugin.upsert({
       where: { key: manifest.key },
       update: {
@@ -708,31 +1010,180 @@ async function seedPluginFoundation(input: {
       },
     });
 
-    await prisma.organizationPlugin.upsert({
-      where: {
-        organizationId_pluginId: {
+    const demoPackageInstalled =
+      manifest.distribution === "CORE" ||
+      demoMarketplacePlugins.has(manifest.key);
+
+    for (const capability of manifest.capabilities ?? []) {
+      const permissionKey = `${manifest.key}:${capability}`;
+      const permission = await prisma.permission.upsert({
+        where: { key: permissionKey },
+        update: {
+          description: `${manifest.name}: ${capability.replaceAll("_", " ")}`,
+          component: manifest.key,
+          sourcePluginKey:
+            manifest.distribution === "MARKETPLACE" ? manifest.key : null,
+          riskBitmask: pluginCapabilityRiskBitmask(capability),
+          isActive: true,
+        },
+        create: {
+          key: permissionKey,
+          description: `${manifest.name}: ${capability.replaceAll("_", " ")}`,
+          component: manifest.key,
+          capabilityType:
+            capability.startsWith("render_") ||
+            capability.startsWith("view_") ||
+            capability.startsWith("track_")
+              ? "READ"
+              : "WRITE",
+          riskBitmask: pluginCapabilityRiskBitmask(capability),
+          contextTypes: [
+            "ORGANIZATION",
+            "COURSE",
+            "MODULE",
+            "ACTIVITY",
+            "PLUGIN",
+          ],
+          sourcePluginKey:
+            manifest.distribution === "MARKETPLACE" ? manifest.key : null,
+        },
+      });
+      await Promise.all(
+        input.adminRoleIds.map((roleId) =>
+          prisma.rolePermission.upsert({
+            where: {
+              roleId_permissionId: {
+                roleId,
+                permissionId: permission.id,
+              },
+            },
+            update: {},
+            create: { roleId, permissionId: permission.id },
+          }),
+        ),
+      );
+    }
+
+    if (demoPackageInstalled) {
+      await prisma.organizationPlugin.upsert({
+        where: {
+          organizationId_pluginId: {
+            organizationId: input.organizationId,
+            pluginId: plugin.id,
+          },
+        },
+        update: {
+          enabled: !manifest.placeholder,
+          config: {},
+        },
+        create: {
           organizationId: input.organizationId,
           pluginId: plugin.id,
+          enabled: !manifest.placeholder,
+          config: {},
+          installedById: input.installedById,
         },
-      },
-      update: {
-        enabled: !manifest.placeholder,
-        config: {},
-      },
-      create: {
-        organizationId: input.organizationId,
-        pluginId: plugin.id,
-        enabled: !manifest.placeholder,
-        config: {},
-        installedById: input.installedById,
-      },
-    });
+      });
+    }
+
+    if (manifest.distribution === "MARKETPLACE") {
+      const listing = await prisma.pluginListing.upsert({
+        where: {
+          pluginId_organizationId: {
+            pluginId: manifest.key,
+            organizationId: input.organizationId,
+          },
+        },
+        update: {
+          name: manifest.name,
+          description: manifest.description ?? manifest.name,
+          categories: [manifest.category],
+          pricing: {
+            model: "FREE",
+            price: 0,
+            currency: "IDR",
+            official: true,
+            version: manifest.version,
+          },
+          status: "PUBLISHED",
+        },
+        create: {
+          organizationId: input.organizationId,
+          pluginId: manifest.key,
+          name: manifest.name,
+          description: manifest.description ?? manifest.name,
+          longDescription: manifest.description,
+          categories: [manifest.category],
+          screenshots: [],
+          pricing: {
+            model: "FREE",
+            price: 0,
+            currency: "IDR",
+            official: true,
+            version: manifest.version,
+          },
+          status: "PUBLISHED",
+          submittedAt: new Date(),
+          publishedAt: new Date(),
+        },
+      });
+      if (demoPackageInstalled) {
+        await prisma.pluginInstallation.upsert({
+          where: {
+            organizationId_listingId: {
+              organizationId: input.organizationId,
+              listingId: listing.id,
+            },
+          },
+          update: { status: "ACTIVE" },
+          create: {
+            organizationId: input.organizationId,
+            listingId: listing.id,
+            status: "ACTIVE",
+            config: {},
+          },
+        });
+        for (const panel of manifest.workspacePanels ?? []) {
+          await prisma.pluginPanel.upsert({
+            where: {
+              organizationId_pluginId_panelKey: {
+                organizationId: input.organizationId,
+                pluginId: manifest.key,
+                panelKey: panel.key,
+              },
+            },
+            update: {
+              name: panel.name,
+              defaultSize: panel.defaultSize ?? "md",
+              defaultPosition: panel.defaultPosition ?? "right",
+              allowedRoutes: panel.allowedRoutes ?? [],
+              configSchema: panel.configSchema ?? {},
+            },
+            create: {
+              organizationId: input.organizationId,
+              pluginId: manifest.key,
+              panelKey: panel.key,
+              name: panel.name,
+              defaultSize: panel.defaultSize ?? "md",
+              defaultPosition: panel.defaultPosition ?? "right",
+              allowedRoutes: panel.allowedRoutes ?? [],
+              configSchema: panel.configSchema ?? {},
+            },
+          });
+        }
+      }
+    }
 
     await prisma.pluginPermission.deleteMany({
       where: { pluginId: plugin.id },
     });
     await Promise.all(
-      (manifest.permissions ?? []).map((permissionKey) =>
+      [
+        ...(manifest.permissions ?? []),
+        ...(manifest.capabilities ?? []).map(
+          (capability) => `${manifest.key}:${capability}`,
+        ),
+      ].map((permissionKey) =>
         prisma.pluginPermission.create({
           data: {
             pluginId: plugin.id,
@@ -960,8 +1411,12 @@ async function seedLmsDemoData(input: {
       });
       const orderIds = orders.map((o) => o.id);
       if (orderIds.length) {
-        await prisma.payment.deleteMany({ where: { orderId: { in: orderIds } } });
-        await prisma.orderItem.deleteMany({ where: { orderId: { in: orderIds } } });
+        await prisma.payment.deleteMany({
+          where: { orderId: { in: orderIds } },
+        });
+        await prisma.orderItem.deleteMany({
+          where: { orderId: { in: orderIds } },
+        });
         await prisma.order.deleteMany({ where: { id: { in: orderIds } } });
       }
     }
@@ -1367,7 +1822,10 @@ async function seedNetworkingSimulationCourse(input: {
         },
       });
 
-      for (const [activityIndex, activityInput] of lessonInput.activities.entries()) {
+      for (const [
+        activityIndex,
+        activityInput,
+      ] of lessonInput.activities.entries()) {
         const html = `<article>${activityInput.text
           .split("\n\n")
           .map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`)
@@ -1462,7 +1920,10 @@ async function seedGptPracticeLabCourse(input: {
         "Menggunakan GPT sebagai partner latihan tanpa menyalin jawaban mentah.",
         "Memilih mode lab yang nyaman untuk single monitor, dual monitor, atau mobile.",
       ],
-      requirements: ["Browser modern", "Akun pada lab eksternal jika diperlukan"],
+      requirements: [
+        "Browser modern",
+        "Akun pada lab eksternal jika diperlukan",
+      ],
       targetAudience: [
         "Learner pemula",
         "Instruktur yang ingin membuat lab berbasis tool eksternal",

@@ -22,6 +22,7 @@ Use this folder as the source of truth for Codex. Do not paste the full context 
 - `15-accessibility-localization.md` - WCAG, localization, timezone, content language
 - `16-ui-design-system.md` - frontend UI design system, reusable components, layouts, and page requirements
 - `17-theme-branding-customization.md` - tenant theme and branding customization strategy
+- `18-contextual-rbac-moodle-compatibility.md` - context hierarchy, capability effects, delegation, role switch, and missing extension behavior
 
 ## Phase docs
 
@@ -52,6 +53,7 @@ Important phase docs:
 - `phase-14-implementation.md` - PWA, push notifications, performance hardening, and signed URL notes for Phase 14
 - `phase-15-implementation.md` - reviews, wishlist, favorite instructors, and recently viewed notes for Phase 15
 - `phase-16-implementation.md` - SCORM, H5P, xAPI, survey, poll, and course feedback notes for Phase 16
+- `qa-revision-2026-07-23.md` - cross-phase QA fixes, operator guidance, and deployment notes
 
 Recommended initial order:
 

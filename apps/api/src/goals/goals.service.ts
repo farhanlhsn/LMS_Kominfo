@@ -1,8 +1,8 @@
-import { ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@lms/db";
-import { PrismaService } from "../prisma/prisma.service";
+import { Inject,Injectable,NotFoundException } from "@nestjs/common";
 import { ensureEnrollment } from "../common/enrollment/ensure-enrollment";
-import type { CreateLearningGoalDto, UpdateLearningGoalDto } from "./dto/goal.dto";
+import { PrismaService } from "../prisma/prisma.service";
+import type { CreateLearningGoalDto,UpdateLearningGoalDto } from "./dto/goal.dto";
 
 @Injectable()
 export class GoalsService {

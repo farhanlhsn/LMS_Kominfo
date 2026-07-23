@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
 import { ForbiddenException } from "@nestjs/common";
+import { describe,expect,it,vi } from "vitest";
 import { InstructorController } from "./instructor.controller";
 
 const org = { id: "org-a", slug: "a", name: "A", memberId: "m1", roleKeys: ["instructor"], permissionKeys: ["courses:update"], isPlatformAdmin: false };
@@ -109,7 +109,7 @@ describe("InstructorController", () => {
   });
 
   it("propagates forbidden exceptions raised by the service", async () => {
-    const { controller, coreLms } = setup({
+    const { controller } = setup({
       createCourse: vi.fn().mockRejectedValue(new ForbiddenException("Insufficient course permissions")),
     });
     await expect(controller.createCourse(org, user, { title: "X" } as any)).rejects.toBeInstanceOf(ForbiddenException);

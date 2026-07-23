@@ -123,9 +123,11 @@ Admin:
 
 ## Environment and provider configuration
 
-AI configuration is parsed once into the typed `AiConfig` object. Feature services and
-provider factories must consume that object rather than reading environment variables.
-The default local setup is deliberately free and offline-safe:
+Environment configuration supplies platform defaults and safety limits. Effective
+provider, endpoint, model, and encrypted API key come from enabled
+`plugin.ai_provider` configuration for active organization. Provider factories receive
+that tenant config and never read another organization's credentials. Default local
+setup remains free and offline-safe:
 
 ```env
 AI_ENABLED=false
@@ -133,9 +135,23 @@ AI_CHAT_PROVIDER=mock
 AI_EMBEDDING_PROVIDER=mock
 ```
 
-External credentials are validated only for the provider selected while AI is enabled.
-API keys are never returned by the AI status endpoint and prompt logging is disabled by
+External credentials are validated only for provider selected by organization. API keys
+are never returned by status or plugin endpoints. Prompt logging remains disabled by
 default.
+
+## Marketplace AI packages
+
+- `plugin.ai_provider`: tenant provider, models, base URL, encrypted API key, connection test
+- `plugin.ai_course_indexer`: course text/file/transcript extraction and embeddings
+- `plugin.ai_tutor`: cited learner assistance inside Learning Workspace
+- `plugin.ai_content_studio`: reviewable video summaries and content drafts
+- `plugin.ai_question_generator`: course or transcript question-bank drafts
+- `plugin.ai_grading_assistant`: written-answer score/feedback suggestions
+
+Disabling plugin hides its actions and panels, fails protected endpoints closed, and
+retains indexes, generated drafts, answers, and course content. Grading assistant never
+applies final grades. Instructor must review and submit suggestion through normal quiz
+grading endpoint.
 
 ### Gemini chat with local embeddings
 
@@ -192,6 +208,11 @@ Instructor indexing is available through:
 
 - `POST /api/v1/instructor/courses/:courseId/ai/index`
 - `GET /api/v1/instructor/courses/:courseId/ai/index/status`
+- `POST /api/v1/instructor/courses/:courseId/ai/questions`
+
+Course builder label "Index course knowledge" means: extract supported published
+material, chunk it, embed it with active organization's provider, and store isolated RAG
+records. It does not train provider model.
 
 Activity rich text, supported attached files (plain text, Markdown, PDF, DOCX), and
 transcripts are extracted into `AiDocument` records. Text is chunked with overlap,
@@ -222,3 +243,7 @@ Usage records store route, source type, provider/model, cache hit, token estimat
 duration, and status. Prompts remain excluded unless `AI_LOG_PROMPTS=true` is explicitly
 configured. The default disabled mode returns a safe disabled response and never calls
 an external provider.
+
+Provider configuration can be checked with
+`POST /api/v1/admin/ai-provider/test`. Written-answer suggestions use
+`POST /api/v1/instructor/quiz-answers/:answerId/ai-grading-suggestion`.

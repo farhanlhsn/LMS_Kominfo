@@ -16,6 +16,9 @@ export default function AdminCouponsPage() {
   const [code, setCode] = useState("");
   const [description, setDescription] = useState("");
   const [discountPercent, setDiscountPercent] = useState<number>(10);
+  const [validFrom, setValidFrom] = useState("");
+  const [validUntil, setValidUntil] = useState("");
+  const [maxUses, setMaxUses] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   async function createCoupon(event: React.FormEvent<HTMLFormElement>) {
@@ -25,10 +28,24 @@ export default function AdminCouponsPage() {
     try {
       // Lazy import to keep this client component lean.
       const { api } = await import("../../../lib/api-client");
-      await api.createCoupon({ code, description, discountPercent });
+      await api.createCoupon({
+        code,
+        description,
+        discountPercent,
+        validFrom: validFrom
+          ? new Date(`${validFrom}T00:00:00`).toISOString()
+          : undefined,
+        validUntil: validUntil
+          ? new Date(`${validUntil}T23:59:59.999`).toISOString()
+          : undefined,
+        maxUses: maxUses ? Number(maxUses) : undefined,
+      });
       setCode("");
       setDescription("");
       setDiscountPercent(10);
+      setValidFrom("");
+      setValidUntil("");
+      setMaxUses("");
       await query.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught));
@@ -85,6 +102,36 @@ export default function AdminCouponsPage() {
                   }
                   type="number"
                   value={discountPercent}
+                />
+              </label>
+              <label className="text-sm">
+                <span className="block text-muted-foreground">Valid from</span>
+                <input
+                  className="mt-1 min-h-10 w-full rounded-md border border-input bg-card px-3 text-sm text-foreground"
+                  onChange={(event) => setValidFrom(event.target.value)}
+                  type="date"
+                  value={validFrom}
+                />
+              </label>
+              <label className="text-sm">
+                <span className="block text-muted-foreground">Valid until</span>
+                <input
+                  className="mt-1 min-h-10 w-full rounded-md border border-input bg-card px-3 text-sm text-foreground"
+                  min={validFrom || undefined}
+                  onChange={(event) => setValidUntil(event.target.value)}
+                  type="date"
+                  value={validUntil}
+                />
+              </label>
+              <label className="text-sm">
+                <span className="block text-muted-foreground">Max uses</span>
+                <input
+                  className="mt-1 min-h-10 w-full rounded-md border border-input bg-card px-3 text-sm text-foreground"
+                  min={1}
+                  onChange={(event) => setMaxUses(event.target.value)}
+                  placeholder="Unlimited"
+                  type="number"
+                  value={maxUses}
                 />
               </label>
               <div className="sm:col-span-2 lg:col-span-4">

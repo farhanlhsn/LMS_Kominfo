@@ -27,6 +27,7 @@ import {
   CreatePluginListingDto,
   CreatePluginReviewDto,
   InstallPluginDto,
+  UpdatePluginInstallationStatusDto,
   UpdatePluginListingDto,
   UpdatePluginListingStatusDto,
   UpdatePluginPolicyDto,
@@ -87,12 +88,7 @@ export class PluginListingController {
     @Param("id") id: string,
     @Body() dto: UpdatePluginListingStatusDto,
   ) {
-    return this.service.updateListingStatus(
-      organization.id,
-      user.id,
-      id,
-      dto,
-    );
+    return this.service.updateListingStatus(organization.id, user.id, id, dto);
   }
 }
 
@@ -152,18 +148,36 @@ export class PluginInstallationController {
   @Permissions(PERMISSIONS.pluginsConfigure)
   install(
     @ActiveOrganization() organization: OrganizationContext,
+    @CurrentUser() user: AuthenticatedUser,
     @Body() dto: InstallPluginDto,
   ) {
-    return this.service.installPlugin(organization, dto);
+    return this.service.installPlugin(organization, user, dto);
+  }
+
+  @Patch(":id/status")
+  @Permissions(PERMISSIONS.pluginsConfigure)
+  updateStatus(
+    @ActiveOrganization() organization: OrganizationContext,
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("id") id: string,
+    @Body() dto: UpdatePluginInstallationStatusDto,
+  ) {
+    return this.service.updateInstallationStatus(
+      organization.id,
+      user,
+      id,
+      dto,
+    );
   }
 
   @Delete(":id")
   @Permissions(PERMISSIONS.pluginsConfigure)
   uninstall(
     @ActiveOrganization() organization: OrganizationContext,
+    @CurrentUser() user: AuthenticatedUser,
     @Param("id") id: string,
   ) {
-    return this.service.uninstallPlugin(organization.id, id);
+    return this.service.uninstallPlugin(organization.id, user, id);
   }
 }
 

@@ -335,15 +335,15 @@ class TransformersJsEmbeddingProvider implements LocalEmbeddingProvider {
 export class LocalEmbeddingProviderFactory {
   constructor(@Inject(AI_CONFIG) private readonly config: AiConfig) {}
 
-  create(): LocalEmbeddingProvider {
-    if (this.config.localEmbedding.provider === "mock") {
+  create(config: AiConfig = this.config): LocalEmbeddingProvider {
+    if (config.localEmbedding.provider === "mock") {
       return new MockEmbeddingProvider(
-        this.config.localEmbedding.dimensions,
+        config.localEmbedding.dimensions,
       ) as LocalEmbeddingProvider;
     }
     return new TransformersJsEmbeddingProvider(
-      this.config.localEmbedding,
-      this.config.localEmbedding.revision,
+      config.localEmbedding,
+      config.localEmbedding.revision,
     );
   }
 }
@@ -352,20 +352,20 @@ export class LocalEmbeddingProviderFactory {
 export class AiChatProviderFactory {
   constructor(@Inject(AI_CONFIG) private readonly config: AiConfig) {}
 
-  create(): AiChatProvider {
-    const provider = this.config.chatProvider;
+  create(config: AiConfig = this.config): AiChatProvider {
+    const provider = config.chatProvider;
     if (provider === "mock") return new MockChatProvider();
     const connection =
       provider === "openai"
-        ? this.config.providers.openai
+        ? config.providers.openai
         : provider === "openai_compatible"
-          ? this.config.providers.openaiCompatible
-          : this.config.providers.geminiOpenAiCompatible;
+          ? config.providers.openaiCompatible
+          : config.providers.geminiOpenAiCompatible;
     return new OpenAiCompatibleChatProvider(
       provider,
       connection,
-      this.config.requestTimeoutMs,
-      this.config.streamingEnabled,
+      config.requestTimeoutMs,
+      config.streamingEnabled,
     );
   }
 }
@@ -377,22 +377,22 @@ export class AiEmbeddingProviderFactory {
     private readonly localFactory: LocalEmbeddingProviderFactory,
   ) {}
 
-  create(): AiEmbeddingProvider {
-    const provider = this.config.embeddingProvider;
+  create(config: AiConfig = this.config): AiEmbeddingProvider {
+    const provider = config.embeddingProvider;
     if (provider === "mock") {
-      return new MockEmbeddingProvider(this.config.localEmbedding.dimensions);
+      return new MockEmbeddingProvider(config.localEmbedding.dimensions);
     }
-    if (provider === "local") return this.localFactory.create();
+    if (provider === "local") return this.localFactory.create(config);
     const connection =
       provider === "openai"
-        ? this.config.providers.openai
+        ? config.providers.openai
         : provider === "openai_compatible"
-          ? this.config.providers.openaiCompatible
-          : this.config.providers.geminiOpenAiCompatible;
+          ? config.providers.openaiCompatible
+          : config.providers.geminiOpenAiCompatible;
     return new OpenAiCompatibleEmbeddingProvider(
       provider,
       connection,
-      this.config.requestTimeoutMs,
+      config.requestTimeoutMs,
     );
   }
 }

@@ -1,12 +1,12 @@
 'use client';
 
-import React from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api-client';
-import { BookOpen, Award, Star, Clock, Brain, Mail, MapPin } from 'lucide-react';
+import { useAuth } from '@/lib/auth';
+import { useQuery } from '@tanstack/react-query';
+import { Award,BookOpen,Clock,Mail,MapPin,Star } from 'lucide-react';
+import React from 'react';
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card,CardContent,CardDescription,CardHeader,CardTitle } from '@/components/ui/card';
 
 interface StudentStats {
   activeCourses: number;

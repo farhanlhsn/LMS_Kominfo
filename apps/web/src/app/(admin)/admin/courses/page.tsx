@@ -127,7 +127,7 @@ export default function AdminCoursesPage(): React.ReactElement {
     slug: '',
     shortDescription: '',
     description: '',
-    category: CATEGORIES[0],
+    category: CATEGORIES[0] ?? '',
     difficulty: 'beginner',
     regionId: '',
     language: 'id',
@@ -223,7 +223,7 @@ export default function AdminCoursesPage(): React.ReactElement {
       slug: '',
       shortDescription: '',
       description: '',
-      category: CATEGORIES[0],
+      category: CATEGORIES[0] ?? '',
       difficulty: 'beginner',
       regionId: regions?.[0]?.id ?? '',
       language: 'id',
@@ -506,7 +506,7 @@ export default function AdminCoursesPage(): React.ReactElement {
 
             <div className="grid grid-cols-2 gap-3">
               <FormField label="Kategori" required>
-                <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
+                <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v ?? '' })}>
                   <SelectTrigger className="text-xs h-10">
                     <SelectValue />
                   </SelectTrigger>

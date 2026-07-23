@@ -21,11 +21,15 @@ import {
 import type { AiGeneratedItem } from "../../lib/lms-types";
 
 export interface AiApprovalQueueProps {
-  activityId: string;
+  activityId?: string;
+  courseId?: string;
 }
 
-export function AiApprovalQueue({ activityId }: AiApprovalQueueProps) {
-  const allItems = useListInstructorAiItems({ activityId });
+export function AiApprovalQueue({
+  activityId,
+  courseId,
+}: AiApprovalQueueProps) {
+  const allItems = useListInstructorAiItems({ activityId, courseId });
   const approve = useApproveAiItem();
   const reject = useRejectAiItem();
   const publish = usePublishAiItem();

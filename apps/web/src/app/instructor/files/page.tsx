@@ -26,7 +26,7 @@ export default function InstructorFilesPage() {
   const query = useFiles();
   const uploadFile = useUploadFile();
   const signedFileUrl = useSignedFileUrl();
-  const files = query.data?.data ?? [];
+  const files = useMemo(() => query.data?.data ?? [], [query.data?.data]);
   const filteredFiles = useMemo(
     () =>
       files.filter((file) =>

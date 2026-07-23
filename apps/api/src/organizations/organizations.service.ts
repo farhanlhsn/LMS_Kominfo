@@ -50,6 +50,7 @@ export class OrganizationsService {
       include: {
         user: true,
         memberRoles: {
+          where: { role: { isActive: true } },
           include: {
             role: true
           }
@@ -74,20 +75,23 @@ export class OrganizationsService {
 
   async listRoles(organizationId: string) {
     const roles = await this.prisma.role.findMany({
-      where: { organizationId },
+      where: { organizationId, isActive: true },
       include: {
         rolePermissions: {
           include: { permission: true },
           orderBy: { permission: { key: "asc" } },
         },
       },
-      orderBy: [{ isSystem: "desc" }, { key: "asc" }],
+      orderBy: [{ sortOrder: "asc" }, { isSystem: "desc" }, { key: "asc" }],
     });
     return roles.map((role) => this.rolePayload(role));
   }
 
   async listPermissions() {
-    return this.prisma.permission.findMany({ orderBy: { key: "asc" } });
+    return this.prisma.permission.findMany({
+      where: { isActive: true },
+      orderBy: [{ component: "asc" }, { key: "asc" }],
+    });
   }
 
   async createMember(
@@ -353,6 +357,13 @@ export class OrganizationsService {
         name: dto.name.trim(),
         description: dto.description,
         isSystem: false,
+        assignableContextTypes: dto.assignableContextTypes ?? [
+          "ORGANIZATION",
+          "COURSE_CATEGORY",
+          "COURSE",
+          "MODULE",
+          "ACTIVITY",
+        ],
         rolePermissions: {
           create: permissions.map((permission) => ({
             permissionId: permission.id,
@@ -408,6 +419,7 @@ export class OrganizationsService {
         data: {
           name: dto.name?.trim(),
           description: dto.description,
+          assignableContextTypes: dto.assignableContextTypes,
         },
         include: {
           rolePermissions: {
@@ -429,7 +441,13 @@ export class OrganizationsService {
   private async getMember(organizationId: string, memberId: string) {
     const member = await this.prisma.organizationMember.findFirst({
       where: { id: memberId, organizationId },
-      include: { user: true, memberRoles: { include: { role: true } } },
+      include: {
+        user: true,
+        memberRoles: {
+          where: { role: { isActive: true } },
+          include: { role: true },
+        },
+      },
     });
     if (!member) throw new NotFoundException("Organization member not found");
     return member;
@@ -441,7 +459,7 @@ export class OrganizationsService {
       throw new BadRequestException("At least one role is required");
     }
     const roles = await this.prisma.role.findMany({
-      where: { organizationId, key: { in: uniqueKeys } },
+      where: { organizationId, key: { in: uniqueKeys }, isActive: true },
     });
     const found = new Set(roles.map((role) => role.key));
     const missing = uniqueKeys.filter((key) => !found.has(key));
@@ -455,7 +473,7 @@ export class OrganizationsService {
     const uniqueKeys = [...new Set(permissionKeys.map((key) => key.trim()).filter(Boolean))];
     if (!uniqueKeys.length) return [];
     const permissions = await this.prisma.permission.findMany({
-      where: { key: { in: uniqueKeys } },
+      where: { key: { in: uniqueKeys }, isActive: true },
     });
     const found = new Set(permissions.map((permission) => permission.key));
     const missing = uniqueKeys.filter((key) => !found.has(key));
@@ -516,7 +534,21 @@ export class OrganizationsService {
     name: string;
     description: string | null;
     isSystem: boolean;
-    rolePermissions: Array<{ permission: { key: string; description: string | null } }>;
+    archetype: string | null;
+    assignableContextTypes: unknown;
+    isActive: boolean;
+    rolePermissions: Array<{
+      permission: {
+        key: string;
+        description: string | null;
+        component: string;
+        capabilityType: string;
+        riskBitmask: number;
+        contextTypes: unknown;
+        sourcePluginKey: string | null;
+        isActive: boolean;
+      };
+    }>;
   }) {
     return {
       id: role.id,
@@ -524,9 +556,22 @@ export class OrganizationsService {
       name: role.name,
       description: role.description,
       isSystem: role.isSystem,
+      archetype: role.archetype,
+      assignableContextTypes: Array.isArray(role.assignableContextTypes)
+        ? role.assignableContextTypes
+        : [],
+      isActive: role.isActive,
       permissions: role.rolePermissions.map((rolePermission) => ({
         key: rolePermission.permission.key,
         description: rolePermission.permission.description,
+        component: rolePermission.permission.component,
+        capabilityType: rolePermission.permission.capabilityType,
+        riskBitmask: rolePermission.permission.riskBitmask,
+        contextTypes: Array.isArray(rolePermission.permission.contextTypes)
+          ? rolePermission.permission.contextTypes
+          : [],
+        sourcePluginKey: rolePermission.permission.sourcePluginKey,
+        isActive: rolePermission.permission.isActive,
       })),
     };
   }

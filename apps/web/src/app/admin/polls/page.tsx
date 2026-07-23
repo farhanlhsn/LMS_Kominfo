@@ -5,7 +5,7 @@ import { useState } from "react";
 import { PERMISSIONS } from "@lms/shared";
 import { AuthGate, PermissionGate } from "../../../components/auth/auth-gate";
 import { AppShell } from "../../../components/layout/shells";
-import { PageHeader, ButtonLink, FilterBar, StatusBadge } from "../../../components/ui/core";
+import { PageHeader, FilterBar, StatusBadge } from "../../../components/ui/core";
 import { PollResultsView, PollsList } from "../../../components/experiences/experiences-views";
 import {
   useCreatePoll,
@@ -227,12 +227,6 @@ export default function AdminPollsPage() {
           <h2 className="mb-3 text-lg font-semibold">Results</h2>
           <PollResultsView results={results.data ?? null} />
         </section>
-      </div>
-
-      <div className="mt-6 flex gap-2">
-        <ButtonLink href="/admin" variant="secondary">
-          ← Back to admin
-        </ButtonLink>
       </div>
       </div>
     </AppShell>

@@ -14,11 +14,16 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import type { Response } from "express";
-import type { AuthenticatedUser, OrganizationContext } from "../auth/types/authenticated-request";
+import type {
+  AuthenticatedUser,
+  OrganizationContext,
+} from "../auth/types/authenticated-request";
 import { ActiveOrganization } from "../rbac/decorators/active-organization.decorator";
 import { CurrentUser } from "../rbac/decorators/current-user.decorator";
 import { JwtAuthGuard } from "../rbac/guards/jwt-auth.guard";
 import { OrganizationContextGuard } from "../rbac/guards/organization-context.guard";
+import { RequiresPlugin } from "../plugins/decorators/requires-plugin.decorator";
+import { PluginEntitlementGuard } from "../plugins/guards/plugin-entitlement.guard";
 import {
   CommitScormAttemptDto,
   CourseFeedbackQueryDto,
@@ -45,17 +50,29 @@ import { ExperiencesService } from "./experiences.service";
 
 // ── SCORM ─────────────────────────────────────────
 @Controller("scorm/packages")
-@UseGuards(JwtAuthGuard, OrganizationContextGuard)
+@RequiresPlugin("plugin.scorm")
+@UseGuards(JwtAuthGuard, OrganizationContextGuard, PluginEntitlementGuard)
 export class ScormController {
-  constructor(@Inject(ExperiencesService) private readonly service: ExperiencesService) {}
+  constructor(
+    @Inject(ExperiencesService) private readonly service: ExperiencesService,
+  ) {}
 
-  @Get() list(@ActiveOrganization() org: OrganizationContext, @Query("courseId") courseId?: string) {
+  @Get() list(
+    @ActiveOrganization() org: OrganizationContext,
+    @Query("courseId") courseId?: string,
+  ) {
     return this.service.listScormPackages(org, courseId);
   }
-  @Post() create(@ActiveOrganization() org: OrganizationContext, @Body() dto: CreateScormPackageDto) {
+  @Post() create(
+    @ActiveOrganization() org: OrganizationContext,
+    @Body() dto: CreateScormPackageDto,
+  ) {
     return this.service.createScormPackage(org, dto);
   }
-  @Get(":id") get(@ActiveOrganization() org: OrganizationContext, @Param("id") id: string) {
+  @Get(":id") get(
+    @ActiveOrganization() org: OrganizationContext,
+    @Param("id") id: string,
+  ) {
     return this.service.getScormPackage(org, id);
   }
   @Patch(":id") update(
@@ -65,17 +82,26 @@ export class ScormController {
   ) {
     return this.service.updateScormPackage(org, id, dto);
   }
-  @Delete(":id") delete(@ActiveOrganization() org: OrganizationContext, @Param("id") id: string) {
+  @Delete(":id") delete(
+    @ActiveOrganization() org: OrganizationContext,
+    @Param("id") id: string,
+  ) {
     return this.service.deleteScormPackage(org, id);
   }
 }
 
 @Controller("scorm/packages/:packageId/attempts")
-@UseGuards(JwtAuthGuard, OrganizationContextGuard)
+@RequiresPlugin("plugin.scorm")
+@UseGuards(JwtAuthGuard, OrganizationContextGuard, PluginEntitlementGuard)
 export class ScormAttemptController {
-  constructor(@Inject(ExperiencesService) private readonly service: ExperiencesService) {}
+  constructor(
+    @Inject(ExperiencesService) private readonly service: ExperiencesService,
+  ) {}
 
-  @Get() list(@ActiveOrganization() org: OrganizationContext, @Param("packageId") packageId: string) {
+  @Get() list(
+    @ActiveOrganization() org: OrganizationContext,
+    @Param("packageId") packageId: string,
+  ) {
     return this.service.listScormAttempts(org, packageId);
   }
   @Post() start(
@@ -99,17 +125,29 @@ export class ScormAttemptController {
 
 // ── H5P ──────────────────────────────────────────
 @Controller("h5p/contents")
-@UseGuards(JwtAuthGuard, OrganizationContextGuard)
+@RequiresPlugin("plugin.h5p")
+@UseGuards(JwtAuthGuard, OrganizationContextGuard, PluginEntitlementGuard)
 export class H5PController {
-  constructor(@Inject(ExperiencesService) private readonly service: ExperiencesService) {}
+  constructor(
+    @Inject(ExperiencesService) private readonly service: ExperiencesService,
+  ) {}
 
-  @Get() list(@ActiveOrganization() org: OrganizationContext, @Query("courseId") courseId?: string) {
+  @Get() list(
+    @ActiveOrganization() org: OrganizationContext,
+    @Query("courseId") courseId?: string,
+  ) {
     return this.service.listH5PContent(org, courseId);
   }
-  @Post() create(@ActiveOrganization() org: OrganizationContext, @Body() dto: CreateH5PContentDto) {
+  @Post() create(
+    @ActiveOrganization() org: OrganizationContext,
+    @Body() dto: CreateH5PContentDto,
+  ) {
     return this.service.createH5PContent(org, dto);
   }
-  @Get(":id") get(@ActiveOrganization() org: OrganizationContext, @Param("id") id: string) {
+  @Get(":id") get(
+    @ActiveOrganization() org: OrganizationContext,
+    @Param("id") id: string,
+  ) {
     return this.service.getH5PContent(org, id);
   }
   @Patch(":id") update(
@@ -119,17 +157,26 @@ export class H5PController {
   ) {
     return this.service.updateH5PContent(org, id, dto);
   }
-  @Delete(":id") delete(@ActiveOrganization() org: OrganizationContext, @Param("id") id: string) {
+  @Delete(":id") delete(
+    @ActiveOrganization() org: OrganizationContext,
+    @Param("id") id: string,
+  ) {
     return this.service.deleteH5PContent(org, id);
   }
 }
 
 @Controller("h5p/contents/:contentId/results")
-@UseGuards(JwtAuthGuard, OrganizationContextGuard)
+@RequiresPlugin("plugin.h5p")
+@UseGuards(JwtAuthGuard, OrganizationContextGuard, PluginEntitlementGuard)
 export class H5PResultController {
-  constructor(@Inject(ExperiencesService) private readonly service: ExperiencesService) {}
+  constructor(
+    @Inject(ExperiencesService) private readonly service: ExperiencesService,
+  ) {}
 
-  @Get() list(@ActiveOrganization() org: OrganizationContext, @Param("contentId") contentId: string) {
+  @Get() list(
+    @ActiveOrganization() org: OrganizationContext,
+    @Param("contentId") contentId: string,
+  ) {
     return this.service.listH5PResults(org, contentId);
   }
   @Post() submit(
@@ -146,7 +193,9 @@ export class H5PResultController {
 @Controller("xapi")
 @UseGuards(JwtAuthGuard, OrganizationContextGuard)
 export class XapiController {
-  constructor(@Inject(ExperiencesService) private readonly service: ExperiencesService) {}
+  constructor(
+    @Inject(ExperiencesService) private readonly service: ExperiencesService,
+  ) {}
 
   @Get("statements") list(
     @ActiveOrganization() org: OrganizationContext,
@@ -170,7 +219,12 @@ export class XapiController {
     @Query("stateId") stateId: string,
     @Query("agent") agent?: string,
   ) {
-    return this.service.getXapiState(org, activityId, stateId, parseAgent(agent));
+    return this.service.getXapiState(
+      org,
+      activityId,
+      stateId,
+      parseAgent(agent),
+    );
   }
 
   @Put("state") putState(
@@ -186,7 +240,12 @@ export class XapiController {
     @Query("stateId") stateId: string,
     @Query("agent") agent?: string,
   ) {
-    return this.service.deleteXapiState(org, activityId, stateId, parseAgent(agent));
+    return this.service.deleteXapiState(
+      org,
+      activityId,
+      stateId,
+      parseAgent(agent),
+    );
   }
 }
 
@@ -203,7 +262,9 @@ function parseAgent(raw?: string): Record<string, unknown> {
 @Controller("surveys")
 @UseGuards(JwtAuthGuard, OrganizationContextGuard)
 export class SurveyController {
-  constructor(@Inject(ExperiencesService) private readonly service: ExperiencesService) {}
+  constructor(
+    @Inject(ExperiencesService) private readonly service: ExperiencesService,
+  ) {}
 
   @Get() list(
     @ActiveOrganization() org: OrganizationContext,
@@ -218,7 +279,10 @@ export class SurveyController {
   ) {
     return this.service.createSurvey(org, user.id, dto);
   }
-  @Get(":id") get(@ActiveOrganization() org: OrganizationContext, @Param("id") id: string) {
+  @Get(":id") get(
+    @ActiveOrganization() org: OrganizationContext,
+    @Param("id") id: string,
+  ) {
     return this.service.getSurvey(org, id);
   }
   @Patch(":id") update(
@@ -228,7 +292,10 @@ export class SurveyController {
   ) {
     return this.service.updateSurvey(org, id, dto);
   }
-  @Delete(":id") delete(@ActiveOrganization() org: OrganizationContext, @Param("id") id: string) {
+  @Delete(":id") delete(
+    @ActiveOrganization() org: OrganizationContext,
+    @Param("id") id: string,
+  ) {
     return this.service.deleteSurvey(org, id);
   }
   @Post(":id/questions") addQuestion(
@@ -267,7 +334,10 @@ export class SurveyController {
     @Res() res: Response,
   ) {
     const csv = await this.service.exportSurveyResponsesCsv(org, id);
-    res.setHeader("content-disposition", `attachment; filename="survey-${id}.csv"`);
+    res.setHeader(
+      "content-disposition",
+      `attachment; filename="survey-${id}.csv"`,
+    );
     res.send(csv);
   }
 }
@@ -276,15 +346,26 @@ export class SurveyController {
 @Controller("polls")
 @UseGuards(JwtAuthGuard, OrganizationContextGuard)
 export class PollController {
-  constructor(@Inject(ExperiencesService) private readonly service: ExperiencesService) {}
+  constructor(
+    @Inject(ExperiencesService) private readonly service: ExperiencesService,
+  ) {}
 
-  @Get() list(@ActiveOrganization() org: OrganizationContext, @Query() query: PollQueryDto) {
+  @Get() list(
+    @ActiveOrganization() org: OrganizationContext,
+    @Query() query: PollQueryDto,
+  ) {
     return this.service.listPolls(org, query.courseId, query.status);
   }
-  @Post() create(@ActiveOrganization() org: OrganizationContext, @Body() dto: CreatePollDto) {
+  @Post() create(
+    @ActiveOrganization() org: OrganizationContext,
+    @Body() dto: CreatePollDto,
+  ) {
     return this.service.createPoll(org, dto);
   }
-  @Get(":id") get(@ActiveOrganization() org: OrganizationContext, @Param("id") id: string) {
+  @Get(":id") get(
+    @ActiveOrganization() org: OrganizationContext,
+    @Param("id") id: string,
+  ) {
     return this.service.getPoll(org, id);
   }
   @Patch(":id") update(
@@ -294,7 +375,10 @@ export class PollController {
   ) {
     return this.service.updatePoll(org, id, dto);
   }
-  @Delete(":id") delete(@ActiveOrganization() org: OrganizationContext, @Param("id") id: string) {
+  @Delete(":id") delete(
+    @ActiveOrganization() org: OrganizationContext,
+    @Param("id") id: string,
+  ) {
     return this.service.deletePoll(org, id);
   }
   @Post(":id/votes") vote(
@@ -317,7 +401,9 @@ export class PollController {
 @Controller("course-feedback")
 @UseGuards(JwtAuthGuard, OrganizationContextGuard)
 export class CourseFeedbackController {
-  constructor(@Inject(ExperiencesService) private readonly service: ExperiencesService) {}
+  constructor(
+    @Inject(ExperiencesService) private readonly service: ExperiencesService,
+  ) {}
 
   @Get() list(
     @ActiveOrganization() org: OrganizationContext,
@@ -340,7 +426,10 @@ export class CourseFeedbackController {
     @Res() res: Response,
   ) {
     const csv = await this.service.exportCourseFeedbackCsv(org, query.courseId);
-    res.setHeader("content-disposition", `attachment; filename="feedback-${query.courseId}.csv"`);
+    res.setHeader(
+      "content-disposition",
+      `attachment; filename="feedback-${query.courseId}.csv"`,
+    );
     res.send(csv);
   }
 }

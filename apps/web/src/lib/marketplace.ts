@@ -1,6 +1,5 @@
 import type {
   Order,
-  Payment,
   SubscriptionPlan,
   UserSubscription,
 } from "./lms-types";
@@ -16,7 +15,7 @@ const CURRENCY_LABELS: Record<string, string> = {
 };
 
 function safeCurrency(code: string | null | undefined): string {
-  if (!code) return "USD";
+  if (!code) return "IDR";
   return code.toUpperCase();
 }
 
@@ -161,7 +160,7 @@ export function coursePricing(course: {
   currency?: string | null;
 } | null | undefined): CoursePricingView {
   if (!course) {
-    return { isPaid: false, price: 0, currency: "USD" };
+    return { isPaid: false, price: 0, currency: "IDR" };
   }
   return {
     isPaid: Boolean(course.isPaid),

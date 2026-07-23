@@ -102,6 +102,7 @@ export const navGroups: NavGroup[] = [
     items: [
       { id: "/admin", rbacKey: "admin", href: "/admin", label: "Admin Dashboard", icon: LayoutDashboard },
       { id: "/admin/members", rbacKey: "admin", href: "/admin/members", label: "Members & Roles", icon: ShieldCheck },
+      { id: "/admin/access-control", rbacKey: "admin", href: "/admin/access-control", label: "Access Control", icon: KeyRound },
       { id: "/admin/users", rbacKey: "admin", href: "/admin/users", label: "Users", icon: ShieldCheck },
       { id: "/admin/organizations", rbacKey: "admin", href: "/admin/organizations", label: "Organizations", icon: Building2 },
       { id: "/admin/orders", rbacKey: "admin", href: "/admin/orders", label: "Orders", icon: Receipt },

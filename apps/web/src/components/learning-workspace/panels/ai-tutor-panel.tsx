@@ -1,27 +1,26 @@
 "use client";
 
 import {
+  BookOpen,
+  Copy,
+  Send,
+  ShieldAlert,
+  Sparkles,
+  ThumbsDown,
+  ThumbsUp
+} from "lucide-react";
+import {
   type FormEvent,
   useEffect,
   useRef,
   useState,
 } from "react";
 import ReactMarkdown from "react-markdown";
-import {
-  BookOpen,
-  Bot,
-  Copy,
-  Send,
-  ShieldAlert,
-  Sparkles,
-  ThumbsDown,
-  ThumbsUp,
-} from "lucide-react";
+import { apiBaseUrl,authHeaders,getSession } from "../../../lib/api-client";
 import {
   useAiStatus,
   useAskAiTutor,
 } from "../../../lib/api-hooks";
-import { apiBaseUrl, authHeaders, getSession } from "../../../lib/api-client";
 import type {
   Activity,
   AiTutorResponse,
@@ -33,7 +32,7 @@ import {
   EmptyState,
   LoadingState,
 } from "../../ui/states";
-import { PanelFrame, formatTimestamp } from "./panel-shared";
+import { PanelFrame,formatTimestamp } from "./panel-shared";
 
 export function AiTutorPanel({
   course,

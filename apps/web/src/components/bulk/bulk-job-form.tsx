@@ -33,7 +33,7 @@ export interface BulkJobFormProps {
 export function BulkJobForm({ onSubmitted }: BulkJobFormProps) {
   const [type, setType] = useState<BulkJobType>("ARCHIVE");
   const [entityType, setEntityType] = useState<BulkEntityType>("course");
-  const [entityIdsText, setEntityIdsText] = useState("c1, c2, c3");
+  const [entityIdsText, setEntityIdsText] = useState("");
   const { loading, error, mutate } = useApiMutation(
     async (input: { type: BulkJobType; items: Array<{ entityType: BulkEntityType; entityId: string }> }) => {
       const result = await api.createBulkJob(input);
@@ -61,6 +61,10 @@ export function BulkJobForm({ onSubmitted }: BulkJobFormProps) {
       onSubmit={submit}
     >
       <h2 className="text-base font-semibold">Create bulk job</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Select operation and entity type, then paste real database IDs separated
+        by commas or spaces. Jobs run asynchronously and can be monitored below.
+      </p>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className="text-sm">
           <span className="block text-muted-foreground">Job type</span>
@@ -101,7 +105,7 @@ export function BulkJobForm({ onSubmitted }: BulkJobFormProps) {
               "mt-1 min-h-10 w-full rounded-md border border-input bg-card px-3 text-sm text-foreground",
             )}
             onChange={(event) => setEntityIdsText(event.target.value)}
-            placeholder="c1, c2, c3"
+            placeholder="course_id_1, course_id_2"
             type="text"
             value={entityIdsText}
           />

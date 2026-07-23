@@ -1,16 +1,16 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
-import { Canvas, useFrame, useLoader } from "@react-three/fiber";
-import { OrbitControls, Environment, Html, useProgress, Bounds } from "@react-three/drei";
+import { Bounds,Environment,Html,OrbitControls,useProgress } from "@react-three/drei";
+import { Canvas,useFrame,useLoader } from "@react-three/fiber";
+import { Download,RotateCw,ZoomIn } from "lucide-react";
+import { Suspense,useEffect,useRef,useState } from "react";
+import { Box3,Group,Vector3 } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { MTLLoader } from "three/examples/jsm/loaders/MTLLoader.js";
-import { Box3, Group, Vector3 } from "three";
-import { Download, RotateCw, ZoomIn } from "lucide-react";
+import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import type { ThreeDAssetRecord } from "../../lib/lms-types";
-import { LoadingState } from "../ui/states";
 import { ErrorBoundary } from "../ui/error-boundary";
+import { ApiErrorState,LoadingState } from "../ui/states";
 
 function ProgressLoader() {
   const { progress } = useProgress();
@@ -143,6 +143,9 @@ export function ThreeDViewer({ asset, loading, error, height = 420, showInfo = t
   const isRenderable = isGltf || isObj;
 
   if (loading) return <LoadingState title="Loading 3D asset" />;
+  if (error) {
+    return <ApiErrorState error={error instanceof Error ? error : new Error("Failed to load 3D asset")} />;
+  }
 
   if (!asset) {
     return (

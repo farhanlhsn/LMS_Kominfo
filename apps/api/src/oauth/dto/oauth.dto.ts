@@ -1,13 +1,11 @@
 import {
   IsBooleanString,
   IsIn,
-  IsInt,
   IsOptional,
   IsString,
   IsUrl,
   Length,
-  Min,
-  MinLength,
+  MinLength
 } from "class-validator";
 
 export const OAUTH_PROVIDERS = ["GOOGLE", "MICROSOFT"] as const;

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Plug, RefreshCw } from "lucide-react";
+import { PackagePlus, Plug, RefreshCw } from "lucide-react";
 import { PERMISSIONS } from "@lms/shared";
 import { AuthGate, PermissionGate } from "../../../components/auth/auth-gate";
 import { AppShell } from "../../../components/layout/shells";
@@ -34,16 +34,25 @@ export default function AdminPluginsPage() {
           <PageHeader
             eyebrow="Admin"
             title="Plugins"
-            description="Manage organization-scoped internal plugin manifests and activity extension points."
+            description="Configure core features and marketplace packages installed for this organization."
             actions={
-              <button
-                className="inline-flex min-h-10 items-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-semibold hover:bg-muted"
-                onClick={() => void pluginsQuery.reload()}
-                type="button"
-              >
-                <RefreshCw aria-hidden="true" className="h-4 w-4" />
-                Refresh
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  className="inline-flex min-h-10 items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+                  href="/admin/plugin-marketplace"
+                >
+                  <PackagePlus aria-hidden="true" className="h-4 w-4" />
+                  Marketplace
+                </Link>
+                <button
+                  className="inline-flex min-h-10 items-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-semibold hover:bg-muted"
+                  onClick={() => void pluginsQuery.reload()}
+                  type="button"
+                >
+                  <RefreshCw aria-hidden="true" className="h-4 w-4" />
+                  Refresh
+                </button>
+              </div>
             }
           />
 
@@ -62,7 +71,11 @@ export default function AdminPluginsPage() {
           ) : (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {pluginsQuery.data.map((plugin) => (
-                <PluginCard key={plugin.key} plugin={plugin} onToggle={toggle} />
+                <PluginCard
+                  key={plugin.key}
+                  plugin={plugin}
+                  onToggle={toggle}
+                />
               ))}
             </div>
           )}
@@ -82,6 +95,7 @@ function PluginCard({
   const placeholder = Boolean(
     (plugin.manifest as { placeholder?: boolean } | undefined)?.placeholder,
   );
+  const isCore = plugin.manifest?.distribution === "CORE";
   return (
     <article className="rounded-lg border border-border bg-card p-5 shadow-subtle">
       <div className="flex items-start justify-between gap-3">
@@ -98,7 +112,10 @@ function PluginCard({
       <div className="mt-4 flex flex-wrap gap-2">
         <StatusBadge value={plugin.category.toLowerCase()} />
         <StatusBadge value={`v${plugin.version}`} />
-        {placeholder ? <StatusBadge tone="warning" value="Coming soon" /> : null}
+        <StatusBadge value={isCore ? "Core" : "Marketplace"} />
+        {placeholder ? (
+          <StatusBadge tone="warning" value="Coming soon" />
+        ) : null}
       </div>
       <div className="mt-5 flex flex-wrap gap-2">
         <Link
@@ -109,11 +126,11 @@ function PluginCard({
         </Link>
         <button
           className="inline-flex min-h-10 items-center rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
-          disabled={placeholder}
+          disabled={placeholder || isCore}
           onClick={() => void onToggle(plugin)}
           type="button"
         >
-          {plugin.enabled ? "Disable" : "Enable"}
+          {isCore ? "Always enabled" : plugin.enabled ? "Disable" : "Enable"}
         </button>
       </div>
     </article>

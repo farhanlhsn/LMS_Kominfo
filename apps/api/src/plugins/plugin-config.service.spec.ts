@@ -11,115 +11,125 @@ const user: AuthenticatedUser = {
   activeOrganizationId: "org_1",
 };
 
-function createService() {
+function createService(options: { installed?: boolean } = {}) {
+  const installed = options.installed ?? true;
+  const plugins = [
+    {
+      id: "core_1",
+      key: "core.text",
+      category: "ACTIVITY",
+      organizationPlugins: [],
+    },
+    {
+      id: "plugin_1",
+      key: "plugin.3d_viewer",
+      category: "ACTIVITY",
+      organizationPlugins: installed ? [{ enabled: false }] : [],
+    },
+  ];
   const prisma = {
     plugin: {
-      findUnique: vi.fn().mockResolvedValue({
-        id: "plugin_1",
-        key: "core.text",
+      findUnique: vi.fn(async ({ where }: any) => {
+        const plugin = plugins.find((item) => item.key === where.key);
+        return plugin ? { ...plugin, pluginPermissions: [] } : null;
       }),
-      findMany: vi.fn().mockResolvedValue([
-        {
-          id: "plugin_1",
-          key: "core.text",
-          category: "ACTIVITY",
-          organizationPlugins: [{ enabled: true }],
-        },
-      ]),
+      findMany: vi.fn().mockResolvedValue(plugins),
     },
     organizationPlugin: {
-      upsert: vi.fn().mockResolvedValue({ id: "org_plugin_1" }),
+      findUnique: vi
+        .fn()
+        .mockResolvedValue(installed ? { id: "org_plugin_1" } : null),
+      upsert: vi.fn().mockResolvedValue({ id: "org_plugin_1", enabled: true }),
+    },
+    pluginInstallation: {
+      findMany: vi
+        .fn()
+        .mockResolvedValue(
+          installed ? [{ listing: { pluginId: "plugin.3d_viewer" } }] : [],
+        ),
+      findFirst: vi
+        .fn()
+        .mockResolvedValue(installed ? { id: "installation_1" } : null),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
     auditLog: {
       create: vi.fn().mockResolvedValue({ id: "audit_1" }),
     },
     pluginExecutionLog: {
-      create: vi.fn().mockResolvedValue({ id: "log_1" }),
       findMany: vi.fn().mockResolvedValue([{ id: "log_1" }]),
     },
   };
   const registry = {
     ensureRegisteredPlugins: vi.fn(),
-    getPlugin: vi.fn().mockReturnValue({
-      key: "core.text",
+    getPlugin: vi.fn((key: string) => ({
+      key,
+      name: key,
       placeholder: false,
-    }),
+      distribution: key.startsWith("core.") ? "CORE" : "MARKETPLACE",
+    })),
+    isCorePlugin: vi.fn((key: string) => key.startsWith("core.")),
   };
   const logger = {
     log: vi.fn().mockResolvedValue({ id: "log_1" }),
   };
   const service = new PluginConfigService(
-    prisma as unknown as ConstructorParameters<typeof PluginConfigService>[0],
-    registry as unknown as ConstructorParameters<typeof PluginConfigService>[1],
-    logger as unknown as ConstructorParameters<typeof PluginConfigService>[2],
+    prisma as any,
+    registry as any,
+    logger as any,
   );
   return { service, prisma, registry, logger };
 }
 
 describe("PluginConfigService", () => {
-  it("enables plugins per organization and logs the action", async () => {
+  it("lists core plugins and installed marketplace plugins only", async () => {
+    const { service } = createService();
+    const listed = await service.listPlugins("org_1");
+
+    expect(listed).toHaveLength(2);
+    expect(listed.find((plugin) => plugin.key === "core.text")?.enabled).toBe(
+      true,
+    );
+    expect(
+      listed.find((plugin) => plugin.key === "plugin.3d_viewer")?.enabled,
+    ).toBe(false);
+  });
+
+  it("enables installed marketplace plugins and synchronizes marketplace status", async () => {
     const { service, prisma, logger } = createService();
 
-    await service.enablePlugin("org_1", user, "core.text");
+    await service.enablePlugin("org_1", user, "plugin.3d_viewer");
 
-    expect(prisma.organizationPlugin.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: {
-          organizationId_pluginId: {
-            organizationId: "org_1",
-            pluginId: "plugin_1",
-          },
-        },
-      }),
-    );
-    expect(logger.log).toHaveBeenCalledWith(
-      expect.objectContaining({
+    expect(prisma.organizationPlugin.upsert).toHaveBeenCalled();
+    expect(prisma.pluginInstallation.updateMany).toHaveBeenCalledWith({
+      where: {
         organizationId: "org_1",
-        pluginId: "plugin_1",
-        action: "plugin.enabled",
-        status: "SUCCESS",
-      }),
+        listing: { pluginId: "plugin.3d_viewer" },
+      },
+      data: { status: "ACTIVE" },
+    });
+    expect(logger.log).toHaveBeenCalledWith(
+      expect.objectContaining({ action: "plugin.enabled" }),
     );
   });
 
-  it("rejects secret-like config in this phase", async () => {
+  it("rejects direct marketplace enablement before installation", async () => {
+    const { service } = createService({ installed: false });
+
+    await expect(
+      service.enablePlugin("org_1", user, "plugin.3d_viewer"),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it("keeps core plugins enabled and rejects secret-like config", async () => {
     const { service } = createService();
 
     await expect(
-      service.updateConfig("org_1", user, "core.text", {
+      service.disablePlugin("org_1", user, "core.text"),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      service.updateConfig("org_1", user, "plugin.3d_viewer", {
         apiKey: "secret",
       }),
-    ).rejects.toThrow(BadRequestException);
-  });
-
-  it("lists gets disables updates config and logs", async () => {
-    const { service, prisma, logger } = createService();
-    const listed = await service.listPlugins("org_1");
-    expect(listed[0]?.enabled).toBe(true);
-
-    prisma.plugin.findUnique.mockResolvedValue({
-      id: "plugin_1",
-      key: "core.text",
-      organizationPlugins: [{ enabled: true }],
-      pluginPermissions: [],
-    });
-    await service.getPlugin("org_1", "core.text");
-
-    await service.disablePlugin("org_1", user, "core.text");
-    expect(logger.log).toHaveBeenCalledWith(
-      expect.objectContaining({ action: "plugin.disabled" }),
-    );
-
-    await service.updateConfig("org_1", user, "core.text", { theme: "dark" });
-    expect(logger.log).toHaveBeenCalledWith(
-      expect.objectContaining({ action: "plugin.config_updated" }),
-    );
-
-    prisma.plugin.findUnique.mockResolvedValue({
-      id: "plugin_1",
-      key: "core.text",
-    });
-    expect(await service.logs("org_1", "core.text")).toEqual([{ id: "log_1" }]);
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });
-

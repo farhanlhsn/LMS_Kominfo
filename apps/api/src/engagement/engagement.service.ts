@@ -282,13 +282,21 @@ export class EngagementService {
   }
 
   async joinLiveClass(org: OrganizationContext, userId: string, id: string) {
+    await this.syncLiveClassStatuses(org.id);
     const session = await this.getLiveClass(org, userId, id);
-    if (session.status === "CANCELLED" || session.status === "ENDED") throw new ForbiddenException("This live class is not joinable");
+    if (
+      session.status === "CANCELLED" ||
+      session.status === "ENDED" ||
+      session.endAt.getTime() <= Date.now()
+    ) {
+      throw new ForbiddenException("This live class has ended and is not joinable");
+    }
     if (!session.meetingUrl) throw new NotFoundException("The meeting link is not available yet");
     return { meetingUrl: session.meetingUrl, provider: session.provider, status: session.status };
   }
 
   async calendar(org: OrganizationContext, userId: string, query: CalendarQueryDto) {
+    await this.syncLiveClassStatuses(org.id);
     const from = new Date(query.from); const to = new Date(query.to);
     if (from >= to) throw new BadRequestException("The calendar range is invalid");
     if (to.getTime() - from.getTime() > 366 * 86_400_000) throw new BadRequestException("Calendar range cannot exceed 366 days");
@@ -312,6 +320,16 @@ export class EngagementService {
 
   async createCalendarEvent(org: OrganizationContext, userId: string, dto: CreateCalendarEventDto) {
     const visibility = dto.visibility ?? (dto.courseId ? "course" : "personal");
+    const requestedType =
+      dto.type ?? (visibility === "personal" ? "PERSONAL_EVENT" : "COURSE_EVENT");
+    const type =
+      visibility === "personal"
+        ? requestedType === "PERSONAL_REMINDER"
+          ? "PERSONAL_REMINDER"
+          : "PERSONAL_EVENT"
+        : requestedType.startsWith("PERSONAL_")
+          ? "COURSE_EVENT"
+          : requestedType;
     if (visibility === "course") {
       if (!dto.courseId) throw new BadRequestException("A course is required for course events");
       await this.ensureCourseManager(org, userId, dto.courseId); await this.validateContext(org.id, dto.courseId, dto.lessonId, dto.activityId);
@@ -320,7 +338,7 @@ export class EngagementService {
     }
     if (dto.endsAt && new Date(dto.startsAt) >= new Date(dto.endsAt)) throw new BadRequestException("Event end time must be after its start time");
     if (dto.actionUrl && !dto.actionUrl.startsWith("/")) throw new BadRequestException("Calendar action URL must be an internal path");
-    const event = await this.prisma.calendarEvent.create({ data: { ...dto, organizationId: org.id, createdById: userId, startsAt: new Date(dto.startsAt), endsAt: dto.endsAt ? new Date(dto.endsAt) : undefined, sourceType: "custom", visibility, metadata: (dto.metadata ?? {}) as Prisma.InputJsonObject } });
+    const event = await this.prisma.calendarEvent.create({ data: { ...dto, courseId: visibility === "personal" ? null : dto.courseId, type, organizationId: org.id, createdById: userId, startsAt: new Date(dto.startsAt), endsAt: dto.endsAt ? new Date(dto.endsAt) : undefined, sourceType: "custom", visibility, metadata: (dto.metadata ?? {}) as Prisma.InputJsonObject } });
     if (visibility === "course" && dto.courseId) await this.notifications.createForCourseParticipants({ organizationId: org.id, type: "course_event", title: dto.title, body: `A course event is scheduled for ${new Date(dto.startsAt).toLocaleString("en-US", { timeZone: "UTC" })} UTC.`, actionUrl: dto.actionUrl ?? `/learn/courses/${dto.courseId}/calendar`, entityType: "calendar_event", entityId: event.id, metadata: { courseId: dto.courseId } });
     await this.audit(org.id, userId, "calendar.event.created", event.id); return event;
   }
@@ -330,7 +348,10 @@ export class EngagementService {
     if (event.visibility === "personal") { if (event.createdById !== userId) throw new ForbiddenException("You cannot edit this personal event"); } else await this.ensureCourseManager(org, userId, event.courseId!); const startAt = dto.startsAt ? new Date(dto.startsAt) : event.startsAt; const endAt = dto.endsAt ? new Date(dto.endsAt) : event.endsAt;
     if (endAt && startAt >= endAt) throw new BadRequestException("Event end time must be after its start time");
     if (dto.actionUrl && !dto.actionUrl.startsWith("/")) throw new BadRequestException("Calendar action URL must be an internal path");
-    const result = await this.prisma.calendarEvent.update({ where: { id }, data: { ...dto, startsAt: dto.startsAt ? startAt : undefined, endsAt: dto.endsAt ? endAt : undefined, metadata: dto.metadata as Prisma.InputJsonObject | undefined } }); await this.audit(org.id, userId, "calendar.event.updated", id); return result;
+    const type = event.visibility === "personal" && dto.type
+      ? dto.type === "PERSONAL_REMINDER" ? "PERSONAL_REMINDER" : "PERSONAL_EVENT"
+      : dto.type;
+    const result = await this.prisma.calendarEvent.update({ where: { id }, data: { ...dto, type, startsAt: dto.startsAt ? startAt : undefined, endsAt: dto.endsAt ? endAt : undefined, metadata: dto.metadata as Prisma.InputJsonObject | undefined } }); await this.audit(org.id, userId, "calendar.event.updated", id); return result;
   }
 
   async deleteCalendarEvent(org: OrganizationContext, userId: string, id: string) {

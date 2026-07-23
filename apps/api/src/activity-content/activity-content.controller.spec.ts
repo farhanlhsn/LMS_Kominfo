@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe,expect,it,vi } from "vitest";
 import { ActivityContentController } from "./activity-content.controller";
 
 const org = { id: "org-a", slug: "a", name: "A", memberId: "m1", roleKeys: ["instructor"], permissionKeys: ["courses:update"], isPlatformAdmin: false };
@@ -61,7 +61,7 @@ describe("ActivityContentController", () => {
   });
 
   it("propagates service errors", async () => {
-    const { controller, service } = setup({
+    const { controller } = setup({
       updateActivityContent: vi.fn().mockRejectedValue(new Error("boom")),
     });
     await expect(controller.updateContent(org, user, "act-1", {} as any)).rejects.toThrow("boom");

@@ -11,35 +11,18 @@ import {
   MonitorUp,
   PanelRight,
   PictureInPicture2,
-  Play,
   Plus,
   Puzzle,
   Send,
   Smartphone,
   Trash2,
-  XCircle,
+  XCircle
 } from "lucide-react";
-import React, { useCallback, useState } from "react";
-import type { ComponentType, ReactNode } from "react";
-import {
-  ExternalLinkCard,
-  PdfViewer,
-  RichTextHtmlViewer,
-  VideoPlayer,
-} from "../content/content";
-import { AssignmentActivityRenderer } from "../assignments/assignment";
-import { CodeEditor } from "../code-runner/code-editor";
-import { H5PLauncher, ScormLauncher } from "../experiences/experiences-views";
-import { QuizActivityRenderer } from "../quiz/quiz";
 import dynamic from "next/dynamic";
-import { StatusBadge } from "../ui/core";
-
-const ThreeDViewer = dynamic(
-  () =>
-    import("../content-3d/three-d-viewer").then((mod) => mod.ThreeDViewer),
-  { ssr: false, loading: () => <div className="text-sm text-muted-foreground">Loading 3D viewer…</div> },
-);
-import { useExecuteCode, useJudgeCode, useCodeSubmissions, useThreeDAssets, useCreateThreeDAsset } from "../../lib/api-hooks";
+import Image from "next/image";
+import type { ComponentType,ReactNode } from "react";
+import React,{ useState } from "react";
+import { useCodeSubmissions,useCreateThreeDAsset,useJudgeCode,useThreeDAssets } from "../../lib/api-hooks";
 import type {
   Activity,
   ActivityContentResponse,
@@ -49,6 +32,23 @@ import type {
   ThreeDFormat,
   VideoCaptionTrack,
 } from "../../lib/lms-types";
+import { AssignmentActivityRenderer } from "../assignments/assignment";
+import { CodeEditor } from "../code-runner/code-editor";
+import {
+  ExternalLinkCard,
+  PdfViewer,
+  RichTextHtmlViewer,
+  VideoPlayer,
+} from "../content/content";
+import { H5PLauncher,ScormLauncher } from "../experiences/experiences-views";
+import { QuizActivityRenderer } from "../quiz/quiz";
+import { StatusBadge } from "../ui/core";
+
+const ThreeDViewer = dynamic(
+  () =>
+    import("../content-3d/three-d-viewer").then((mod) => mod.ThreeDViewer),
+  { ssr: false, loading: () => <div className="text-sm text-muted-foreground">Loading 3D viewer…</div> },
+);
 
 type RendererProps = {
   response: ActivityContentResponse;
@@ -981,7 +981,7 @@ function ThreeDActivityEditor({ activity, children, onSaveContent }: EditorProps
               <button key={a.id} type="button" onClick={() => handleSelect(a)}
                 className={`flex items-start gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-muted/50 ${preview?.id === a.id ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border"}`}>
                 {a.thumbnailUrl
-                  ? <img src={a.thumbnailUrl} alt={a.name} className="h-12 w-12 rounded object-cover" />
+                  ? <Image src={a.thumbnailUrl} alt={a.name} width={48} height={48} unoptimized className="h-12 w-12 rounded object-cover" />
                   : <div className="flex h-12 w-12 items-center justify-center rounded bg-muted"><Box className="h-6 w-6 text-muted-foreground" /></div>}
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-xs font-medium">{a.name}</p>
@@ -1026,7 +1026,7 @@ function emptyProblem(idx: number): CodeProblem {
   };
 }
 
-function CodeRunnerActivityEditor({ activity, children }: EditorProps) {
+function CodeRunnerActivityEditor({ activity }: EditorProps) {
   const { structured } = activityPayload({ content: null, activity, plugin: null, fileAccess: null } as any);
   const initialProblems: CodeProblem[] = Array.isArray(structured?.problems)
     ? structured.problems.map((p: any, i: number) => ({
@@ -1076,9 +1076,6 @@ function CodeRunnerActivityEditor({ activity, children }: EditorProps) {
       ...p, testCases: p.testCases.filter((_, j) => j !== tcIdx),
     }));
   }
-
-  const contentJson = JSON.stringify({ problems: problems.map(({ testCases, ...rest }) => rest) }, null, 2);
-  const instructorJson = JSON.stringify({ problems }, null, 2);
 
   return (
     <section className="flex flex-col gap-4">
@@ -1191,11 +1188,11 @@ function CodeRunnerActivityEditor({ activity, children }: EditorProps) {
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Content JSON <span className="font-normal">(paste into activity Content tab)</span>
           </p>
-          <button type="button" onClick={() => void navigator.clipboard?.writeText(JSON.stringify({ problems: problems.map(({ testCases, ...rest }) => rest) }, null, 2))}
+          <button type="button" onClick={() => void navigator.clipboard?.writeText(JSON.stringify({ problems: problems.map(({ testCases: _testCases, ...rest }) => rest) }, null, 2))}
             className="rounded border border-border px-2 py-0.5 text-xs hover:bg-muted">Copy</button>
         </div>
         <pre className="max-h-32 overflow-auto rounded-lg bg-[#1e1e1e] p-3 text-xs text-green-300">
-          {JSON.stringify({ problems: problems.map(({ testCases, ...rest }) => rest) }, null, 2)}
+          {JSON.stringify({ problems: problems.map(({ testCases: _testCases, ...rest }) => rest) }, null, 2)}
         </pre>
         <p className="mt-2 text-xs text-amber-600">⚠ Test cases are NOT included in this JSON — they stay hidden from learners.</p>
       </div>

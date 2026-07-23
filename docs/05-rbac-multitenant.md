@@ -9,6 +9,57 @@
 - Super Admin can access platform-wide operations.
 - Organization Admin can manage only their organization.
 
+## Context-aware capability model
+
+Organization membership roles remain the compatibility baseline. Effective
+access is then calculated against a context tree:
+
+1. SYSTEM
+2. ORGANIZATION
+3. USER or COURSE_CATEGORY
+4. COURSE
+5. MODULE
+6. ACTIVITY
+7. PLUGIN
+
+Roles may also be assigned directly to a user at a context. A context
+assignment applies to that context and descendants only.
+
+Capability effects match Moodle semantics:
+
+- `INHERIT`: remove local override and use ancestor/default result.
+- `ALLOW`: grant for this role at this context.
+- `PREVENT`: deny for this role, but a descendant `ALLOW` may replace it.
+- `PROHIBIT`: final deny across all descendant contexts and all combined roles.
+
+When multiple active roles apply, any `ALLOW` grants unless any applicable role
+has `PROHIBIT`. Missing or inactive capability definitions fail closed.
+
+## Delegation and role switch
+
+`RoleDelegation` controls which actor role may view, assign, override, or switch
+to each target role. Possessing `roles:manage` does not make a role globally
+assignable outside its organization.
+
+Role switch is scoped to one authenticated session and one context subtree. A
+switch never changes stored membership. Returning to normal role is always
+available through an authenticated endpoint that does not require the switched
+role to retain admin capabilities.
+
+## Role lifecycle
+
+System roles cannot be removed by an organization administrator. Custom role
+removal is a soft deactivation:
+
+- inactive role grants no access;
+- active role switches using it are cleared;
+- assignments, overrides, and delegation references remain for audit and
+  potential recovery;
+- permission resolution ignores inactive or missing roles without failing a
+  page request.
+
+See `18-contextual-rbac-moodle-compatibility.md` for algorithm and API details.
+
 ## Required roles
 
 - super_admin

@@ -14,6 +14,7 @@ import {
   type RetrievedChunk,
 } from "./ai-retriever.service";
 import { AiRoutingService, type AiRoute } from "./ai-routing.service";
+import { AiTenantRuntimeService } from "./ai-tenant-runtime.service";
 
 type SourceType =
   | "COURSE_MATERIAL"
@@ -35,10 +36,13 @@ export class AiTutorService {
     private readonly routing: AiRoutingService,
     private readonly canonicalCache: AiCanonicalCacheService,
     @Optional() private readonly redis?: RedisService,
+    @Optional() private readonly tenantRuntime?: AiTenantRuntimeService,
   ) {}
 
   async ask(organizationId: string, userId: string, dto: AskAiTutorDto) {
     const startedAt = Date.now();
+    const tenantConfig =
+      (await this.tenantRuntime?.getConfig(organizationId)) ?? this.config;
     const scope = await this.ensureScope(organizationId, userId, dto);
     await this.enforceRateLimit(organizationId, userId);
 
@@ -53,7 +57,7 @@ export class AiTutorService {
         startedAt,
       });
     }
-    if (!this.config.enabled || this.config.answerMode === "DISABLED") {
+    if (!tenantConfig.enabled || tenantConfig.answerMode === "DISABLED") {
       return this.finalize({
         organizationId,
         userId,
@@ -86,8 +90,8 @@ export class AiTutorService {
         lessonId: dto.lessonId,
         activityId: dto.activityId,
         question: dto.question,
-        topK: this.config.rag.topK,
-        minScore: this.config.rag.minScore,
+        topK: tenantConfig.rag.topK,
+        minScore: tenantConfig.rag.minScore,
       });
     } catch (error) {
       if (
@@ -126,7 +130,7 @@ export class AiTutorService {
               (chunk) => `${chunk.chunkId}:${chunk.score.toFixed(3)}`,
             ),
           ]
-        : ["general", this.config.answerMode],
+        : ["general", tenantConfig.answerMode],
     );
     const cached = await this.canonicalCache.get(
       organizationId,
@@ -154,15 +158,15 @@ export class AiTutorService {
       });
     }
 
-    const provider = this.chatFactory.create();
+    const provider = this.chatFactory.create(tenantConfig);
     const notes = await this.selectedNotes(organizationId, userId, dto);
     const context = this.buildContext(chunks, dto.selectedText, notes);
     try {
       const result = await provider.generateText({
         systemPrompt: this.systemPrompt(route),
         userPrompt: `${context ? `CONTEXT:\n${context}\n\n` : ""}QUESTION:\n${dto.question}`,
-        temperature: this.config.defaultTemperature,
-        maxOutputTokens: this.config.maxOutputTokens,
+        temperature: tenantConfig.defaultTemperature,
+        maxOutputTokens: tenantConfig.maxOutputTokens,
       });
       const answer = await this.repairCourseAnswerIfNeeded({
         provider,
@@ -231,6 +235,9 @@ export class AiTutorService {
       void (async () => {
         try {
           const startedAt = Date.now();
+          const tenantConfig =
+            (await this.tenantRuntime?.getConfig(organizationId)) ??
+            this.config;
           const scope = await this.ensureScope(organizationId, userId, dto);
           await this.enforceRateLimit(organizationId, userId);
 
@@ -249,7 +256,10 @@ export class AiTutorService {
             subscriber.complete();
             return;
           }
-          if (!this.config.enabled || this.config.answerMode === "DISABLED") {
+          if (
+            !tenantConfig.enabled ||
+            tenantConfig.answerMode === "DISABLED"
+          ) {
             const result = await this.finalize({
               organizationId,
               userId,
@@ -290,8 +300,8 @@ export class AiTutorService {
               lessonId: dto.lessonId,
               activityId: dto.activityId,
               question: dto.question,
-              topK: this.config.rag.topK,
-              minScore: this.config.rag.minScore,
+              topK: tenantConfig.rag.topK,
+              minScore: tenantConfig.rag.minScore,
             });
           } catch (error) {
             if (
@@ -340,10 +350,10 @@ export class AiTutorService {
                     (chunk) => `${chunk.chunkId}:${chunk.score.toFixed(3)}`,
                   ),
                 ]
-              : ["general", this.config.answerMode],
+              : ["general", tenantConfig.answerMode],
           );
 
-          if (this.config.cache.enabled) {
+          if (tenantConfig.cache.enabled) {
             const cached = await this.canonicalCache.get(
               organizationId,
               route === "COURSE" ? dto.courseId : null,
@@ -379,15 +389,15 @@ export class AiTutorService {
             }
           }
 
-          const provider = this.chatFactory.create();
+          const provider = this.chatFactory.create(tenantConfig);
           
           if (!provider.generateStream) {
             // fallback if stream not supported
             const resultText = await provider.generateText({
               systemPrompt: this.systemPrompt(route),
               userPrompt: `${context ? `CONTEXT:\n${context}\n\n` : ""}QUESTION:\n${dto.question}`,
-              temperature: this.config.defaultTemperature,
-              maxOutputTokens: this.config.maxOutputTokens,
+              temperature: tenantConfig.defaultTemperature,
+              maxOutputTokens: tenantConfig.maxOutputTokens,
             });
             const answer = await this.repairCourseAnswerIfNeeded({
               provider,
@@ -439,8 +449,8 @@ export class AiTutorService {
           const stream = provider.generateStream({
             systemPrompt: this.systemPrompt(route),
             userPrompt: `${context ? `CONTEXT:\n${context}\n\n` : ""}QUESTION:\n${dto.question}`,
-            temperature: this.config.defaultTemperature,
-            maxOutputTokens: this.config.maxOutputTokens,
+            temperature: tenantConfig.defaultTemperature,
+            maxOutputTokens: tenantConfig.maxOutputTokens,
           });
 
           let fullAnswer = "";

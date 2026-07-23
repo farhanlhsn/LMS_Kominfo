@@ -1,5 +1,5 @@
-﻿import { IsString, IsOptional, IsBoolean, IsArray, IsEnum, IsInt, Min } from "class-validator";
-import { Type } from "class-transformer";
+﻿import { Type } from "class-transformer";
+import { IsArray,IsBoolean,IsIn,IsInt,IsOptional,IsString,IsUrl,Min } from "class-validator";
 
 export class UpdateBrandingDto {
   @IsOptional() @IsString() logoUrl?: string;
@@ -11,7 +11,7 @@ export class UpdateBrandingDto {
 }
 
 export class CreateSsoProviderDto {
-  @IsString() type: string;
+  @IsIn(["SAML", "OIDC", "GOOGLE_WORKSPACE", "MICROSOFT_ENTRA"]) type: string;
   @IsString() name: string;
   @IsString() issuer: string;
   @IsOptional() @IsString() entityId?: string;
@@ -58,7 +58,7 @@ export class CreateApiKeyDto {
 
 export class CreateWebhookDto {
   @IsString() name: string;
-  @IsString() url: string;
+  @IsUrl({ require_protocol: true }) url: string;
   @IsArray() @IsString({ each: true }) events: string[];
   @IsOptional() @IsString() description?: string;
   @IsOptional() @Type(() => Number) @IsInt() retryCount?: number;

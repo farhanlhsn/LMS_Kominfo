@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { PrismaModule } from "../prisma/prisma.module";
+import { PluginsModule } from "../plugins/plugins.module";
 import {
   CourseFeedbackController,
   H5PController,
@@ -13,7 +14,7 @@ import {
 import { ExperiencesService } from "./experiences.service";
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, PluginsModule],
   controllers: [
     ScormController,
     ScormAttemptController,

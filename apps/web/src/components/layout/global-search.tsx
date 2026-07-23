@@ -1,11 +1,10 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { Search, Loader2, BookOpen, GraduationCap, X } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api-client';
-import { cn } from '@/lib/utils';
+import { useQuery } from '@tanstack/react-query';
+import { BookOpen,GraduationCap,Loader2,Search,X } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import React,{ useEffect,useRef,useState } from 'react';
 
 interface SearchResults {
   courses: { id: string; title: string; slug: string; type: 'course' }[];

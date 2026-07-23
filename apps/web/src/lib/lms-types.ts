@@ -207,7 +207,8 @@ export interface ContentLibraryItem {
   id: string;
   title: string;
   description?: string | null;
-  type: "RICH_TEXT" | "VIDEO" | "FILE" | "PDF" | "LINK" | "IMAGE" | "THREE_D_MODEL";
+  type:
+    "RICH_TEXT" | "VIDEO" | "FILE" | "PDF" | "LINK" | "IMAGE" | "THREE_D_MODEL";
   tags?: string[];
   metadata?: Record<string, unknown>;
   fileId?: string | null;
@@ -247,6 +248,12 @@ export interface PermissionRecord {
   id?: string;
   key: string;
   description?: string | null;
+  component?: string;
+  capabilityType?: "READ" | "WRITE";
+  riskBitmask?: number;
+  contextTypes?: AccessContextType[];
+  sourcePluginKey?: string | null;
+  isActive?: boolean;
 }
 
 export interface OrganizationRoleRecord {
@@ -255,6 +262,9 @@ export interface OrganizationRoleRecord {
   name: string;
   description?: string | null;
   isSystem: boolean;
+  archetype?: string | null;
+  assignableContextTypes?: AccessContextType[];
+  isActive?: boolean;
   permissions: PermissionRecord[];
 }
 
@@ -267,6 +277,133 @@ export interface OrganizationMemberRecord {
     name?: string | null;
   };
   roles: string[];
+}
+
+export type AccessContextType =
+  | "SYSTEM"
+  | "ORGANIZATION"
+  | "USER"
+  | "COURSE_CATEGORY"
+  | "COURSE"
+  | "MODULE"
+  | "ACTIVITY"
+  | "PLUGIN";
+
+export type CapabilityEffect =
+  | "INHERIT"
+  | "ALLOW"
+  | "PREVENT"
+  | "PROHIBIT";
+
+export interface AccessContextOption {
+  type: AccessContextType;
+  instanceId: string;
+  key: string;
+  label: string;
+  parentKey: string | null;
+  component: string;
+  available: boolean;
+  missingReason?: string | null;
+}
+
+export interface ContextRoleAssignmentRecord {
+  id: string;
+  userId: string;
+  roleId: string;
+  sourceComponent: string;
+  sourceId: string;
+  startsAt?: string | null;
+  expiresAt?: string | null;
+  createdAt: string;
+  user: { id: string; email: string; name?: string | null };
+  role: {
+    id: string;
+    key: string;
+    name: string;
+    isActive?: boolean;
+  };
+  context: {
+    id: string;
+    key: string;
+    type: AccessContextType;
+    instanceId: string;
+    isActive: boolean;
+    missingReason?: string | null;
+  };
+}
+
+export interface CapabilityOverrideRecord {
+  id: string;
+  effect: Exclude<CapabilityEffect, "INHERIT">;
+  role: {
+    id: string;
+    key: string;
+    name: string;
+    isActive?: boolean;
+  };
+  permission: PermissionRecord & { id: string };
+  context: {
+    id: string;
+    key: string;
+    type: AccessContextType;
+    instanceId: string;
+    isActive: boolean;
+    missingReason?: string | null;
+  };
+}
+
+export interface RoleDelegationRecord {
+  id: string;
+  canView: boolean;
+  canAssign: boolean;
+  canOverride: boolean;
+  canSwitch: boolean;
+  actorRole: {
+    id: string;
+    key: string;
+    name: string;
+    isActive?: boolean;
+  };
+  targetRole: {
+    id: string;
+    key: string;
+    name: string;
+    isActive?: boolean;
+  };
+}
+
+export interface CapabilityDecisionRecord {
+  permissionKey: string;
+  allowed: boolean;
+  reason: string;
+  context: {
+    id: string;
+    key: string;
+    type: AccessContextType;
+    instanceId: string;
+  };
+  switchedRole?: { id: string; key: string; name: string } | null;
+  roles: Array<{
+    id: string;
+    key: string;
+    name: string;
+    assignedAt: string[];
+    baseGrant: boolean;
+    effectiveEffect: CapabilityEffect | "NONE";
+    allowed: boolean;
+  }>;
+}
+
+export interface RoleSwitchRecord {
+  id: string;
+  expiresAt?: string | null;
+  role: { id: string; key: string; name: string };
+  context: {
+    id: string;
+    key: string;
+    type: AccessContextType;
+    instanceId: string;
+  };
 }
 
 export type PluginCategory =
@@ -307,10 +444,29 @@ export interface Plugin {
   category: PluginCategory;
   status: PluginStatus;
   author?: string | null;
-  manifest?: Record<string, unknown>;
   configSchema?: Record<string, unknown> | null;
   permissions?: string[] | null;
   capabilities?: string[] | null;
+  manifest?: {
+    distribution?: "CORE" | "MARKETPLACE";
+    runtime?: {
+      kind?: "INTERNAL" | "DECLARATIVE" | "REMOTE_IFRAME";
+      entrypoint?: string;
+    };
+    compatibility?: {
+      minimumCoreVersion?: string;
+      maximumCoreVersion?: string;
+    };
+    dependencies?: string[];
+    secretConfig?: Array<{
+      key: string;
+      label: string;
+      description?: string;
+      required?: boolean;
+    }>;
+    placeholder?: boolean;
+    [key: string]: unknown;
+  };
   enabled: boolean;
   organizationPlugin?: {
     id: string;
@@ -319,6 +475,12 @@ export interface Plugin {
     installedAt: string;
     updatedAt: string;
   } | null;
+  configuredSecrets?: Array<{
+    key: string;
+    lastFour?: string | null;
+    updatedAt: string;
+    configured: boolean;
+  }>;
 }
 
 export interface PluginExecutionLog {
@@ -519,9 +681,9 @@ export interface Question {
 }
 
 /** Optional image attached to the stem (file id in storage). */
-export function questionImageFileId(
-  q: { metadata?: Record<string, unknown> | null },
-): string | null {
+export function questionImageFileId(q: {
+  metadata?: Record<string, unknown> | null;
+}): string | null {
   const id = q.metadata?.imageFileId;
   return typeof id === "string" && id.length > 0 ? id : null;
 }
@@ -535,10 +697,14 @@ export interface QuestionBank {
 }
 
 /** Tags live in metadata.tags (string[]). */
-export function questionTags(q: { metadata?: Record<string, unknown> | null }): string[] {
+export function questionTags(q: {
+  metadata?: Record<string, unknown> | null;
+}): string[] {
   const raw = q.metadata?.tags;
   if (!Array.isArray(raw)) return [];
-  return raw.filter((t): t is string => typeof t === "string" && t.trim().length > 0);
+  return raw.filter(
+    (t): t is string => typeof t === "string" && t.trim().length > 0,
+  );
 }
 
 export interface QuizQuestion {
@@ -638,6 +804,47 @@ export interface AiStatus {
   localClassifierEnabled: boolean;
   needsReindex: boolean;
   disabledReason?: string | null;
+  missingConfiguration?: string[];
+  features: Record<string, boolean>;
+}
+
+export type AiQuestionScope =
+  | "COURSE"
+  | "MODULE"
+  | "LESSON"
+  | "ACTIVITY"
+  | "DOCUMENTS";
+
+export interface AiIndexedSource {
+  id: string;
+  title: string;
+  sourceType: string;
+  lessonId?: string | null;
+  activityId?: string | null;
+  fileId?: string | null;
+  indexedAt?: string | null;
+  chunkCount: number;
+}
+
+export interface GenerateCourseAiQuestionsInput {
+  scope: AiQuestionScope;
+  moduleId?: string;
+  lessonId?: string;
+  activityId?: string;
+  sourceDocumentIds?: string[];
+  questionCount?: number;
+  difficulty?: "easy" | "medium" | "hard";
+  prompt?: string;
+}
+
+export interface AiGradingSuggestion {
+  pointsAwarded: number;
+  confidence: number;
+  feedback: string;
+  rationale: string;
+  provider: string;
+  model?: string | null;
+  reviewRequired: true;
 }
 
 export interface AiCitation {
@@ -706,18 +913,10 @@ export interface RubricLevel {
 export type AssignmentCollaborationMode = "INDIVIDUAL" | "GROUP";
 
 export type PeerReviewStatus =
-  | "PENDING"
-  | "IN_PROGRESS"
-  | "SUBMITTED"
-  | "EXPIRED"
-  | "DECLINED";
+  "PENDING" | "IN_PROGRESS" | "SUBMITTED" | "EXPIRED" | "DECLINED";
 
 export type PlagiarismCheckStatus =
-  | "PENDING"
-  | "RUNNING"
-  | "COMPLETED"
-  | "FAILED"
-  | "CANCELLED";
+  "PENDING" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
 
 export interface AssignmentGroupMember {
   id: string;
@@ -1074,8 +1273,18 @@ export interface DiscussionReport {
   status: "OPEN" | "RESOLVED" | "DISMISSED";
   createdAt: string;
   reporter?: { id: string; name?: string | null };
-  thread?: { id: string; title: string; courseId: string; status: string } | null;
-  reply?: { id: string; body: string; status: string; thread: { id: string; title: string; courseId: string } } | null;
+  thread?: {
+    id: string;
+    title: string;
+    courseId: string;
+    status: string;
+  } | null;
+  reply?: {
+    id: string;
+    body: string;
+    status: string;
+    thread: { id: string; title: string; courseId: string };
+  } | null;
 }
 
 export interface LiveClass {
@@ -1136,7 +1345,11 @@ export interface LearnerStreak {
   currentStreak: number;
   longestStreak: number;
   todayActive: boolean;
-  dailyActivity: Array<{ date: string; eventCount: number; activityMinutes: number }>;
+  dailyActivity: Array<{
+    date: string;
+    eventCount: number;
+    activityMinutes: number;
+  }>;
 }
 
 export interface LearnerGrades {
@@ -1296,7 +1509,13 @@ export interface LearningPathCourse {
   courseId: string;
   orderIndex: number;
   required: boolean;
-  course: { id: string; title: string; slug: string; thumbnailUrl?: string | null; level?: string };
+  course: {
+    id: string;
+    title: string;
+    slug: string;
+    thumbnailUrl?: string | null;
+    level?: string;
+  };
 }
 
 export interface LearningPathEnrollment {
@@ -1514,6 +1733,7 @@ export interface WebhookEndpoint {
   events: string[];
   status: string;
   description: string | null;
+  rawSecret?: string;
   _count?: { deliveries: number };
 }
 
@@ -1545,7 +1765,13 @@ export interface WishlistItem {
   id: string;
   courseId: string;
   createdAt: string;
-  course: { id: string; title: string; slug: string; thumbnailUrl?: string | null; level?: string };
+  course: {
+    id: string;
+    title: string;
+    slug: string;
+    thumbnailUrl?: string | null;
+    level?: string;
+  };
 }
 
 export interface FavoriteInstructor {
@@ -1558,7 +1784,13 @@ export interface RecentlyViewedCourse {
   id: string;
   courseId: string;
   viewedAt: string;
-  course: { id: string; title: string; slug: string; thumbnailUrl?: string | null; level?: string };
+  course: {
+    id: string;
+    title: string;
+    slug: string;
+    thumbnailUrl?: string | null;
+    level?: string;
+  };
 }
 
 export interface NotesExport {
@@ -1660,7 +1892,12 @@ export interface SurveyQuestion {
   required: boolean;
   orderIndex: number;
   options: Array<{ id: string; label: string; value?: string }>;
-  scale?: { min: number; max: number; minLabel?: string; maxLabel?: string } | null;
+  scale?: {
+    min: number;
+    max: number;
+    minLabel?: string;
+    maxLabel?: string;
+  } | null;
   createdAt: string;
 }
 
@@ -1757,10 +1994,7 @@ export interface CourseFeedbackListResponse {
 // ── Phase 21 — Data Governance & Backup ──────────────────────
 
 export type LegalDocumentType =
-  | "PRIVACY_POLICY"
-  | "TERMS"
-  | "COOKIE_POLICY"
-  | "DPA";
+  "PRIVACY_POLICY" | "TERMS" | "COOKIE_POLICY" | "DPA";
 
 export interface LegalDocument {
   id: string;
@@ -1912,25 +2146,13 @@ export interface LoginAttempt {
 // ── Phase 26 — Moderation, Legal, Consent ──────────────────────
 
 export type ModerationTargetType =
-  | "CONTENT"
-  | "USER"
-  | "COMMENT"
-  | "COURSE"
-  | "DISCUSSION";
+  "CONTENT" | "USER" | "COMMENT" | "COURSE" | "DISCUSSION";
 
 export type ModerationReportStatus =
-  | "OPEN"
-  | "IN_REVIEW"
-  | "RESOLVED"
-  | "DISMISSED";
+  "OPEN" | "IN_REVIEW" | "RESOLVED" | "DISMISSED";
 
 export type ModerationActionType =
-  | "WARN"
-  | "SUSPEND"
-  | "BAN"
-  | "REMOVE"
-  | "RESTORE"
-  | "LOCK";
+  "WARN" | "SUSPEND" | "BAN" | "REMOVE" | "RESTORE" | "LOCK";
 
 export interface ModerationReport {
   id: string;
@@ -2034,21 +2256,12 @@ export type BulkJobType =
   | "UNTAG";
 
 export type BulkJobStatus =
-  | "PENDING"
-  | "RUNNING"
-  | "COMPLETED"
-  | "FAILED"
-  | "CANCELLED"
-  | "PARTIAL";
+  "PENDING" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED" | "PARTIAL";
 
 export type BulkJobItemStatus = "PENDING" | "PROCESSED" | "FAILED" | "SKIPPED";
 
 export type BulkEntityType =
-  | "course"
-  | "user"
-  | "enrollment"
-  | "content"
-  | "tag";
+  "course" | "user" | "enrollment" | "content" | "tag";
 
 export interface BulkJobItem {
   id: string;
@@ -2093,7 +2306,11 @@ export interface CreateBulkJobInput {
 
 export interface CreateBulkJobResult {
   job: BulkJob;
-  items: Array<{ id: string; status: "ok" | "skipped" | "failed"; error?: string }>;
+  items: Array<{
+    id: string;
+    status: "ok" | "skipped" | "failed";
+    error?: string;
+  }>;
 }
 
 // ── Phase 27 — Direct Messaging ──────────────────────
@@ -2178,12 +2395,7 @@ export interface SendMessageInput {
 // ── Phase 19 — Global Search ─────────────────────────
 
 export type SearchEntityType =
-  | "course"
-  | "lesson"
-  | "discussion"
-  | "user"
-  | "certificate"
-  | "help_article";
+  "course" | "lesson" | "discussion" | "user" | "certificate" | "help_article";
 
 export interface SearchHit {
   id: string;
@@ -2267,11 +2479,7 @@ export interface HelpArticle {
 }
 
 export type SupportTicketStatus =
-  | "OPEN"
-  | "PENDING"
-  | "RESOLVED"
-  | "CLOSED"
-  | "REJECTED";
+  "OPEN" | "PENDING" | "RESOLVED" | "CLOSED" | "REJECTED";
 
 export type SupportTicketPriority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
 
@@ -2309,11 +2517,7 @@ export interface SupportTicketReply {
 // ── Phase 35 — Transcript Notes AI Context ──────────
 
 export type TranscriptNoteColor =
-  | "yellow"
-  | "green"
-  | "blue"
-  | "pink"
-  | "purple";
+  "yellow" | "green" | "blue" | "pink" | "purple";
 
 export interface TranscriptNote {
   id: string;
@@ -2375,7 +2579,10 @@ export interface ThreeDSceneRecord {
   version: number;
   createdAt: string;
   interactions?: ThreeDInteractionRecord[];
-  asset?: Pick<ThreeDAssetRecord, "id" | "name" | "format" | "url" | "thumbnailUrl">;
+  asset?: Pick<
+    ThreeDAssetRecord,
+    "id" | "name" | "format" | "url" | "thumbnailUrl"
+  >;
 }
 
 export interface ThreeDInteractionRecord {
@@ -2460,7 +2667,8 @@ export interface CodeJudgeResult {
 }
 
 // Phase 33: Plugin Marketplace Governance types
-export type PluginListingStatus = "DRAFT" | "PUBLISHED" | "SUSPENDED" | "ARCHIVED";
+export type PluginListingStatus =
+  "DRAFT" | "PUBLISHED" | "SUSPENDED" | "ARCHIVED";
 export type PluginInstallationStatus = "ACTIVE" | "DISABLED";
 export type PluginReviewStatus = "PENDING" | "APPROVED" | "REJECTED";
 
@@ -2474,6 +2682,7 @@ export interface PluginListingRecord {
   categories: string[];
   screenshots: string[];
   pricing: Record<string, unknown>;
+  dependencies?: string[];
   status: PluginListingStatus;
   submittedAt: string | null;
   publishedAt: string | null;
@@ -2481,6 +2690,11 @@ export interface PluginListingRecord {
   createdAt: string;
   updatedAt: string;
   _count?: { reviews: number; installations: number };
+  currentInstallation?: {
+    id: string;
+    status: PluginInstallationStatus;
+    installedAt: string;
+  } | null;
   reviews?: PluginReviewRecord[];
   installations?: PluginInstallationRecord[];
 }
@@ -2505,7 +2719,13 @@ export interface PluginInstallationRecord {
   installedAt: string;
   config: Record<string, unknown>;
   status: PluginInstallationStatus;
-  listing?: { id: string; name: string; pluginId: string; status: PluginListingStatus };
+  listing?: {
+    id: string;
+    name: string;
+    description?: string;
+    pluginId: string;
+    status: PluginListingStatus;
+  };
 }
 
 export interface PluginPolicyRecord {
@@ -2630,10 +2850,7 @@ export type ProctoringEventType =
 export type ProctoringSeverity = "LOW" | "MEDIUM" | "HIGH";
 export type ProctoringFlagStatus = "OPEN" | "DISMISSED" | "UPHELD";
 export type ProctoringSessionStatus =
-  | "ACTIVE"
-  | "COMPLETED"
-  | "FLAGGED"
-  | "REVIEWED";
+  "ACTIVE" | "COMPLETED" | "FLAGGED" | "REVIEWED";
 
 export interface ProctoringSession {
   id: string;
@@ -2747,16 +2964,7 @@ export interface Payout {
 
 export type TaxRuleType = "VAT" | "GST" | "SALES_TAX";
 export type SupportedCurrency =
-  | "USD"
-  | "EUR"
-  | "GBP"
-  | "IDR"
-  | "SGD"
-  | "MYR"
-  | "AUD"
-  | "JPY"
-  | "INR"
-  | "BRL";
+  "USD" | "EUR" | "GBP" | "IDR" | "SGD" | "MYR" | "AUD" | "JPY" | "INR" | "BRL";
 
 export interface TaxRegion {
   id: string;

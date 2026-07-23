@@ -29,7 +29,7 @@ export default function AdminOrdersPage() {
   const orders = payload?.data ?? [];
   const meta = payload?.meta;
   const total = orders.reduce((sum, order) => sum + (order.total ?? 0), 0);
-  const currency = orders[0]?.currency ?? "USD";
+  const currency = orders[0]?.currency ?? "IDR";
 
   return (
     <AuthGate>

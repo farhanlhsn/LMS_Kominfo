@@ -27,8 +27,8 @@ describe("marketplace utils", () => {
     expect(formatCurrency(null, "USD")).toBe("—");
   });
 
-  it("falls back to USD when currency is missing", () => {
-    expect(formatCurrency(10, null)).toContain("10.00");
+  it("falls back to IDR when currency is missing", () => {
+    expect(formatCurrency(10, null)).toContain("Rp 10");
   });
 
   it("maps order status to label and tone", () => {
@@ -75,12 +75,12 @@ describe("marketplace utils", () => {
     expect(coursePricing({ isPaid: false })).toEqual({
       isPaid: false,
       price: 0,
-      currency: "USD",
+      currency: "IDR",
     });
     expect(coursePricing(null)).toEqual({
       isPaid: false,
       price: 0,
-      currency: "USD",
+      currency: "IDR",
     });
   });
 

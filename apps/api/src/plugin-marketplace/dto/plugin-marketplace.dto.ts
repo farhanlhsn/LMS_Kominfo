@@ -1,4 +1,3 @@
-import { Type } from "class-transformer";
 import {
   ArrayMaxSize,
   IsArray,
@@ -10,7 +9,6 @@ import {
   IsString,
   Min,
   MinLength,
-  ValidateNested,
 } from "class-validator";
 
 export const PLUGIN_LISTING_STATUSES = [
@@ -21,10 +19,7 @@ export const PLUGIN_LISTING_STATUSES = [
 ] as const;
 export type PluginListingStatus = (typeof PLUGIN_LISTING_STATUSES)[number];
 
-export const PLUGIN_INSTALLATION_STATUSES = [
-  "ACTIVE",
-  "DISABLED",
-] as const;
+export const PLUGIN_INSTALLATION_STATUSES = ["ACTIVE", "DISABLED"] as const;
 export type PluginInstallationStatus =
   (typeof PLUGIN_INSTALLATION_STATUSES)[number];
 
@@ -125,6 +120,11 @@ export class InstallPluginDto {
   @IsOptional()
   @IsObject()
   config?: Record<string, unknown>;
+}
+
+export class UpdatePluginInstallationStatusDto {
+  @IsIn(PLUGIN_INSTALLATION_STATUSES as unknown as string[])
+  status!: PluginInstallationStatus;
 }
 
 export class UpdatePluginPolicyDto {

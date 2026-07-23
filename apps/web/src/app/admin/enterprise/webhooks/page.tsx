@@ -2,7 +2,10 @@
 
 import { useState } from "react";
 import { Plus } from "lucide-react";
-import { AuthGate, PermissionGate } from "../../../../components/auth/auth-gate";
+import {
+  AuthGate,
+  PermissionGate,
+} from "../../../../components/auth/auth-gate";
 import { AppShell } from "../../../../components/layout/shells";
 import { WebhookList } from "../../../../components/enterprise/webhook-list";
 import { PageHeader } from "../../../../components/ui/core";
@@ -19,6 +22,7 @@ export default function EnterpriseWebhooksPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [created, setCreated] = useState<WebhookEndpoint | null>(null);
 
   const webhooks = (query.data ?? []) as WebhookEndpoint[];
 
@@ -28,14 +32,15 @@ export default function EnterpriseWebhooksPage() {
     setError(null);
     try {
       const { api } = await import("../../../../lib/api-client");
-      await api.createWebhook({
+      const next = (await api.createWebhook({
         name,
         url,
         events: events
           .split(",")
           .map((value) => value.trim())
           .filter(Boolean),
-      });
+      })) as WebhookEndpoint;
+      setCreated(next);
       setName("");
       setUrl("");
       setEvents("");
@@ -101,7 +106,7 @@ export default function EnterpriseWebhooksPage() {
                 <input
                   className="mt-1 min-h-10 w-full rounded-md border border-input bg-card px-3 text-sm text-foreground"
                   onChange={(event) => setEvents(event.target.value)}
-                  placeholder="course.published, enrollment.created"
+                  placeholder="COURSE_PUBLISHED, ENROLLMENT_CREATED"
                   required
                   type="text"
                   value={events}
@@ -123,6 +128,30 @@ export default function EnterpriseWebhooksPage() {
                 ) : null}
               </div>
             </form>
+            {created?.rawSecret ? (
+              <div className="mt-4 rounded-md border border-warning/40 bg-warning/5 p-3">
+                <p className="text-sm font-semibold">Webhook signing secret</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Shown once. Use it to verify webhook signatures.
+                </p>
+                <div className="mt-2 flex items-center gap-2">
+                  <code className="min-w-0 flex-1 overflow-x-auto rounded bg-muted px-3 py-2 text-xs">
+                    {created.rawSecret}
+                  </code>
+                  <button
+                    className="rounded-md border border-border px-3 py-2 text-xs font-semibold"
+                    onClick={() =>
+                      void navigator.clipboard.writeText(
+                        created.rawSecret ?? "",
+                      )
+                    }
+                    type="button"
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </section>
 
           {query.loading ? (

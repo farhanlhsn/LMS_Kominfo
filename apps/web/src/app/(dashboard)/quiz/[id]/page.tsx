@@ -1,6 +1,6 @@
 'use client';
 
-import React, { use, useState, useEffect } from 'react';
+import React, { use, useCallback, useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { Brain, Clock, AlertTriangle, Play, CheckCircle2 } from 'lucide-react';
@@ -86,6 +86,14 @@ export default function QuizPage(props: { params: Promise<{ id: string }> }): Re
     },
   });
 
+  const handleAutoSubmit = useCallback(() => {
+    const formattedAnswers = Object.entries(answers).map(([qId, val]) => ({
+      questionId: qId,
+      answer: val,
+    }));
+    submitMutation.mutate({ answers: formattedAnswers });
+  }, [answers, submitMutation]);
+
   // Countdown timer logic
   useEffect(() => {
     if (timeLeft === null || timeLeft <= 0 || !isStarted) return;
@@ -102,7 +110,7 @@ export default function QuizPage(props: { params: Promise<{ id: string }> }): Re
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [timeLeft, isStarted]);
+  }, [handleAutoSubmit, timeLeft, isStarted]);
 
   const handleStart = () => {
     startMutation.mutate();
@@ -122,14 +130,6 @@ export default function QuizPage(props: { params: Promise<{ id: string }> }): Re
         return { ...prev, [questionId]: optionLabel };
       }
     });
-  };
-
-  const handleAutoSubmit = () => {
-    const formattedAnswers = Object.entries(answers).map(([qId, val]) => ({
-      questionId: qId,
-      answer: val,
-    }));
-    submitMutation.mutate({ answers: formattedAnswers });
   };
 
   const handleSubmit = () => {
@@ -244,8 +244,11 @@ export default function QuizPage(props: { params: Promise<{ id: string }> }): Re
           </CardHeader>
           <CardContent className="p-4 pt-0 grid grid-cols-5 gap-2">
             {questions.map((_, idx) => {
-              const hasAnswer = answers[questions[idx].id] !== undefined && 
-                (Array.isArray(answers[questions[idx].id]) ? (answers[questions[idx].id] as string[]).length > 0 : true);
+              const question = questions[idx];
+              if (!question) return null;
+              const answer = answers[question.id];
+              const hasAnswer = answer !== undefined &&
+                (Array.isArray(answer) ? answer.length > 0 : true);
               return (
                 <button
                   key={idx}

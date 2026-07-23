@@ -16,6 +16,10 @@ export const PERMISSIONS = {
   organizationsManage: "organizations:manage",
   membershipsManage: "memberships:manage",
   rolesManage: "roles:manage",
+  rolesView: "roles:view",
+  rolesAssign: "roles:assign",
+  rolesOverride: "roles:override",
+  rolesSwitch: "roles:switch",
   auditRead: "audit:read",
   usersRead: "users:read",
   usersUpdate: "users:update",
@@ -43,3 +47,34 @@ export const PERMISSIONS = {
 
 export type SystemRole = (typeof SYSTEM_ROLES)[keyof typeof SYSTEM_ROLES];
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
+
+export const ACCESS_CONTEXT_TYPES = [
+  "SYSTEM",
+  "ORGANIZATION",
+  "USER",
+  "COURSE_CATEGORY",
+  "COURSE",
+  "MODULE",
+  "ACTIVITY",
+  "PLUGIN",
+] as const;
+
+export type AccessContextType = (typeof ACCESS_CONTEXT_TYPES)[number];
+
+export const CAPABILITY_EFFECTS = [
+  "INHERIT",
+  "ALLOW",
+  "PREVENT",
+  "PROHIBIT",
+] as const;
+
+export type CapabilityEffect = (typeof CAPABILITY_EFFECTS)[number];
+
+export const CAPABILITY_RISKS = {
+  personalData: 1,
+  spam: 2,
+  xss: 4,
+  configuration: 8,
+  dataLoss: 16,
+  financial: 32,
+} as const;

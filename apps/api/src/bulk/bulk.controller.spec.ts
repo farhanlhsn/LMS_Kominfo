@@ -1,9 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { PermissionsGuard } from "../rbac/guards/permissions.guard";
+import { beforeEach,describe,expect,it,vi } from "vitest";
 import { JwtAuthGuard } from "../rbac/guards/jwt-auth.guard";
 import { OrganizationContextGuard } from "../rbac/guards/organization-context.guard";
+import { PermissionsGuard } from "../rbac/guards/permissions.guard";
 import { BulkOperationController } from "./bulk.controller";
-import { BulkOperationService } from "./bulk.service";
 
 describe("BulkOperationController", () => {
   let controller: BulkOperationController;

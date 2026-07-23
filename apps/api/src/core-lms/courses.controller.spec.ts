@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
 import { NotFoundException } from "@nestjs/common";
+import { describe,expect,it,vi } from "vitest";
 import { CoursesController } from "./courses.controller";
 
 const org = { id: "org-a", slug: "a", name: "A", memberId: "m1", roleKeys: ["learner"], permissionKeys: [], isPlatformAdmin: false };
@@ -60,7 +60,7 @@ describe("CoursesController", () => {
   });
 
   it("propagates not found when the course is missing", async () => {
-    const { controller, coreLms } = setup({
+    const { controller } = setup({
       getCourseDetail: vi.fn().mockRejectedValue(new NotFoundException("Course not found")),
     });
     await expect(controller.getCourse(org, "missing")).rejects.toBeInstanceOf(NotFoundException);

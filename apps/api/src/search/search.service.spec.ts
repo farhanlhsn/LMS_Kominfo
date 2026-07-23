@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe,expect,it,vi } from "vitest";
+import { MockSearchProvider } from "./search.provider";
 import { SearchService } from "./search.service";
-import { MockSearchProvider, SEARCH_PROVIDER } from "./search.provider";
 
 const org = {
   id: "org-a",

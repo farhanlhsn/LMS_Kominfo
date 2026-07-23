@@ -459,8 +459,8 @@ export function DashboardTopbar({
 
   return (
     <header className="sticky top-0 z-20 border-b border-border bg-card/95 backdrop-blur">
-      <div className="flex min-h-16 flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-3">
+      <div className="flex min-h-16 items-center gap-1 px-3 py-2 sm:gap-3 sm:px-6 lg:px-8">
+        <div className="flex min-w-0 shrink-0 items-center gap-1 sm:gap-3">
           {showBackButton ? (
             <Link
               className="inline-flex min-w-0 items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground shadow-subtle hover:bg-muted"
@@ -482,8 +482,8 @@ export function DashboardTopbar({
           ) : null}
           <OrganizationSwitcher />
         </div>
-        <div className="flex items-center gap-2">
-          <span className="hidden text-xs font-semibold uppercase tracking-wide text-muted-foreground sm:inline">
+        <div className="ml-auto flex min-w-0 items-center justify-end gap-1 sm:gap-2">
+          <span className="hidden text-xs font-semibold uppercase tracking-wide text-muted-foreground xl:inline">
             {branding?.name ?? "LMS Platform"}
           </span>
           {/* Search with dropdown */}
@@ -492,7 +492,7 @@ export function DashboardTopbar({
               <Search aria-hidden="true" className="h-4 w-4" />
             </IconButton>
             {searchOpen && (
-              <div className="absolute right-0 top-12 z-50 w-[28rem] max-w-[90vw] rounded-xl border border-border bg-card p-3 shadow-panel">
+              <div className="fixed left-3 right-3 top-[4.5rem] z-50 rounded-lg border border-border bg-card p-3 shadow-panel sm:absolute sm:left-auto sm:right-0 sm:top-12 sm:w-[28rem] sm:max-w-[calc(100vw-3rem)]">
                 <SearchBar
                   placeholder="Search courses, lessons, people…"
                   onSelect={(hit) => {
@@ -533,21 +533,25 @@ export function OrganizationSwitcher() {
   return (
     <div className="relative">
       <button
+        aria-label={`Switch organization. Active: ${name}`}
         aria-expanded={open}
-        className="inline-flex min-h-10 items-center gap-2 rounded-md border border-border bg-card px-3 text-sm font-semibold shadow-subtle"
+        className="inline-flex h-10 min-w-0 items-center gap-2 rounded-md border border-border bg-card px-2 text-sm font-semibold shadow-subtle sm:px-3"
         onClick={() => setOpen((value) => !value)}
+        title={name}
         type="button"
       >
         <Building2 aria-hidden="true" className="h-4 w-4 text-primary" />
-        <span className="hidden max-w-48 truncate sm:inline">{name}</span>
-        <span className="sm:hidden">Org</span>
+        <span className="hidden max-w-32 truncate sm:inline md:max-w-48">
+          {name}
+        </span>
+        <span className="hidden min-[360px]:inline sm:hidden">Org</span>
         <ChevronDown
           aria-hidden="true"
           className="h-4 w-4 text-muted-foreground"
         />
       </button>
       {open ? (
-        <div className="absolute left-0 top-12 z-30 w-72 rounded-lg border border-border bg-card p-2 shadow-panel">
+        <div className="fixed left-3 right-3 top-[4.5rem] z-30 w-auto rounded-lg border border-border bg-card p-2 shadow-panel sm:absolute sm:left-0 sm:right-auto sm:top-12 sm:w-72">
           <p className="px-2 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Active organization
           </p>
@@ -596,13 +600,18 @@ export function UserMenu() {
 
   return (
     <button
-      className="inline-flex min-h-10 items-center gap-2 rounded-md border border-border bg-card px-3 text-sm font-semibold shadow-subtle"
+      aria-label={`Sign out ${name}`}
+      className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border bg-card p-0 text-sm font-semibold shadow-subtle xl:w-auto xl:gap-2 xl:px-3"
       onClick={() => void logout()}
+      title={`Sign out ${name}`}
       type="button"
     >
       <UserCircle aria-hidden="true" className="h-5 w-5 text-primary" />
-      <span className="hidden sm:inline">{name}</span>
-      <LogOut aria-hidden="true" className="h-4 w-4 text-muted-foreground" />
+      <span className="hidden xl:inline">{name}</span>
+      <LogOut
+        aria-hidden="true"
+        className="hidden h-4 w-4 text-muted-foreground xl:block"
+      />
     </button>
   );
 }

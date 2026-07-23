@@ -1,16 +1,20 @@
 "use client";
 
-import type { FormEvent } from "react";
 import { useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { Save } from "lucide-react";
+import { Save, Sparkles } from "lucide-react";
 import { AuthGate } from "../../../../../components/auth/auth-gate";
 import { AppShell } from "../../../../../components/layout/shells";
 import { ButtonLink, DataTable, PageHeader, StatusBadge } from "../../../../../components/ui/core";
 import { ApiErrorState, EmptyState, LoadingState } from "../../../../../components/ui/states";
 import { api } from "../../../../../lib/api-client";
-import { useQuizAttempts } from "../../../../../lib/api-hooks";
-import type { Question, QuizAnswer, QuizAttempt } from "../../../../../lib/lms-types";
+import { useAiStatus, useQuizAttempts } from "../../../../../lib/api-hooks";
+import type {
+  AiGradingSuggestion,
+  Question,
+  QuizAnswer,
+  QuizAttempt,
+} from "../../../../../lib/lms-types";
 
 type AttemptDetail = QuizAttempt & {
   answers: Array<QuizAnswer & { question: Question }>;
@@ -28,6 +32,7 @@ type FacilityRow = {
 export default function QuizAttemptsPage() {
   const params = useParams<{ quizId: string }>();
   const attempts = useQuizAttempts(params.quizId);
+  const aiStatus = useAiStatus();
   const [detail, setDetail] = useState<AttemptDetail | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [facility, setFacility] = useState<FacilityRow[] | null>(null);
@@ -45,12 +50,14 @@ export default function QuizAttemptsPage() {
     setDetail(await api.quizAttemptDetail(attemptId));
   }
 
-  async function grade(event: FormEvent<HTMLFormElement>, answerId: string) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
+  async function grade(
+    answerId: string,
+    pointsAwarded: number,
+    feedback: string,
+  ) {
     await api.manualGradeAnswer(answerId, {
-      pointsAwarded: Number(form.get("pointsAwarded") ?? 0),
-      feedback: String(form.get("feedback") ?? ""),
+      pointsAwarded,
+      feedback,
     });
     setMessage("Answer graded.");
     if (detail) await openAttempt(detail.id);
@@ -256,32 +263,17 @@ export default function QuizAttemptsPage() {
                       </div>
                     </dl>
                     {needsGrade ? (
-                      <form
-                        className="mt-4 grid gap-3 md:grid-cols-[120px_1fr_auto]"
-                        onSubmit={(event) => void grade(event, answer.id)}
-                      >
-                        <input
-                          className="h-10 rounded-md border border-input bg-card px-3 text-sm"
-                          defaultValue={answer.pointsAwarded}
-                          max={answer.maxPoints}
-                          min={0}
-                          name="pointsAwarded"
-                          type="number"
-                        />
-                        <input
-                          className="h-10 rounded-md border border-input bg-card px-3 text-sm"
-                          defaultValue={answer.feedback ?? ""}
-                          name="feedback"
-                          placeholder="Feedback"
-                        />
-                        <button
-                          className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground"
-                          type="submit"
-                        >
-                          <Save aria-hidden="true" className="h-4 w-4" />
-                          Grade
-                        </button>
-                      </form>
+                      <ManualGradeForm
+                        aiEnabled={
+                          aiStatus.data?.features[
+                            "plugin.ai_grading_assistant"
+                          ] ?? false
+                        }
+                        answer={answer}
+                        onSubmit={(points, feedback) =>
+                          grade(answer.id, points, feedback)
+                        }
+                      />
                     ) : null}
                   </article>
                 );
@@ -291,5 +283,109 @@ export default function QuizAttemptsPage() {
         ) : null}
       </AppShell>
     </AuthGate>
+  );
+}
+
+function ManualGradeForm({
+  answer,
+  aiEnabled,
+  onSubmit,
+}: {
+  answer: QuizAnswer & { question: Question };
+  aiEnabled: boolean;
+  onSubmit: (points: number, feedback: string) => Promise<void>;
+}) {
+  const [points, setPoints] = useState(String(answer.pointsAwarded));
+  const [feedback, setFeedback] = useState(answer.feedback ?? "");
+  const [suggestion, setSuggestion] = useState<AiGradingSuggestion | null>(
+    null,
+  );
+  const [busy, setBusy] = useState<"suggest" | "save" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function suggest() {
+    setBusy("suggest");
+    setError(null);
+    try {
+      const next = await api.aiGradingSuggestion(answer.id);
+      setSuggestion(next);
+      setPoints(String(next.pointsAwarded));
+      setFeedback(next.feedback);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : String(caught));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <form
+      className="mt-4 grid gap-3"
+      onSubmit={(event) => {
+        event.preventDefault();
+        setBusy("save");
+        setError(null);
+        void onSubmit(Number(points), feedback)
+          .catch((caught) =>
+            setError(caught instanceof Error ? caught.message : String(caught)),
+          )
+          .finally(() => setBusy(null));
+      }}
+    >
+      {suggestion ? (
+        <div className="rounded-md border border-border bg-muted/40 p-3 text-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="font-semibold">AI suggestion</span>
+            <span className="text-xs text-muted-foreground">
+              {Math.round(suggestion.confidence * 100)}% confidence · instructor
+              review required
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {suggestion.rationale}
+          </p>
+        </div>
+      ) : null}
+      <div className="grid gap-3 md:grid-cols-[120px_1fr_auto_auto]">
+        <input
+          className="h-10 rounded-md border border-input bg-card px-3 text-sm"
+          max={answer.maxPoints}
+          min={0}
+          onChange={(event) => setPoints(event.target.value)}
+          type="number"
+          value={points}
+        />
+        <input
+          className="h-10 rounded-md border border-input bg-card px-3 text-sm"
+          onChange={(event) => setFeedback(event.target.value)}
+          placeholder="Feedback"
+          value={feedback}
+        />
+        {aiEnabled ? (
+          <button
+            className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-4 text-sm font-semibold disabled:opacity-50"
+            disabled={busy !== null}
+            onClick={() => void suggest()}
+            type="button"
+          >
+            <Sparkles aria-hidden="true" className="h-4 w-4" />
+            {busy === "suggest" ? "Suggesting…" : "AI suggest"}
+          </button>
+        ) : null}
+        <button
+          className="inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+          disabled={busy !== null}
+          type="submit"
+        >
+          <Save aria-hidden="true" className="h-4 w-4" />
+          {busy === "save" ? "Saving…" : "Grade"}
+        </button>
+      </div>
+      {error ? (
+        <p className="text-sm text-destructive" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </form>
   );
 }

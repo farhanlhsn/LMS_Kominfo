@@ -1,14 +1,16 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import { Percent, Wallet } from "lucide-react";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../../../components/ui/select";
-import { AuthGate, PermissionGate } from "../../../components/auth/auth-gate";
+import { PERMISSIONS } from "@lms/shared";
+import { Percent,Wallet } from "lucide-react";
+import { useCallback,useState } from "react";
+import { AuthGate,PermissionGate } from "../../../components/auth/auth-gate";
 import { AppShell } from "../../../components/layout/shells";
-import { PageHeader, FormSection } from "../../../components/ui/core";
-import { Card, CardContent, CardHeader } from "../../../components/ui/card";
+import { PayoutPeriodCard } from "../../../components/payout/payout-period-card";
 import { Button } from "../../../components/ui/button";
-import { ApiErrorState, EmptyState, LoadingState } from "../../../components/ui/states";
+import { Card,CardContent,CardHeader } from "../../../components/ui/card";
+import { FormSection,PageHeader } from "../../../components/ui/core";
+import { Select,SelectContent,SelectItem,SelectTrigger,SelectValue } from "../../../components/ui/select";
+import { ApiErrorState,EmptyState,LoadingState } from "../../../components/ui/states";
 import {
   useCreatePayoutMethod,
   useCreateRevenueShareRule,
@@ -16,8 +18,6 @@ import {
   useRevenueShareRules,
   useUpdateRevenueShareRule,
 } from "../../../lib/api-hooks";
-import { PayoutPeriodCard } from "../../../components/payout/payout-period-card";
-import { PERMISSIONS } from "@lms/shared";
 import type {
   PayoutBeneficiaryType,
   PayoutMethodType,
@@ -98,7 +98,7 @@ function PayoutsBody() {
     let details: Record<string, unknown>;
     try {
       details = methodDetails.trim() ? JSON.parse(methodDetails) : {};
-    } catch (err) {
+    } catch {
       setError("Method details must be valid JSON");
       return;
     }

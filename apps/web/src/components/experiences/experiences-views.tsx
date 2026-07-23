@@ -234,7 +234,8 @@ export function PollResultsView({ results }: { results: PollResults | null }) {
 }
 
 export function CourseFeedbackSummary({ data }: { data: CourseFeedbackListResponse | null }) {
-  if (!data || data.data.length === 0) {
+  const items = Array.isArray(data?.data) ? data.data : [];
+  if (!data || items.length === 0) {
     return createElement(EmptyState, {
       title: "No feedback yet",
       description: "Course feedback will appear here as learners respond.",
@@ -255,7 +256,7 @@ export function CourseFeedbackSummary({ data }: { data: CourseFeedbackListRespon
           </p>
         </div>
       </div>
-      <FeedbackList items={data.data} />
+      <FeedbackList items={items} />
     </div>
   );
 }

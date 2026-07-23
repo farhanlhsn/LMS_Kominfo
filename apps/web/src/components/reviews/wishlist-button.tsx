@@ -1,7 +1,7 @@
 "use client";
 
 import { Heart } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { WishlistItem } from "../../lib/lms-types";
 
 export function WishlistButton({
@@ -18,6 +18,10 @@ export function WishlistButton({
   const [active, setActive] = useState<boolean>(Boolean(initialActive));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setActive(Boolean(initialActive));
+  }, [initialActive]);
 
   async function toggle() {
     setBusy(true);

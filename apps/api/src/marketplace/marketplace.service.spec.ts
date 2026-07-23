@@ -1,5 +1,5 @@
-import { NotFoundException, BadRequestException } from "@nestjs/common";
-import { describe, expect, it, vi } from "vitest";
+import { BadRequestException,NotFoundException } from "@nestjs/common";
+import { describe,expect,it,vi } from "vitest";
 import { MarketplaceService } from "./marketplace.service";
 
 const org = { id: "org-a", slug: "a", name: "A", memberId: "m1", roleKeys: ["org_admin"], permissionKeys: [], isPlatformAdmin: false };
@@ -29,7 +29,7 @@ describe("MarketplaceService", () => {
     });
 
     it("rejects pricing for non-existent course", async () => {
-      const { service, prisma } = setup({ course: { findFirst: vi.fn().mockResolvedValue(null) } });
+      const { service } = setup({ course: { findFirst: vi.fn().mockResolvedValue(null) } });
       await expect(service.setCoursePricing(org, "course-x", { isPaid: true, price: 100 })).rejects.toBeInstanceOf(NotFoundException);
     });
   });
@@ -37,7 +37,7 @@ describe("MarketplaceService", () => {
   describe("createOrder", () => {
     it("creates order with discount from coupon", async () => {
       const { service, prisma } = setup();
-      const result = await service.createOrder(org, "user-a", { courseIds: ["course-a"], couponCode: "DISKON10" });
+      await service.createOrder(org, "user-a", { courseIds: ["course-a"], couponCode: "DISKON10" });
       expect(prisma.order.create).toHaveBeenCalled();
     });
 

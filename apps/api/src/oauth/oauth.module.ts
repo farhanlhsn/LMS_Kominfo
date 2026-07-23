@@ -1,11 +1,10 @@
 import { Module } from "@nestjs/common";
 import { JwtModule } from "@nestjs/jwt";
-import { PrismaService } from "../prisma/prisma.service";
 import { AuthModule } from "../auth/auth.module";
 import { RbacModule } from "../rbac/rbac.module";
-import { CAPTCHA_PROVIDER, MockCaptchaProvider } from "./captcha.provider";
-import { MfaController, OAuthAccountController, OAuthController, SessionController } from "./oauth.controller";
+import { CAPTCHA_PROVIDER,MockCaptchaProvider } from "./captcha.provider";
 import { MfaService } from "./mfa.service";
+import { MfaController,OAuthAccountController,OAuthController,SessionController } from "./oauth.controller";
 import { OAuthService } from "./oauth.service";
 import { SessionService } from "./session.service";
 

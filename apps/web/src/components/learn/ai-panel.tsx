@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Send, Brain, Sparkles, ChevronRight, FileText, X } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
+import { Brain,ChevronRight,FileText,Send,Sparkles,X } from 'lucide-react';
+import { useEffect,useRef,useState } from 'react';
 
 interface SourceChunk {
   id: string;
@@ -37,7 +37,6 @@ export function AiPanel({ lessonId }: AiPanelProps) {
   const [inputValue, setInputValue] = useState('');
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
   const [isPending, setIsPending] = useState(false);
-  const [activeSources, setActiveSources] = useState<SourceChunk[] | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -68,7 +67,6 @@ export function AiPanel({ lessonId }: AiPanelProps) {
     setMessages((prev) => [...prev, userMsg]);
     setInputValue('');
     setIsPending(true);
-    setActiveSources(null);
 
     // Create placeholder AI message for streaming
     const aiMsgId = `a-${Date.now()}`;
@@ -126,7 +124,6 @@ export function AiPanel({ lessonId }: AiPanelProps) {
           if (eventName === 'session' && data?.sessionId) {
             setSessionId(data.sessionId);
           } else if (eventName === 'sources' && Array.isArray(data)) {
-            setActiveSources(data);
             setMessages((prev) =>
               prev.map((m) => (m.id === aiMsgId ? { ...m, sources: data } : m)),
             );
